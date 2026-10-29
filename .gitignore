@@ -1,0 +1,9 @@
+bin/
+obj/
+*.user
+.vs/
+.idea/
+# Game assemblies are copyrighted: never commit them.
+lib/
+*.dll
+*.pdb
