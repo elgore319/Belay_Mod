@@ -43,7 +43,8 @@ Wire format: `[PacketType:byte][origin SteamId:ulong][payload]`. Channel 0 relia
    - Its own Canvas (own sorting layer, high sort order) and its own GameObject tree under a `Belay` root, so no shared UI objects are modified.
    - Input is only captured while the menu is open (cursor unlock is restored on close), and nothing reads or eats keys while it's closed.
    - All settings live in Belay's own BepInEx config file (`elgore319.belay.cfg`) and lobby data keys prefixed `belay_`, so nothing collides with other mods' settings or lobbies.
-   - Tabs: Lobby (host/browse/invite), Players (rope order, kick for host), Rules (rope length, door countdown, revive cost, gamemode), Settings (keys, rope visuals, HUD).
+   - Tabs: Lobby (host/browse/invite), Players (rope order, kick for host), Rules (rope length, door countdown, revive cost, gamemode), Mods, Settings (keys, rope visuals, HUD).
+   - **Mods tab (mod manager)**: lists every installed BepInEx plugin (`BepInEx.Bootstrap.Chainloader.PluginInfos`: name, version, GUID, file) with an on/off switch. BepInEx can't unload a plugin or its Harmony patches once the game is running, so switching one off renames its DLL to `.dll.disabled` (switching on renames it back) and the change applies on the next launch. The tab says "restart required" and offers a Quit button. Belay itself and BepInEx core can't be switched off from here. Lobbies show a warning when players run different gameplay mods.
 5. **Enemies**: network IDs for `GameEntity` spawns (deterministic from seed where possible), host AI with nearest-player targeting, client puppets, damage requests to host.
 6. **Items and pitons**: pickup/drop/use events, placed pitons and rebar are shared climbable anchors.
 7. **Stay-together mechanics**: rope stamina sharing, "anchor" bonus when a partner is gripping, goo speeds up when the group spreads out.
