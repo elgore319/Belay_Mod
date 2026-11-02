@@ -13,6 +13,7 @@ Findings from decompiling White Knuckle's `Assembly-CSharp.dll` (Unity 6000.3.9,
 | Death goo | `DEN_DeathFloor` (singleton `instance`) rises with `speed` + `speedIncreaseRate`, starts when the player passes `playerStartHeight`. | Host-owned: host streams goo height; clients pin theirs to it. Rises based on the lowest (or average) player depending on gamemode. |
 | Items / props | `Item`, `Inventory`, `HandItem_*` (piton, grappling hook, shoot...), physics props `CL_Prop` (Rigidbody). | Item pickups/drops and placed pitons become reliable events with network IDs. |
 | Doors | `UT_Door` moves between open/closed via `Open()`, `Close()`, `SetOpenAmount()`. It's triggered by scene `UnityEvent`s (trigger volumes, levers), so the first player through a trigger fires it locally. | Doors get IDs from their level and hierarchy path (identical on every client thanks to the shared seed). A local `Close()` becomes a request to the host instead of closing at once. |
+| Safe areas and money | Breakrooms/interludes call `CL_GameManager.SetSafe(true)` (via `UT_GameStateController.SetSafe` scene events) and hold vendors (`ENV_RationVendor`, `ENV_Vendor_Disk`). Currency is roaches: `CL_GameManager.GetRoaches()`, `AddRoaches(int)`, `runRoaches`. Death is `ENT_Player.Kill()`; `ENT_Player.Revive()` restores health and unlocks the player. | A Harmony postfix on `SetSafe(true)` spawns a revive station in each safe area (deterministic spot, same on all clients). A dead player's game-over screen is suppressed and they spectate teammates instead. |
 | Gamemodes | `M_Gamemode` assets, chosen in `UI_GamemodeScreen.LoadGamemode` (sets static `CL_GameManager.gamemode`, loads `gamemodeScene`). Modules: `GamemodeModule_Standard/Challenge/Training`. | Host's choice should be broadcast so clients auto-follow into the run. |
 | Steam | `SteamManager` calls `SteamClient.Init(3195790)` and pumps `RunCallbacks()`. | Belay just waits for `SteamClient.IsValid`; no second init. |
 
@@ -34,13 +35,14 @@ Wire format: `[PacketType:byte][origin SteamId:ulong][payload]`. Channel 0 relia
 
 ## Roadmap
 
-1. **Run flow**: host's gamemode choice and "start run" broadcast; clients auto-load. Late-join teleports to the host. Death and respawn sync (spectate teammates while dead).
+1. **Run flow**: host's gamemode choice and "start run" broadcast; clients auto-load. Late-join teleports to the host.
 2. **Death goo and doors**: host-authoritative goo height. Door sync: when the first player crosses a door's close trigger, the host starts a shared countdown (default 15 s, host-configurable 10-20 s) shown on everyone's HUD, then closes the door for all players at once. Players still on the wrong side when it shuts are teleported to the group (or the gamemode decides).
-3. **Enemies**: network IDs for `GameEntity` spawns (deterministic from seed where possible), host AI with nearest-player targeting, client puppets, damage requests to host.
-4. **Items and pitons**: pickup/drop/use events, placed pitons and rebar are shared climbable anchors.
-5. **Stay-together mechanics**: rope stamina sharing, "anchor" bonus when a partner is gripping, goo speeds up when the group spreads out, revive by reaching a downed teammate.
-6. **Gamemodes**: Roped (default co-op), Free Climb (no rope), Race, Hunter vs Runners.
-7. **Polish**: real player model, rope physics with wall collision, voice chat (Steam voice), in-game lobby UI matching the game's style.
+3. **Death and revive stations**: dead players spectate instead of getting the game-over screen. Every breakroom/interlude gets a revive station. A living player uses it and pays roaches (default 10, host-configurable, from the payer's own run roaches) to bring back one dead teammate, who respawns at the station via `Revive()` + `Teleport()`. If everyone is dead, the run ends. The host validates the payment and broadcasts the revive.
+4. **Enemies**: network IDs for `GameEntity` spawns (deterministic from seed where possible), host AI with nearest-player targeting, client puppets, damage requests to host.
+5. **Items and pitons**: pickup/drop/use events, placed pitons and rebar are shared climbable anchors.
+6. **Stay-together mechanics**: rope stamina sharing, "anchor" bonus when a partner is gripping, goo speeds up when the group spreads out.
+7. **Gamemodes**: Roped (default co-op), Free Climb (no rope), Race, Hunter vs Runners.
+8. **Polish**: real player model, rope physics with wall collision, voice chat (Steam voice), in-game lobby UI matching the game's style.
 
 ## Known risks
 
