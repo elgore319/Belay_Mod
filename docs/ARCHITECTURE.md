@@ -38,11 +38,17 @@ Wire format: `[PacketType:byte][origin SteamId:ulong][payload]`. Channel 0 relia
 1. **Run flow**: host's gamemode choice and "start run" broadcast; clients auto-load. Late-join teleports to the host.
 2. **Death goo and doors**: host-authoritative goo height. Door sync: when the first player crosses a door's close trigger, the host starts a shared countdown (default 15 s, host-configurable 10-20 s) shown on everyone's HUD, then closes the door for all players at once. Players still on the wrong side when it shuts are teleported to the group (or the gamemode decides).
 3. **Death and revive stations**: dead players spectate instead of getting the game-over screen. Every breakroom/interlude gets a revive station. A living player uses it and pays roaches (default 10, host-configurable, from the payer's own run roaches) to bring back one dead teammate, who respawns at the station via `Revive()` + `Teleport()`. If everyone is dead, the run ends. The host validates the payment and broadcasts the revive.
-4. **Enemies**: network IDs for `GameEntity` spawns (deterministic from seed where possible), host AI with nearest-player targeting, client puppets, damage requests to host.
-5. **Items and pitons**: pickup/drop/use events, placed pitons and rebar are shared climbable anchors.
-6. **Stay-together mechanics**: rope stamina sharing, "anchor" bonus when a partner is gripping, goo speeds up when the group spreads out.
-7. **Gamemodes**: Roped (default co-op), Free Climb (no rope), Race, Hunter vs Runners.
-8. **Polish**: real player model, rope physics with wall collision, voice chat (Steam voice), in-game lobby UI matching the game's style.
+4. **Belay mod menu**: replace the F7 debug window with a proper menu that stays out of other mods' way:
+   - A "Belay" button added to the main menu and pause menu by a Harmony postfix that only appends our own button (`UI_MenuScreen`/`UI_MenuButton`), never replacing or reordering the game's or other mods' buttons. Hotkey stays as a fallback and is rebindable in config.
+   - Its own Canvas (own sorting layer, high sort order) and its own GameObject tree under a `Belay` root, so no shared UI objects are modified.
+   - Input is only captured while the menu is open (cursor unlock is restored on close), and nothing reads or eats keys while it's closed.
+   - All settings live in Belay's own BepInEx config file (`elgore319.belay.cfg`) and lobby data keys prefixed `belay_`, so nothing collides with other mods' settings or lobbies.
+   - Tabs: Lobby (host/browse/invite), Players (rope order, kick for host), Rules (rope length, door countdown, revive cost, gamemode), Settings (keys, rope visuals, HUD).
+5. **Enemies**: network IDs for `GameEntity` spawns (deterministic from seed where possible), host AI with nearest-player targeting, client puppets, damage requests to host.
+6. **Items and pitons**: pickup/drop/use events, placed pitons and rebar are shared climbable anchors.
+7. **Stay-together mechanics**: rope stamina sharing, "anchor" bonus when a partner is gripping, goo speeds up when the group spreads out.
+8. **Gamemodes**: Roped (default co-op), Free Climb (no rope), Race, Hunter vs Runners.
+9. **Polish**: real player model, rope physics with wall collision, voice chat (Steam voice), in-game lobby UI matching the game's style.
 
 ## Known risks
 
