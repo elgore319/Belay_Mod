@@ -12,6 +12,7 @@ Findings from decompiling White Knuckle's `Assembly-CSharp.dll` (Unity 6000.3.9,
 | Enemies | `Denizen : AIGameEntity : GameEntity` with movement/attack modules and `AIGameEntity.target`. ~45 `DEN_*` types. All `GameEntity`s are in `GameEntity.entities`. Many AIs read `ENT_Player.playerObject` directly. | Plan: host-authoritative enemies. Host runs AI, retargets to the nearest player, streams transforms; clients disable AI on their copies. Each `DEN_*` that hard-codes the local player needs a small Harmony patch. |
 | Death goo | `DEN_DeathFloor` (singleton `instance`) rises with `speed` + `speedIncreaseRate`, starts when the player passes `playerStartHeight`. | Host-owned: host streams goo height; clients pin theirs to it. Rises based on the lowest (or average) player depending on gamemode. |
 | Items / props | `Item`, `Inventory`, `HandItem_*` (piton, grappling hook, shoot...), physics props `CL_Prop` (Rigidbody). | Item pickups/drops and placed pitons become reliable events with network IDs. |
+| Doors | `UT_Door` moves between open/closed via `Open()`, `Close()`, `SetOpenAmount()`. It's triggered by scene `UnityEvent`s (trigger volumes, levers), so the first player through a trigger fires it locally. | Doors get IDs from their level and hierarchy path (identical on every client thanks to the shared seed). A local `Close()` becomes a request to the host instead of closing at once. |
 | Gamemodes | `M_Gamemode` assets, chosen in `UI_GamemodeScreen.LoadGamemode` (sets static `CL_GameManager.gamemode`, loads `gamemodeScene`). Modules: `GamemodeModule_Standard/Challenge/Training`. | Host's choice should be broadcast so clients auto-follow into the run. |
 | Steam | `SteamManager` calls `SteamClient.Init(3195790)` and pumps `RunCallbacks()`. | Belay just waits for `SteamClient.IsValid`; no second init. |
 
@@ -34,7 +35,7 @@ Wire format: `[PacketType:byte][origin SteamId:ulong][payload]`. Channel 0 relia
 ## Roadmap
 
 1. **Run flow**: host's gamemode choice and "start run" broadcast; clients auto-load. Late-join teleports to the host. Death and respawn sync (spectate teammates while dead).
-2. **Death goo**: host-authoritative height.
+2. **Death goo and doors**: host-authoritative goo height. Door sync: when the first player crosses a door's close trigger, the host starts a shared countdown (default 15 s, host-configurable 10-20 s) shown on everyone's HUD, then closes the door for all players at once. Players still on the wrong side when it shuts are teleported to the group (or the gamemode decides).
 3. **Enemies**: network IDs for `GameEntity` spawns (deterministic from seed where possible), host AI with nearest-player targeting, client puppets, damage requests to host.
 4. **Items and pitons**: pickup/drop/use events, placed pitons and rebar are shared climbable anchors.
 5. **Stay-together mechanics**: rope stamina sharing, "anchor" bonus when a partner is gripping, goo speeds up when the group spreads out, revive by reaching a downed teammate.
