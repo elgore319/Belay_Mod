@@ -2,6 +2,7 @@ using System.Linq;
 using System.Globalization;
 using Belay.Net;
 using Belay.Rope;
+using Belay.Run;
 using Steamworks;
 using Steamworks.Data;
 using UnityEngine;
@@ -73,6 +74,11 @@ namespace Belay.UI
 
         private void DrawHud()
         {
+            string notice = RunFlow.Instance != null ? RunFlow.Instance.Notice : null;
+            if (notice != null)
+            {
+                GUI.Label(new Rect(10, Screen.height - 55, 600, 25), notice);
+            }
             NetSession net = NetSession.Instance;
             if (net == null || !net.InLobby)
             {
@@ -161,7 +167,10 @@ namespace Belay.UI
         private void DrawLobbySection(NetSession net)
         {
             GUILayout.Label($"Lobby: {net.GetLobbyData(NetSession.KeyName)}");
-            GUILayout.Label($"Seed: {net.Seed}   (everyone must start the same gamemode)");
+            RunInfo run = net.CurrentRun;
+            GUILayout.Label(run.IsValid
+                ? $"Run {run.RunId}: {run.Gamemode}  (seed {run.Seed})"
+                : (net.IsHost ? "Pick a gamemode from the menu to start. Everyone follows you in." : "Waiting for the host to start a run..."));
 
             GUILayout.Label("Rope order:");
             int index = 1;
@@ -187,10 +196,6 @@ namespace Belay.UI
                 if (!Mathf.Approximately(newLength, length))
                 {
                     net.SetLobbyData(NetSession.KeyRopeLength, newLength.ToString(CultureInfo.InvariantCulture));
-                }
-                if (GUILayout.Button("New seed (before starting a run)"))
-                {
-                    net.RerollSeed();
                 }
             }
             else

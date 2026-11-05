@@ -15,7 +15,7 @@ Findings from decompiling White Knuckle's `Assembly-CSharp.dll` (Unity 6000.3.9,
 | Gamemodes | `M_Gamemode` assets, chosen in `UI_GamemodeScreen.LoadGamemode` (sets static `CL_GameManager.gamemode`, loads `gamemodeScene`). Modules: `GamemodeModule_Standard/Challenge/Training`. | Host's choice should be broadcast so clients auto-follow into the run. |
 | Steam | `SteamManager` calls `SteamClient.Init(3195790)` and pumps `RunCallbacks()`. | Belay just waits for `SteamClient.IsValid`; no second init. |
 
-## Belay today (0.1.0)
+## Belay today (0.2.0)
 
 ```
 Plugin              BepInEx entry, config, Harmony
@@ -25,6 +25,7 @@ Players/WorldSpace  Local <-> shared coordinate conversion (floating origin)
 Players/PlayerSync  20 Hz local state broadcast, RemotePlayer lifecycle
 Players/RemotePlayer Puppet body/hands/name tag with smoothing
 Rope/Tether         Chain rope in join order: spring pull + fall catch when partner grips
+Run/RunFlow         Host's run (gamemode, settings, seed) in lobby data; clients follow; late-join catch-up
 Patches/WorldLoaderPatches  Lobby seed into WorldLoader, block IncrementSeed
 UI/LobbyWindow      F7 IMGUI window + HUD line
 ```
@@ -33,7 +34,7 @@ Wire format: `[PacketType:byte][origin SteamId:ulong][payload]`. Channel 0 relia
 
 ## Roadmap
 
-1. **Run flow**: host's gamemode choice and "start run" broadcast; clients auto-load. Late-join teleports to the host. Death and respawn sync (spectate teammates while dead).
+1. **Run flow** (done in 0.2.0): host's gamemode choice, options and seed go into lobby data (`belay_run`); clients auto-load once the host is in the run. Late joiners are walked up the tower with `WorldLoader.TeleportPlayerToNextLevel` (so levels generate) and then placed next to the host. Death and respawn sync (spectate teammates while dead).
 2. **Death goo**: host-authoritative height.
 3. **Enemies**: network IDs for `GameEntity` spawns (deterministic from seed where possible), host AI with nearest-player targeting, client puppets, damage requests to host.
 4. **Items and pitons**: pickup/drop/use events, placed pitons and rebar are shared climbable anchors.
