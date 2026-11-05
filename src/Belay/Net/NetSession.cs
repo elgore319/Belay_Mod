@@ -24,7 +24,7 @@ namespace Belay.Net
     public class NetSession : MonoBehaviour
     {
         public const int MaxPlayers = 8;
-        public const string ProtocolVersion = "belay-2";
+        public const string ProtocolVersion = "belay-3";
 
         // Lobby data keys
         public const string KeyTag = "belay";
@@ -34,6 +34,7 @@ namespace Belay.Net
         public const string KeyRopeLength = "rope_len";
         public const string KeyTether = "tether";
         public const string KeyRun = "belay_run";
+        public const string KeyDoorDelay = "belay_door_delay";
 
         public static NetSession Instance { get; private set; }
 
@@ -124,6 +125,7 @@ namespace Belay.Net
             lobby.SetData(KeyName, string.IsNullOrEmpty(lobbyName) ? SteamClient.Name + "'s climb" : lobbyName);
             lobby.SetData(KeyRopeLength, Plugin.DefaultRopeLength.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
             lobby.SetData(KeyTether, "1");
+            lobby.SetData(KeyDoorDelay, "15");
             RerollSeed(lobby);
             // OnLobbyEntered fires for the creator as well, which sets CurrentLobby.
         }
@@ -317,6 +319,41 @@ namespace Belay.Net
             }
         }
 
+        /// <summary>Packets a client sends that the host passes on to every other client.</summary>
+        private static readonly HashSet<PacketType> RelayedByHost = new HashSet<PacketType> { PacketType.DoorOpen };
+
+        private readonly Dictionary<PacketType, Action<SteamId, BinaryReader>> handlers =
+            new Dictionary<PacketType, Action<SteamId, BinaryReader>>();
+
+        /// <summary>Register the handler for a gameplay packet type. The origin is the player who sent it.</summary>
+        public void On(PacketType type, Action<SteamId, BinaryReader> handler)
+        {
+            handlers[type] = handler;
+        }
+
+        /// <summary>
+        /// Send a gameplay packet. From a client it goes to the host (which may relay it); from the host it
+        /// goes to every client.
+        /// </summary>
+        public void Send(PacketType type, Action<BinaryWriter> payload, bool reliable = true)
+        {
+            if (!InLobby)
+            {
+                return;
+            }
+            byte[] packet = Build(type, SteamClient.SteamId, payload);
+            int channel = reliable ? Channels.Reliable : Channels.State;
+            P2PSend sendType = reliable ? P2PSend.Reliable : P2PSend.UnreliableNoDelay;
+            if (IsHost)
+            {
+                SendToAllExcept(packet, SteamClient.SteamId, channel, sendType);
+            }
+            else
+            {
+                SteamNetworking.SendP2PPacket(HostId, packet, packet.Length, channel, sendType);
+            }
+        }
+
         private void SendReliable(PacketType type, SteamId to, Action<BinaryWriter> payload)
         {
             byte[] packet = Build(type, SteamClient.SteamId, payload);
@@ -382,6 +419,10 @@ namespace Belay.Net
                     {
                         SendToAllExcept(data, sender, channel, P2PSend.UnreliableNoDelay);
                     }
+                    else if (RelayedByHost.Contains(type))
+                    {
+                        SendToAllExcept(data, sender, channel, P2PSend.Reliable);
+                    }
                 }
                 else if (sender != HostId)
                 {
@@ -403,6 +444,12 @@ namespace Belay.Net
                         break;
                     case PacketType.PlayerLeft:
                         OnPlayerLeft?.Invoke(origin);
+                        break;
+                    default:
+                        if (handlers.TryGetValue(type, out Action<SteamId, BinaryReader> handler))
+                        {
+                            handler(origin, reader);
+                        }
                         break;
                 }
             }

@@ -3,6 +3,7 @@ using System.Globalization;
 using Belay.Net;
 using Belay.Rope;
 using Belay.Run;
+using Belay.World;
 using Steamworks;
 using Steamworks.Data;
 using UnityEngine;
@@ -85,6 +86,11 @@ namespace Belay.UI
                 return;
             }
             string text = $"Belay: {net.Members.Count()}/{NetSession.MaxPlayers} roped in";
+            float? doorSeconds = DoorSync.Instance != null ? DoorSync.Instance.NearestCountdown(out float doorDistance) : null;
+            if (doorSeconds.HasValue)
+            {
+                GUI.Label(new Rect(Screen.width / 2f - 150f, 40f, 300f, 30f), $"DOOR CLOSING IN {Mathf.CeilToInt(doorSeconds.Value)}");
+            }
             if (catchFlash > 0f)
             {
                 text += "   CAUGHT!";
@@ -197,10 +203,18 @@ namespace Belay.UI
                 {
                     net.SetLobbyData(NetSession.KeyRopeLength, newLength.ToString(CultureInfo.InvariantCulture));
                 }
+                float doorDelay = DoorSync.Instance.CloseDelay;
+                GUILayout.Label($"Door close countdown: {doorDelay:0} s");
+                float newDelay = Mathf.Round(GUILayout.HorizontalSlider(doorDelay, DoorSync.MinCloseDelay, DoorSync.MaxCloseDelay));
+                if (!Mathf.Approximately(newDelay, doorDelay))
+                {
+                    net.SetLobbyData(NetSession.KeyDoorDelay, newDelay.ToString(CultureInfo.InvariantCulture));
+                }
             }
             else
             {
                 GUILayout.Label($"Rope: {(tether ? "on" : "off")}, {length:0} m");
+                GUILayout.Label($"Door close countdown: {DoorSync.Instance.CloseDelay:0} s");
             }
 
             GUILayout.Space(6);
