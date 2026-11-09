@@ -7,3 +7,5 @@ obj/
 lib/
 *.dll
 *.pdb
+# Our own built plugin, for the release workflow
+!release/Belay.dll

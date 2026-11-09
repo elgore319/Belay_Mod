@@ -13,5 +13,9 @@ PLAY
 - The host starts the run and everyone else follows automatically.
 - Keys: F7 menu, G revive at a breakroom station, Tab switch spectate target.
 
+UPDATES
+Belay updates itself: new releases download when the game starts and apply after a restart.
+You can switch this off in the Belay menu > Settings.
+
 UNINSTALL
 Double-click "Uninstall Belay.bat". It removes Belay only and leaves BepInEx and other mods alone.
