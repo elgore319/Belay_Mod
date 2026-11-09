@@ -15,7 +15,7 @@ Findings from decompiling White Knuckle's `Assembly-CSharp.dll` (Unity 6000.3.9,
 | Gamemodes | `M_Gamemode` assets, chosen in `UI_GamemodeScreen.LoadGamemode` (sets static `CL_GameManager.gamemode`, loads `gamemodeScene`). Modules: `GamemodeModule_Standard/Challenge/Training`. | Host's choice should be broadcast so clients auto-follow into the run. |
 | Steam | `SteamManager` calls `SteamClient.Init(3195790)` and pumps `RunCallbacks()`. | Belay just waits for `SteamClient.IsValid`; no second init. |
 
-## Belay today (0.4.0)
+## Belay today (0.5.0)
 
 ```
 Plugin              BepInEx entry, config, Harmony
@@ -30,7 +30,8 @@ World/GooSync       Host-owned death goo, rubberbanded to the lowest climber, st
 World/DoorSync      Door ids, shared opens, host-run close countdown
 Revive/ReviveSystem Spectate on death, revive stations in safeArea levels, host-validated revives, run over when all dead
 Patches/WorldLoaderPatches  Lobby seed into WorldLoader, block IncrementSeed
-UI/LobbyWindow      F7 IMGUI window + HUD line
+UI/BelayMenu        Tabbed IMGUI mod menu (Lobby, Players, Rules, Mods, Settings) + HUD; button on main/pause menu
+UI/ModManager       Lists BepInEx plugins, toggles them by renaming DLLs (applies next launch)
 ```
 
 Wire format: `[PacketType:byte][origin SteamId:ulong][payload]`. Channel 0 reliable, channel 1 unreliable state. Clients send only to the host; the host validates that `origin == sender` and relays. Lobbies are tagged `belay=1` and `belay_ver=<protocol>` so vanilla lobbies and other mods' lobbies are ignored.

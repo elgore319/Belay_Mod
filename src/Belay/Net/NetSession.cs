@@ -36,6 +36,7 @@ namespace Belay.Net
         public const string KeyRun = "belay_run";
         public const string KeyDoorDelay = "belay_door_delay";
         public const string KeyReviveCost = "belay_revive_cost";
+        public const string KeyMods = "belay_mods";
 
         public static NetSession Instance { get; private set; }
 
@@ -267,6 +268,7 @@ namespace Belay.Net
                 return;
             }
             CurrentLobby = lobby;
+            lobby.SetMemberData(KeyMods, UI.ModManager.LoadedModList());
             Status = IsHost ? "Hosting" : "Connected to " + lobby.Owner.Name;
             if (!IsHost)
             {
