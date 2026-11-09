@@ -6,6 +6,7 @@ using Belay.Players;
 using Belay.Rope;
 using Belay.Run;
 using Belay.UI;
+using Belay.World;
 using HarmonyLib;
 using UnityEngine;
 
@@ -16,7 +17,7 @@ namespace Belay
     {
         public const string Guid = "elgore319.belay";
         public const string Name = "Belay";
-        public const string Version = "0.2.0";
+        public const string Version = "0.3.0";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
@@ -43,6 +44,8 @@ namespace Belay
             gameObject.AddComponent<PlayerSync>();
             gameObject.AddComponent<Tether>();
             gameObject.AddComponent<RunFlow>();
+            gameObject.AddComponent<GooSync>();
+            gameObject.AddComponent<DoorSync>();
             gameObject.AddComponent<LobbyWindow>();
 
             Log.LogInfo($"{Name} {Version} loaded");

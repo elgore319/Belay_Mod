@@ -8,6 +8,11 @@ namespace Belay.Net
         Hello = 1,
         PlayerState = 2,
         PlayerLeft = 3,
+        GooState = 10,
+        DoorOpen = 20,
+        DoorRequestClose = 21,
+        DoorCountdown = 22,
+        DoorClose = 23,
     }
 
     public static class Channels
