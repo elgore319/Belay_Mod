@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Globalization;
 using Belay.Net;
+using Belay.Revive;
 using Belay.Rope;
 using Belay.Run;
 using Belay.World;
@@ -86,6 +87,11 @@ namespace Belay.UI
                 return;
             }
             string text = $"Belay: {net.Members.Count()}/{NetSession.MaxPlayers} roped in";
+            string revivePrompt = ReviveSystem.Instance != null ? ReviveSystem.Instance.Prompt : null;
+            if (revivePrompt != null)
+            {
+                GUI.Label(new Rect(Screen.width / 2f - 250f, Screen.height * 0.7f, 500f, 30f), revivePrompt);
+            }
             float? doorSeconds = DoorSync.Instance != null ? DoorSync.Instance.NearestCountdown(out float doorDistance) : null;
             if (doorSeconds.HasValue)
             {
@@ -210,11 +216,19 @@ namespace Belay.UI
                 {
                     net.SetLobbyData(NetSession.KeyDoorDelay, newDelay.ToString(CultureInfo.InvariantCulture));
                 }
+                int reviveCost = ReviveSystem.Instance.Cost;
+                GUILayout.Label($"Revive cost: {reviveCost} roaches (paid by the reviver)");
+                int newCost = Mathf.RoundToInt(GUILayout.HorizontalSlider(reviveCost, 0, ReviveSystem.MaxCost));
+                if (newCost != reviveCost)
+                {
+                    net.SetLobbyData(NetSession.KeyReviveCost, newCost.ToString(CultureInfo.InvariantCulture));
+                }
             }
             else
             {
                 GUILayout.Label($"Rope: {(tether ? "on" : "off")}, {length:0} m");
                 GUILayout.Label($"Door close countdown: {DoorSync.Instance.CloseDelay:0} s");
+                GUILayout.Label($"Revive cost: {ReviveSystem.Instance.Cost} roaches (paid by the reviver)");
             }
 
             GUILayout.Space(6);

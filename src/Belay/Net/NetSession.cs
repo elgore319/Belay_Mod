@@ -24,7 +24,7 @@ namespace Belay.Net
     public class NetSession : MonoBehaviour
     {
         public const int MaxPlayers = 8;
-        public const string ProtocolVersion = "belay-3";
+        public const string ProtocolVersion = "belay-4";
 
         // Lobby data keys
         public const string KeyTag = "belay";
@@ -35,6 +35,7 @@ namespace Belay.Net
         public const string KeyTether = "tether";
         public const string KeyRun = "belay_run";
         public const string KeyDoorDelay = "belay_door_delay";
+        public const string KeyReviveCost = "belay_revive_cost";
 
         public static NetSession Instance { get; private set; }
 
@@ -126,6 +127,7 @@ namespace Belay.Net
             lobby.SetData(KeyRopeLength, Plugin.DefaultRopeLength.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
             lobby.SetData(KeyTether, "1");
             lobby.SetData(KeyDoorDelay, "15");
+            lobby.SetData(KeyReviveCost, "10");
             RerollSeed(lobby);
             // OnLobbyEntered fires for the creator as well, which sets CurrentLobby.
         }

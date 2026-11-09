@@ -3,6 +3,7 @@ using BepInEx.Configuration;
 using BepInEx.Logging;
 using Belay.Net;
 using Belay.Players;
+using Belay.Revive;
 using Belay.Rope;
 using Belay.Run;
 using Belay.UI;
@@ -17,7 +18,7 @@ namespace Belay
     {
         public const string Guid = "elgore319.belay";
         public const string Name = "Belay";
-        public const string Version = "0.3.0";
+        public const string Version = "0.4.0";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
@@ -26,6 +27,8 @@ namespace Belay
         public static ConfigEntry<float> DefaultRopeLength;
         public static ConfigEntry<bool> ShowRope;
         public static ConfigEntry<int> SendRate;
+        public static ConfigEntry<KeyCode> ReviveKey;
+        public static ConfigEntry<KeyCode> SpectateNextKey;
 
         private void Awake()
         {
@@ -35,6 +38,8 @@ namespace Belay
             MenuKey = Config.Bind("General", "MenuKey", KeyCode.F7, "Opens the Belay multiplayer window.");
             DefaultRopeLength = Config.Bind("Rope", "DefaultRopeLength", 12f, "Rope length (meters) used when you host a lobby.");
             ShowRope = Config.Bind("Rope", "ShowRope", true, "Draw the rope between you and your teammates.");
+            ReviveKey = Config.Bind("Revive", "ReviveKey", KeyCode.G, "Press at a revive station to revive a dead teammate.");
+            SpectateNextKey = Config.Bind("Revive", "SpectateNextKey", KeyCode.Tab, "While dead, switch which teammate you watch.");
             SendRate = Config.Bind("Network", "SendRate", 20, "Player state updates sent per second.");
 
             new Harmony(Guid).PatchAll(typeof(Plugin).Assembly);
@@ -46,6 +51,7 @@ namespace Belay
             gameObject.AddComponent<RunFlow>();
             gameObject.AddComponent<GooSync>();
             gameObject.AddComponent<DoorSync>();
+            gameObject.AddComponent<ReviveSystem>();
             gameObject.AddComponent<LobbyWindow>();
 
             Log.LogInfo($"{Name} {Version} loaded");

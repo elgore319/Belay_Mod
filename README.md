@@ -4,7 +4,7 @@ Seamless co-op for **White Knuckle**: up to 8 climbers in one tower, roped toget
 
 Built on BepInEx 5 + Harmony, using Steam lobbies and Steam P2P (the game already ships Facepunch.Steamworks).
 
-## What works in 0.3.0
+## What works in 0.4.0
 
 - **Steam lobbies**: host as Public, Friends-only or Private (up to 8). Browse public Belay lobbies in-game, or join friends through Steam invites / "Join game".
 - **Same tower for everyone**: the lobby carries a world seed, fed into White Knuckle's level generator at the start of every run.
@@ -12,10 +12,11 @@ Built on BepInEx 5 + Harmony, using Steam lobbies and Steam P2P (the game alread
 - **Late join**: joining a lobby mid-run loads you straight into it, and if you spawn far below the host you're carried up level by level and placed next to them.
 - **One death goo**: the host's goo is the real one and rises for everyone. It chases the lowest living climber, not the host, and still kills each player who falls into it.
 - **Shared doors**: when someone opens a door, it opens for everyone. When the first player goes through a door that shuts behind them, everyone sees "DOOR CLOSING IN 15" and it shuts for all players at once. The host sets the countdown (10-20 s).
+- **Death and revive stations**: dying in a lobby doesn't end your run. You spectate your teammates (Tab switches who you watch). Every breakroom and interlude has a glowing revive station: a living player stands next to it and presses G to bring back a dead teammate, paying roaches from **their own wallet** (default 10, host sets 0-50). Money is never shared. The run ends only when everyone is dead.
 - **Teammates in the world**: each player shows up as a colored body with two hands and a name tag. Hands turn white while gripping.
 - **The rope**: players are roped in a chain in join order (1-2, 2-3, ...). Past the rope length you get reeled back toward your partner, and if your partner is gripping a wall, your fall is caught (no fall damage). The host sets rope length and can turn it off.
 
-Not synced yet: enemies, items, pitons, crank-operated doors, or deaths/revives. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the plan.
+Not synced yet: enemies, items, pitons, or crank-operated doors. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the plan.
 
 ## Playing
 
