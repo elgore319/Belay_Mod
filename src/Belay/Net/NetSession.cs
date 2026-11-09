@@ -24,7 +24,7 @@ namespace Belay.Net
     public class NetSession : MonoBehaviour
     {
         public const int MaxPlayers = 8;
-        public const string ProtocolVersion = "belay-1";
+        public const string ProtocolVersion = "belay-2";
 
         // Lobby data keys
         public const string KeyTag = "belay";
@@ -33,6 +33,7 @@ namespace Belay.Net
         public const string KeySeed = "seed";
         public const string KeyRopeLength = "rope_len";
         public const string KeyTether = "tether";
+        public const string KeyRun = "belay_run";
 
         public static NetSession Instance { get; private set; }
 
@@ -211,17 +212,35 @@ namespace Belay.Net
         {
             get
             {
+                RunInfo run = CurrentRun;
+                if (run.IsValid && run.Seed != 0)
+                {
+                    return run.Seed;
+                }
                 int.TryParse(GetLobbyData(KeySeed), out int seed);
                 return seed;
             }
         }
 
-        public void RerollSeed()
+        /// <summary>The run the host last started, or an invalid RunInfo if none.</summary>
+        public RunInfo CurrentRun => RunInfo.Parse(GetLobbyData(KeyRun));
+
+        /// <summary>Host only: publish a new run with a fresh seed. Clients follow it from lobby data.</summary>
+        public RunInfo StartRun(string gamemode, List<string> settings)
         {
+            var run = new RunInfo
+            {
+                RunId = Math.Max(1, CurrentRun.RunId + 1),
+                Seed = UnityEngine.Random.Range(1, 10000000),
+                Gamemode = gamemode,
+                Settings = settings ?? new List<string>(),
+            };
             if (IsHost)
             {
-                RerollSeed(CurrentLobby.Value);
+                CurrentLobby.Value.SetData(KeySeed, run.Seed.ToString());
+                CurrentLobby.Value.SetData(KeyRun, run.Serialize());
             }
+            return run;
         }
 
         private static void RerollSeed(Lobby lobby)
