@@ -15,7 +15,7 @@ Findings from decompiling White Knuckle's `Assembly-CSharp.dll` (Unity 6000.3.9,
 | Gamemodes | `M_Gamemode` assets, chosen in `UI_GamemodeScreen.LoadGamemode` (sets static `CL_GameManager.gamemode`, loads `gamemodeScene`). Modules: `GamemodeModule_Standard/Challenge/Training`. | Host's choice should be broadcast so clients auto-follow into the run. |
 | Steam | `SteamManager` calls `SteamClient.Init(3195790)` and pumps `RunCallbacks()`. | Belay just waits for `SteamClient.IsValid`; no second init. |
 
-## Belay today (0.3.0)
+## Belay today (0.4.0)
 
 ```
 Plugin              BepInEx entry, config, Harmony
@@ -28,6 +28,7 @@ Rope/Tether         Chain rope in join order: spring pull + fall catch when part
 Run/RunFlow         Host's run (gamemode, settings, seed) in lobby data; clients follow; late-join catch-up
 World/GooSync       Host-owned death goo, rubberbanded to the lowest climber, streamed at 4 Hz
 World/DoorSync      Door ids, shared opens, host-run close countdown
+Revive/ReviveSystem Spectate on death, revive stations in safeArea levels, host-validated revives, run over when all dead
 Patches/WorldLoaderPatches  Lobby seed into WorldLoader, block IncrementSeed
 UI/LobbyWindow      F7 IMGUI window + HUD line
 ```

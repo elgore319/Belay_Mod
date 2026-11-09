@@ -13,6 +13,9 @@ namespace Belay.Net
         DoorRequestClose = 21,
         DoorCountdown = 22,
         DoorClose = 23,
+        ReviveRequest = 30,
+        Revived = 31,
+        RunOver = 32,
     }
 
     public static class Channels
