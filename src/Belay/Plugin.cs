@@ -29,6 +29,8 @@ namespace Belay
         public static ConfigEntry<int> SendRate;
         public static ConfigEntry<KeyCode> ReviveKey;
         public static ConfigEntry<KeyCode> SpectateNextKey;
+        public static ConfigEntry<bool> AutoUpdate;
+        public static ConfigEntry<string> UpdateRepo;
 
         private void Awake()
         {
@@ -41,6 +43,8 @@ namespace Belay
             ReviveKey = Config.Bind("Revive", "ReviveKey", KeyCode.G, "Press at a revive station to revive a dead teammate.");
             SpectateNextKey = Config.Bind("Revive", "SpectateNextKey", KeyCode.Tab, "While dead, switch which teammate you watch.");
             SendRate = Config.Bind("Network", "SendRate", 20, "Player state updates sent per second.");
+            AutoUpdate = Config.Bind("Updates", "AutoUpdate", true, "Download new Belay releases on launch. They apply the next time the game starts.");
+            UpdateRepo = Config.Bind("Updates", "UpdateRepo", "elgore319/Belay_Mod", "GitHub repo (owner/name) whose releases Belay updates from.");
 
             new Harmony(Guid).PatchAll(typeof(Plugin).Assembly);
 
@@ -53,6 +57,7 @@ namespace Belay
             gameObject.AddComponent<DoorSync>();
             gameObject.AddComponent<ReviveSystem>();
             gameObject.AddComponent<BelayMenu>();
+            gameObject.AddComponent<Updater>();
 
             Log.LogInfo($"{Name} {Version} loaded");
         }
