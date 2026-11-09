@@ -401,7 +401,33 @@ namespace Belay.UI
             GUILayout.Label($"Network updates per second: {Plugin.SendRate.Value}");
             Plugin.SendRate.Value = Mathf.RoundToInt(GUILayout.HorizontalSlider(Plugin.SendRate.Value, 10, 30));
             GUILayout.Space(6);
+            DrawUpdates();
+            GUILayout.Space(6);
             GUILayout.Label("Settings are saved in BepInEx/config/" + Plugin.Guid + ".cfg");
+        }
+
+        private void DrawUpdates()
+        {
+            var up = Updater.Instance;
+            GUILayout.Label("Updates (you have Belay " + Plugin.Version + ")");
+            Plugin.AutoUpdate.Value = GUILayout.Toggle(Plugin.AutoUpdate.Value, "Update automatically when the game starts");
+            if (up == null) return;
+            if (!string.IsNullOrEmpty(up.Message)) GUILayout.Label(up.Message);
+            GUILayout.BeginHorizontal();
+            bool busy = up.State == Updater.UpdateState.Checking || up.State == Updater.UpdateState.Downloading;
+            if (!busy && up.State != Updater.UpdateState.Ready && GUILayout.Button("Check for updates", GUILayout.Width(160)))
+            {
+                up.CheckNow();
+            }
+            if (up.State == Updater.UpdateState.Available && GUILayout.Button("Update to " + up.LatestVersion, GUILayout.Width(160)))
+            {
+                up.InstallNow();
+            }
+            if (up.State == Updater.UpdateState.Ready && GUILayout.Button("Quit to apply", GUILayout.Width(160)))
+            {
+                Application.Quit();
+            }
+            GUILayout.EndHorizontal();
         }
 
         private void DrawKeyBinding(string label, ConfigEntry<KeyCode> entry)

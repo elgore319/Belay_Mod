@@ -1,0 +1,76 @@
+name: Release
+
+# Publishes a GitHub release with the installer zip, a mod-only zip and Belay.dll
+# (which the in-game updater downloads).
+# Run it by hand from the Actions tab (Run workflow, tag = vX.Y.Z) or push a vX.Y.Z tag.
+#
+# Belay.dll can't be built on GitHub's runners because it compiles against the
+# game's own DLLs, which aren't in this repo. So the version-bump PR commits
+# the built release/Belay.dll and last_release_notes.md, and this workflow
+# checks that the versions match, then packages and publishes them.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, e.g. v0.5.0 (must match the version in Belay.csproj)"
+        required: true
+      prerelease:
+        description: "Mark as a pre-release (test build)"
+        type: boolean
+        default: true
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.ref || 'main' }}
+
+      - name: Check versions match the tag
+        id: ver
+        env:
+          TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+        run: |
+          set -euo pipefail
+          CSPROJ=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/Belay/Belay.csproj | head -1)
+          PLUGIN=$(sed -n 's/.*const string Version = "\(.*\)";.*/\1/p' src/Belay/Plugin.cs | head -1)
+          echo "tag=$TAG csproj=$CSPROJ plugin=$PLUGIN"
+          [ "$TAG" = "v$CSPROJ" ] || { echo "::error::Tag $TAG doesn't match Belay.csproj version $CSPROJ. Merge the version bump first."; exit 1; }
+          [ "$CSPROJ" = "$PLUGIN" ] || { echo "::error::Belay.csproj ($CSPROJ) and Plugin.cs ($PLUGIN) disagree."; exit 1; }
+          [ -f release/Belay.dll ] || { echo "::error::release/Belay.dll is missing."; exit 1; }
+          grep -qaF "$CSPROJ" release/Belay.dll || { echo "::error::release/Belay.dll isn't version $CSPROJ. Rebuild it and commit it."; exit 1; }
+          [ -s last_release_notes.md ] || { echo "::error::last_release_notes.md is missing or empty."; exit 1; }
+          echo "version=$CSPROJ" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Build zips
+        run: |
+          installer/make-package.sh "${{ steps.ver.outputs.version }}" release/Belay.dll dist
+          # The in-game updater downloads this file, so the asset name must stay "Belay.dll".
+          cp release/Belay.dll dist/Belay.dll
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          PRE: ${{ github.event_name == 'push' || inputs.prerelease }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::Release $TAG already exists. Tags can't be reused, so bump to the next version."
+            exit 1
+          fi
+          FLAGS=()
+          [ "$PRE" = "true" ] && FLAGS+=(--prerelease)
+          gh release create "$TAG" dist/*.zip dist/Belay.dll \
+            --target "$(git rev-parse HEAD)" \
+            --title "Belay ${{ steps.ver.outputs.version }}" \
+            --notes-file last_release_notes.md \
+            "${FLAGS[@]}"
