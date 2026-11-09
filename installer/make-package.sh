@@ -2,12 +2,14 @@
 # Builds release zips from a compiled Belay.dll.
 # Usage: installer/make-package.sh <version> <path/to/Belay.dll> <out-dir>
 set -euo pipefail
-VER="$1"; DLL="$2"; OUT="$3"
+VER="$1"
+DLL="$(cd "$(dirname "$2")" && pwd)/$(basename "$2")"
+mkdir -p "$3"
+OUT="$(cd "$3" && pwd)"
 BEPINEX_VER="5.4.23.6"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
-mkdir -p "$OUT"
 
 curl -sSLf -o "$WORK/bep.zip" "https://github.com/BepInEx/BepInEx/releases/download/v$BEPINEX_VER/BepInEx_win_x64_$BEPINEX_VER.zip"
 
