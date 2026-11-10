@@ -24,10 +24,99 @@ namespace Belay.Players.Avatar
             public float CenterX, CenterY, AxisX, AxisY, MinAlong, MaxAlong, MinAcross, MaxAcross;
         }
 
+        /// <summary>
+        /// Stand-ins for skins whose look comes from a special shader instead of their own art
+        /// (Inverted, Experienced, Streaked, Celestial, Sunspot), worked out on the CPU.
+        /// </summary>
+        public class Effect
+        {
+            /// <summary>Flip every color (the game's "Invert" hand materials).</summary>
+            public bool Invert;
+            /// <summary>A picture multiplied over the hand (scars, streaks), same layout as the sprite.</summary>
+            public Color32[] Multiply;
+            public int MultiplyWidth, MultiplyHeight;
+            /// <summary>A picture the hand becomes a window onto (starfield, sunset), shaded by the art.</summary>
+            public Color32[] Window;
+            public int WindowWidth, WindowHeight;
+
+            public static Effect For(string materialName, string secondaryName, Color32[] secondary, int secondaryWidth, int secondaryHeight)
+            {
+                materialName = materialName ?? "";
+                var e = new Effect { Invert = materialName.IndexOf("Invert", System.StringComparison.OrdinalIgnoreCase) >= 0 };
+                if (secondary != null && secondaryWidth > 0 && secondaryHeight > 0)
+                {
+                    if (secondaryName == "_OverlayMult")
+                    {
+                        e.Multiply = secondary; e.MultiplyWidth = secondaryWidth; e.MultiplyHeight = secondaryHeight;
+                    }
+                    else if (secondaryName == "_StaminaTexture" && materialName.IndexOf("EmissiveStamina", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        e.Window = secondary; e.WindowWidth = secondaryWidth; e.WindowHeight = secondaryHeight;
+                    }
+                }
+                return e.Invert || e.Multiply != null || e.Window != null ? e : null;
+            }
+
+            /// <summary>A copy of this effect that also multiplies <paramref name="pixels"/> over the hand.</summary>
+            public Effect WithMultiply(Color32[] pixels, int width, int height)
+            {
+                var e = (Effect)MemberwiseClone();
+                e.Multiply = pixels; e.MultiplyWidth = width; e.MultiplyHeight = height;
+                return e;
+            }
+
+            internal Color32 Apply(Color32 c, float u, float v)
+            {
+                if (Invert)
+                {
+                    c = new Color32((byte)(255 - c.r), (byte)(255 - c.g), (byte)(255 - c.b), c.a);
+                }
+                if (Multiply != null)
+                {
+                    Color32 m = Sample(Multiply, MultiplyWidth, MultiplyHeight, u, v);
+                    if (m.a > 0)
+                    {
+                        float k = m.a / 255f;
+                        c = new Color32(Mix(c.r, c.r * m.r / 255, k), Mix(c.g, c.g * m.g / 255, k), Mix(c.b, c.b * m.b / 255, k), c.a);
+                    }
+                }
+                if (Window != null)
+                {
+                    float light = (0.299f * c.r + 0.587f * c.g + 0.114f * c.b) / 255f;
+                    Color32 w = Sample(Window, WindowWidth, WindowHeight, u, v);
+                    float glow = (0.299f * w.r + 0.587f * w.g + 0.114f * w.b) / 255f;
+                    if (Invert)
+                    {
+                        // Celestial: a dark hand full of colored stars.
+                        float star = Mathf.Pow(glow, 2.2f) * 1.6f;
+                        c = new Color32(Clamp(c.r * 0.35f + w.r * star), Clamp(c.g * 0.35f + w.g * star), Clamp(c.b * 0.4f + 10 + w.b * star), c.a);
+                    }
+                    else
+                    {
+                        // Sunrise: a glowing pale hand that warms into the picture toward the fingertips.
+                        float k = Mathf.SmoothStep(0.35f, 0.9f, v) * 0.85f;
+                        float pale = Mathf.Lerp(0.75f, 1.1f, light);
+                        c = new Color32(Clamp(Mathf.Lerp(255 * pale, w.r, k)), Clamp(Mathf.Lerp(250 * pale, w.g, k)), Clamp(Mathf.Lerp(245 * pale, w.b, k)), c.a);
+                    }
+                }
+                return c;
+            }
+
+            private static Color32 Sample(Color32[] px, int w, int h, float u, float v)
+            {
+                int x = Mathf.Clamp(Mathf.FloorToInt(u * w), 0, w - 1), y = Mathf.Clamp(Mathf.FloorToInt(v * h), 0, h - 1);
+                return px[y * w + x];
+            }
+
+            private static byte Mix(int a, int b, float k) => (byte)Mathf.Clamp(Mathf.RoundToInt(a + (b - a) * k), 0, 255);
+            private static byte Clamp(float x) => (byte)Mathf.Clamp(Mathf.RoundToInt(x), 0, 255);
+        }
+
         /// <param name="pixels">Sprite pixels, row 0 at the bottom (Unity order).</param>
         /// <param name="palette">The palette strip, or null for a full-color sprite.</param>
         /// <param name="hsv">Hue shift, saturation and value multipliers; null leaves colors alone.</param>
-        public static Result Bake(Color32[] pixels, int width, int height, Color32[] palette, Vector3? hsv)
+        /// <param name="effect">A shader effect to imitate, or null.</param>
+        public static Result Bake(Color32[] pixels, int width, int height, Color32[] palette, Vector3? hsv, Effect effect = null)
         {
             var output = new Color32[pixels.Length];
             bool indexed = palette != null && palette.Length > 0 && LooksIndexed(pixels, palette.Length);
@@ -51,6 +140,10 @@ namespace Belay.Players.Avatar
                     if (hsv.HasValue)
                     {
                         c = Shift(c, hsv.Value);
+                    }
+                    if (effect != null)
+                    {
+                        c = effect.Apply(c, (x + 0.5f) / width, (y + 0.5f) / height);
                     }
                     c.a = 255;
                     output[y * width + x] = c;

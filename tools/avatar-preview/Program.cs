@@ -45,6 +45,7 @@ internal static class Program
         }
 
         // Optional hand skins: skins/manifest.txt lines "name|w|h|back.raw|palm.raw|palette.raw:width or -",
+        // optionally followed by "|material|secondaryName|secondary.raw:w:h or -" for shader-only skins,
         // raw files being RGBA rows bottom-up (see README).
         var skinNames = new List<string>();
         string manifest = Environment.GetEnvironmentVariable("SKINS_DIR");
@@ -61,8 +62,23 @@ internal static class Program
                     palette = Raw(Path.Combine(manifest, pf[0]));
                     Array.Resize(ref palette, int.Parse(pf[1]));
                 }
-                SkinBaker.Result back = SkinBaker.Bake(Raw(Path.Combine(manifest, f[3])), w, h, palette, null);
-                SkinBaker.Result palm = SkinBaker.Bake(Raw(Path.Combine(manifest, f[4])), w, h, palette, null);
+                // Optional shader effect: "|material|secondaryName|secondary.raw:w:h" (or "-" for no texture).
+                SkinBaker.Effect effect = null;
+                if (f.Length > 8)
+                {
+                    Color32[] sec = null;
+                    int sw = 0, sh = 0;
+                    if (f[8] != "-")
+                    {
+                        string[] sf = f[8].Split(':');
+                        sec = Raw(Path.Combine(manifest, sf[0]));
+                        sw = int.Parse(sf[1]);
+                        sh = int.Parse(sf[2]);
+                    }
+                    effect = SkinBaker.Effect.For(f[6], f[7], sec, sw, sh);
+                }
+                SkinBaker.Result back = SkinBaker.Bake(Raw(Path.Combine(manifest, f[3])), w, h, palette, null, effect);
+                SkinBaker.Result palm = SkinBaker.Bake(Raw(Path.Combine(manifest, f[4])), w, h, palette, null, effect);
                 textures.Add(Tex(SkinBaker.Atlas(back, palm, false, 64, 96), 128, 96));
                 textures.Add(Tex(SkinBaker.Atlas(back, palm, true, 64, 96), 128, 96));
                 skinNames.Add(f[0]);

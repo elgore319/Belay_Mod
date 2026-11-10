@@ -11,3 +11,9 @@ node render.js                                    # writes preview.png (Playwrig
 
 The preview uses the design's full 1.8 m proportions; in game the model is scaled to the
 player's 1.5 m capsule (`ClimberAvatar.Scale`).
+
+## Hand skins
+
+`SKINS_DIR=<dir> dotnet run ...` adds the game's hand cosmetics on the 3D hands (render with
+`VIEWS='[["skins",0,"..."]]'`). Build `<dir>` from your own install with `scripts/make_skins.py`.
+Skin art comes from the local game files and is never committed.

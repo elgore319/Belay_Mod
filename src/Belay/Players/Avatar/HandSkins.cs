@@ -220,25 +220,18 @@ namespace Belay.Players.Avatar
                     }
                 }
             }
-            if (palette == null)
-            {
-                // Default hands, and skins drawn in the default colors: that palette lives on the game's
-                // hand material.
-                Material handMaterial = localHand.handSprite != null ? localHand.handSprite.sharedMaterial : null;
-                if (handMaterial != null && handMaterial.HasProperty("_PaletteBase"))
-                {
-                    palette = handMaterial.GetTexture("_PaletteBase");
-                }
-            }
+            // Without a palette of its own a skin is drawn with its sprite's own colors (the game sets
+            // _PaletteBaseBlend to 0), so never borrow the palette of whatever the local hand wears.
             Color32[] palettePixels = palette != null ? TextureReader.Read(palette, new Rect(0, 0, palette.width, 1), false) : null;
+            SkinBaker.Effect effect = EffectOf(cosmetic);
 
             // The game's "normal" pose is the back of the hand; "open" shows the palm.
-            SkinBaker.Result? back = Picture(localHand, cosmetic, hand, "normal", palettePixels, hsv);
+            SkinBaker.Result? back = Picture(localHand, cosmetic, hand, "normal", palettePixels, hsv, effect);
             if (!back.HasValue)
             {
                 return null;
             }
-            SkinBaker.Result palm = Picture(localHand, cosmetic, hand, "open", palettePixels, hsv) ?? back.Value;
+            SkinBaker.Result palm = Picture(localHand, cosmetic, hand, "open", palettePixels, hsv, effect) ?? back.Value;
 
             // Our glove UVs put the thumb on the right of the back picture. The skin art for each hand
             // shows that hand from behind once the game's own flip is applied, drawn as a left hand.
@@ -269,8 +262,60 @@ namespace Belay.Players.Avatar
             return material;
         }
 
+        /// <summary>
+        /// Skins like Inverted, Experienced or Celestial have no art of their own: a special material
+        /// recolors the default hand. Imitate the common ones.
+        /// </summary>
+        private static SkinBaker.Effect EffectOf(Cosmetic_HandItem cosmetic)
+        {
+            Cosmetic_HandItem.Cosmetic_HandItem_Data data = cosmetic?.cosmeticData;
+            if (data == null || string.IsNullOrEmpty(data.globalMaterialBase))
+            {
+                return null;
+            }
+            string name = null;
+            Color32[] pixels = null;
+            int w = 0, h = 0;
+            if (data.useGlobalSecondary && data.globalSecondary != null)
+            {
+                foreach (Cosmetic_HandItem.SwapSprite.SecondaryTextures secondary in data.globalSecondary)
+                {
+                    if ((secondary.name == "_OverlayMult" || secondary.name == "_StaminaTexture")
+                        && secondary.secondaryTextureSprites != null && secondary.secondaryTextureSprites.Count > 0
+                        && secondary.secondaryTextureSprites[0] != null)
+                    {
+                        Sprite sprite = secondary.secondaryTextureSprites[0];
+                        Rect rect = sprite.textureRect;
+                        pixels = TextureReader.Read(sprite.texture, rect, false);
+                        w = Mathf.RoundToInt(rect.width);
+                        h = Mathf.RoundToInt(rect.height);
+                        name = secondary.name;
+                        break;
+                    }
+                }
+            }
+            return SkinBaker.Effect.For(data.globalMaterialBase, name, pixels, w, h);
+        }
+
+        private static Sprite OverlayOf(List<Cosmetic_HandItem.SwapSprite.SecondaryTextures> secondaries)
+        {
+            if (secondaries == null)
+            {
+                return null;
+            }
+            foreach (Cosmetic_HandItem.SwapSprite.SecondaryTextures secondary in secondaries)
+            {
+                if (secondary.name == "_OverlayMult" && secondary.secondaryTextureSprites != null
+                    && secondary.secondaryTextureSprites.Count > 0 && secondary.secondaryTextureSprites[0] != null)
+                {
+                    return secondary.secondaryTextureSprites[0];
+                }
+            }
+            return null;
+        }
+
         private static SkinBaker.Result? Picture(ENT_Player.Hand localHand, Cosmetic_HandItem cosmetic, int hand, string pose,
-            Color32[] palette, Vector3? hsv)
+            Color32[] palette, Vector3? hsv, SkinBaker.Effect effect)
         {
             Sprite sprite = localHand.GetPoseSprite(pose);
             if (sprite == null)
@@ -280,23 +325,45 @@ namespace Belay.Players.Avatar
             List<Cosmetic_HandItem.SwapSprite> swaps = cosmetic?.cosmeticData?.swapSprites;
             if (swaps != null)
             {
+                string baseName = sprite.name;
                 foreach (Cosmetic_HandItem.SwapSprite swap in swaps)
                 {
-                    if (swap.spriteName == sprite.name && (swap.hand == -1 || swap.hand == hand)
-                        && swap.replacementSprites != null && swap.replacementSprites.Count > 0 && swap.replacementSprites[0] != null)
+                    if (swap.spriteName != baseName || (swap.hand != -1 && swap.hand != hand))
+                    {
+                        continue;
+                    }
+                    if (swap.replacementSprites != null && swap.replacementSprites.Count > 0 && swap.replacementSprites[0] != null)
                     {
                         sprite = swap.replacementSprites[0];
-                        break;
                     }
+                    // Some skins (Bloodied) keep the default art and multiply a picture over it.
+                    Sprite overlay = OverlayOf(swap.secondaryTextures);
+                    if (overlay != null)
+                    {
+                        Rect o = overlay.textureRect;
+                        Color32[] px = TextureReader.Read(overlay.texture, o, false);
+                        if (px != null)
+                        {
+                            effect = (effect ?? new SkinBaker.Effect()).WithMultiply(px, Mathf.RoundToInt(o.width), Mathf.RoundToInt(o.height));
+                        }
+                    }
+                    break;
                 }
             }
-            Rect rect = sprite.textureRect;
+            // Read the sprite's whole frame (not just its trimmed pixels), so overlays drawn for the
+            // full frame line up.
+            Rect rect = sprite.rect;
+            if (rect.xMin < 0 || rect.yMin < 0 || rect.xMax > sprite.texture.width || rect.yMax > sprite.texture.height
+                || !sprite.textureRect.Overlaps(rect))
+            {
+                rect = sprite.textureRect;
+            }
             Color32[] pixels = TextureReader.Read(sprite.texture, rect, palette != null);
             if (pixels == null)
             {
                 return null;
             }
-            return SkinBaker.Bake(pixels, Mathf.RoundToInt(rect.width), Mathf.RoundToInt(rect.height), palette, hsv);
+            return SkinBaker.Bake(pixels, Mathf.RoundToInt(rect.width), Mathf.RoundToInt(rect.height), palette, hsv, effect);
         }
 
         private static float Part(string[] parts, int index, float fallback)

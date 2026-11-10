@@ -87,16 +87,23 @@ const page = `<html><body style="margin:0;background:#16171a"><canvas id="c"></c
     labels.style.cssText = 'position:absolute;top:14px;left:0;display:flex;font:15px sans-serif;color:#ccd';
     labels.innerHTML = views.map(v => `<div style="width:${W}px;text-align:center">${v[2]}</div>`).join('');
     if (views.length === 1 && views[0][0] === 'skins') {
-      const flip = views[0][1] === 180;
-      const rows = Math.ceil(model.skins.length / 3);
-      for (let r = 0; r < rows; r++) {
-        let row = model.skins.slice(r * 3, r * 3 + 3);
-        if (flip) row = row.reverse();
-        const names = document.createElement('div');
-        names.style.cssText = `position:absolute;top:${H / 2 + (r - (rows - 1) / 2) * H * 0.42 * 0.95 + H * 0.17}px;left:0;display:flex;font:16px sans-serif;color:#ccd;width:${W}px`;
-        names.innerHTML = row.map(n => `<div style="flex:1;text-align:center">${n}</div>`).join('');
-        document.body.appendChild(names);
-      }
+      // Put each skin's name under its hands by projecting its spot through the camera.
+      const [, angle] = views[0];
+      const a = angle * Math.PI / 180;
+      const n = Math.min(3, model.skins.length), rows = Math.ceil(model.skins.length / n);
+      const d = 1.0 * n * 1.02 / (2 * Math.tan(15 * Math.PI / 180) * (W / H));
+      const camera = new THREE.PerspectiveCamera(30, W / H, 0.1, 50);
+      camera.position.set(Math.sin(a) * d, 0.08, Math.cos(a) * d);
+      camera.lookAt(0, 0.08, 0);
+      camera.updateMatrixWorld();
+      model.skins.forEach((name, i) => {
+        const x = (i % n - (n - 1) * 0.5) * 1.0, y = ((rows - 1) * 0.5 - Math.floor(i / n)) * 0.42 - 0.17;
+        const p = new THREE.Vector3(x, y, 0).project(camera);
+        const el = document.createElement('div');
+        el.style.cssText = `position:absolute;left:${(p.x + 1) / 2 * W - 150}px;top:${(1 - p.y) / 2 * H}px;width:300px;text-align:center;font:17px sans-serif;color:#dde`;
+        el.textContent = name;
+        document.body.appendChild(el);
+      });
     }
     document.body.appendChild(labels);
   }, { data, views, W, H });
