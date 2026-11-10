@@ -269,33 +269,85 @@ namespace Belay.Players.Avatar
             k.Use(Slot.Metal).Box(new Vector3(0, 0.02f, 0.07f), new Vector3(0.055f, 0.014f, 0.06f));
         }
 
-        /// <summary>A gloved fist gripping a hold. Origin at the wrist, +z toward the knuckles, +y the back of the hand.</summary>
-        public static void BuildFist(MeshKit k, bool left)
+        // Hands. Origin at the wrist, +z toward the fingertips, +y the back of the hand. The whole hand,
+        // cuff to fingertips, is projected onto UVs from above and below, so the game's pictures of a
+        // glove skin (back of the hand and palm) wrap onto it the way the game draws them.
+        public const float HandUvMinZ = -0.05f;
+        public const float HandUvLength = 0.22f;
+        public const float HandUvMinX = -0.052f;
+        public const float HandUvWidth = 0.142f;
+
+        private static void HandSetup(MeshKit k, float thumbSide)
         {
-            float thumbSide = left ? 1f : -1f;
+            // The skin texture is an atlas: the back of the hand on the left half, the palm on the right
+            // (seen from the front, so the thumb is on the other side).
+            k.UvProjection = (p, n) =>
+            {
+                float u = Mathf.Clamp01((p.x * thumbSide - HandUvMinX) / HandUvWidth);
+                float v = Mathf.Clamp01((p.z - HandUvMinZ) / HandUvLength);
+                return n.y >= -0.2f ? new Vector2(u * 0.5f, v) : new Vector2(0.5f + (1f - u) * 0.5f, v);
+            };
+            k.Softness = 0.75f;
             k.Use(Slot.Glove);
-            k.Block(new Vector3(0, -0.045f, 0.0f), 0.085f, 0.09f, 0.095f, 0.095f, 0.105f, 0.01f);
-            k.Block(new Vector3(0, -0.04f, 0.085f), 0.07f, 0.095f, 0.055f, 0.095f, 0.045f, 0.0f);
-            k.Tube(new Vector3(thumbSide * 0.05f, -0.02f, 0.02f), new Vector3(thumbSide * 0.032f, -0.03f, 0.085f), 0.019f, 0.016f, 6);
-            k.Use(Slot.Pad).Block(new Vector3(0, 0.032f, 0.05f), 0.012f, 0.08f, 0.07f, 0.075f, 0.06f);
-            k.Use(Slot.JacketTrim).Tube(new Vector3(0, 0, -0.025f), new Vector3(0, 0, 0.015f), 0.056f, 0.056f, 8);
+            // Cuff and the heel of the hand.
+            k.Tube(new Vector3(0, -0.005f, HandUvMinZ), new Vector3(0, -0.01f, 0.005f), 0.05f, 0.046f, 8);
         }
 
-        /// <summary>An open gloved hand reaching for a hold. Same space as <see cref="BuildFist"/>.</summary>
-        public static void BuildOpenHand(MeshKit k, bool left)
+        private static void Finger(MeshKit k, float radius, params Vector3[] joints)
         {
-            float thumbSide = left ? 1f : -1f;
-            k.Use(Slot.Glove);
-            k.Block(new Vector3(0, -0.018f, 0.0f), 0.034f, 0.09f, 0.095f, 0.095f, 0.105f, 0.0f);
+            for (int i = 0; i < joints.Length - 1; i++)
+            {
+                float r0 = Mathf.Lerp(radius, radius * 0.8f, (float)i / (joints.Length - 1));
+                float r1 = Mathf.Lerp(radius, radius * 0.8f, (float)(i + 1) / (joints.Length - 1));
+                k.Tube(joints[i], joints[i + 1], r0, r1, 6);
+                k.Ellipsoid(joints[i + 1], Vector3.one * r1, 2, 6);
+            }
+        }
+
+        /// <summary>A gloved fist gripping a hold: fingers curled under, thumb wrapped across.</summary>
+        public static void BuildFist(MeshKit k, bool left)
+        {
+            float t = left ? 1f : -1f;
+            HandSetup(k, t);
+            k.Block(new Vector3(0, -0.03f, 0.0f), 0.05f, 0.085f, 0.1f, 0.09f, 0.105f, 0.008f);
+            float[] curl = { 0.0f, 0.004f, 0.0f, -0.008f };
             for (int i = 0; i < 4; i++)
             {
-                float x = (i - 1.5f) * 0.022f * -thumbSide;
-                float reach = 0.085f + (i == 1 || i == 2 ? 0.012f : 0f);
-                k.Tube(new Vector3(x, 0f, 0.095f), new Vector3(x, -0.012f, 0.095f + reach), 0.012f, 0.01f, 5);
+                float x = (i - 1.5f) * 0.022f * -t + t * 0.003f;
+                float c = curl[i];
+                Finger(k, 0.0125f,
+                    new Vector3(x, -0.006f, 0.095f),
+                    new Vector3(x, -0.016f, 0.13f + c),
+                    new Vector3(x, -0.048f, 0.128f + c),
+                    new Vector3(x * 0.95f, -0.058f, 0.1f + c));
             }
-            k.Tube(new Vector3(thumbSide * 0.048f, -0.005f, 0.03f), new Vector3(thumbSide * 0.078f, -0.01f, 0.088f), 0.015f, 0.012f, 5);
-            k.Use(Slot.Pad).Block(new Vector3(0, 0.016f, 0.045f), 0.01f, 0.08f, 0.07f, 0.075f, 0.06f);
-            k.Use(Slot.JacketTrim).Tube(new Vector3(0, 0, -0.025f), new Vector3(0, 0, 0.015f), 0.056f, 0.056f, 8);
+            Finger(k, 0.015f,
+                new Vector3(t * 0.042f, -0.02f, 0.02f),
+                new Vector3(t * 0.05f, -0.045f, 0.065f),
+                new Vector3(t * 0.012f, -0.064f, 0.095f));
+        }
+
+        /// <summary>An open gloved hand reaching for a hold, fingers slightly curled.</summary>
+        public static void BuildOpenHand(MeshKit k, bool left)
+        {
+            float t = left ? 1f : -1f;
+            HandSetup(k, t);
+            k.Block(new Vector3(0, -0.022f, 0.0f), 0.036f, 0.085f, 0.1f, 0.09f, 0.105f, 0.0f);
+            float[] length = { 0.072f, 0.082f, 0.078f, 0.062f };
+            for (int i = 0; i < 4; i++)
+            {
+                float x = (i - 1.5f) * 0.022f * -t;
+                float splay = (i - 1.5f) * 0.006f * -t;
+                float l = length[i];
+                Finger(k, 0.011f,
+                    new Vector3(x, -0.004f, 0.1f),
+                    new Vector3(x + splay, -0.012f, 0.1f + l * 0.55f),
+                    new Vector3(x + splay * 1.6f, -0.026f, 0.1f + l * 0.98f));
+            }
+            Finger(k, 0.014f,
+                new Vector3(t * 0.04f, -0.012f, 0.02f),
+                new Vector3(t * 0.068f, -0.016f, 0.055f),
+                new Vector3(t * 0.082f, -0.022f, 0.09f));
         }
     }
 }

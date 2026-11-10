@@ -146,175 +146,248 @@ namespace Belay.Players.Avatar
         }
     }
 
-    /// <summary>One teammate hand drawn as the game's hand sprite, as a billboard at the end of the arm.</summary>
-    public class HandSkinRenderer
+    /// <summary>
+    /// Builds (and caches) the material that makes a 3D glove look like a hand skin: the skin's own
+    /// sprite, palette-mapped and color-tweaked, projected over the back of the hand.
+    /// </summary>
+    public static class HandSkinMaterials
     {
-        private static readonly int PaletteBase = Shader.PropertyToID("_PaletteBase");
-        private static readonly int PaletteBaseBlend = Shader.PropertyToID("_PaletteBaseBlend");
-        private static readonly int HSV = Shader.PropertyToID("_HSV");
-        private static readonly int StaminaAmount = Shader.PropertyToID("_StaminaAmount");
+        private static readonly Dictionary<string, Material> cache = new Dictionary<string, Material>();
+        private static readonly Dictionary<string, float> failedUntil = new Dictionary<string, float>();
 
-        private readonly int hand;
-        private readonly SpriteRenderer renderer;
-        private Material material;
-        private string skin;
-        private bool grip;
-        private bool ready;
-        private float retryAt;
-
-        public HandSkinRenderer(Transform parent, int hand)
+        /// <summary>The glove material for a skin on a hand, or null when it can't be built (yet).</summary>
+        public static Material For(string skin, int hand, Shader shader)
         {
-            this.hand = hand;
-            var go = new GameObject(hand == 0 ? "LeftHandSkin" : "RightHandSkin");
-            go.transform.SetParent(parent, false);
-            renderer = go.AddComponent<SpriteRenderer>();
-            renderer.enabled = false;
-        }
-
-        /// <summary>
-        /// Draws the hand at <paramref name="palm"/> with its fingers pointing along
-        /// <paramref name="forearm"/> on screen. Returns false (and draws nothing) when the skin can't be
-        /// shown, so the caller keeps the modeled glove.
-        /// </summary>
-        public bool Show(string wantedSkin, bool gripping, Vector3 palm, Vector3 forearm, float size)
-        {
-            Camera cam = Camera.main;
-            if (!HandSkins.Enabled || cam == null)
+            if (!HandSkins.Enabled || string.IsNullOrEmpty(skin) || shader == null)
             {
-                Hide();
-                return false;
+                return null;
             }
-            if (wantedSkin != skin || gripping != grip || (!ready && Time.unscaledTime >= retryAt))
+            string key = hand + "/" + skin;
+            if (cache.TryGetValue(key, out Material cached) && cached != null)
             {
-                skin = wantedSkin;
-                grip = gripping;
-                ready = Apply();
-                if (!ready)
-                {
-                    retryAt = Time.unscaledTime + 3f;
-                }
+                return cached;
             }
-            if (!ready)
+            if (failedUntil.TryGetValue(key, out float until) && Time.unscaledTime < until)
             {
-                Hide();
-                return false;
+                return null;
             }
-
-            Transform camTransform = cam.transform;
-            Vector3 toHand = palm - camTransform.position;
-            // Fingers point down the arm as seen from this camera.
-            float angle = Mathf.Atan2(Vector3.Dot(forearm, camTransform.right), Vector3.Dot(forearm, camTransform.up)) * Mathf.Rad2Deg;
-            Quaternion facing = Quaternion.LookRotation(toHand, camTransform.up) * Quaternion.Euler(0, 0, -angle);
-            // Sit just in front of the glove mesh so the sleeve doesn't cut through the sprite.
-            renderer.transform.SetPositionAndRotation(palm - toHand.normalized * 0.05f, facing);
-            Vector3 bounds = renderer.sprite.bounds.size;
-            float scale = size / Mathf.Max(0.0001f, Mathf.Max(bounds.x, bounds.y));
-            renderer.transform.localScale = new Vector3(scale, scale, scale);
-            renderer.enabled = true;
-            return true;
-        }
-
-        public void Hide()
-        {
-            if (renderer.enabled)
-            {
-                renderer.enabled = false;
-            }
-        }
-
-        private bool Apply()
-        {
+            Material built = null;
             try
             {
-                ENT_Player player = ENT_Player.playerObject;
-                if (player == null || player.hands == null || player.hands.Length <= hand)
-                {
-                    return false;
-                }
-                ENT_Player.Hand localHand = player.hands[hand];
-                Sprite baseSprite = localHand.GetPoseSprite(grip ? "grab" : "normal");
-                Material baseMaterial = localHand.handSprite != null ? localHand.handSprite.sharedMaterial : null;
-                if (baseSprite == null || baseMaterial == null)
-                {
-                    return false;
-                }
-
-                string[] parts = (skin ?? "").Split('|');
-                Cosmetic_HandItem cosmetic = HandSkins.FindCosmetic(parts.Length > 0 ? parts[0] : null);
-                int palette = parts.Length > 1 && int.TryParse(parts[1], out int p) ? p : 0;
-                Vector3 hsv = new Vector3(Part(parts, 2, 0f), Part(parts, 3, 1f), Part(parts, 4, 1f));
-
-                Sprite sprite = baseSprite;
-                Material source = baseMaterial;
-                Texture paletteTexture = null;
-                if (cosmetic != null && cosmetic.cosmeticData != null)
-                {
-                    Cosmetic_HandItem.Cosmetic_HandItem_Data data = cosmetic.cosmeticData;
-                    if (data.swapSprites != null)
-                    {
-                        foreach (Cosmetic_HandItem.SwapSprite swap in data.swapSprites)
-                        {
-                            if (swap.spriteName == baseSprite.name && (swap.hand == -1 || swap.hand == hand)
-                                && swap.replacementSprites != null && swap.replacementSprites.Count > 0 && swap.replacementSprites[0] != null)
-                            {
-                                sprite = swap.replacementSprites[0];
-                                if (swap.material != null)
-                                {
-                                    source = swap.material;
-                                }
-                                break;
-                            }
-                        }
-                    }
-                    if (data.palettes != null && data.palettes.Count > 0)
-                    {
-                        Cosmetic_HandItem.Cosmetic_HandItem_Data.ColorPalette chosen = data.palettes[Mathf.Clamp(palette, 0, data.palettes.Count - 1)];
-                        paletteTexture = chosen.texture;
-                        if (chosen.material != null)
-                        {
-                            source = chosen.material;
-                        }
-                    }
-                }
-
-                if (material != null)
-                {
-                    UnityEngine.Object.Destroy(material);
-                }
-                material = new Material(source) { name = "Belay_HandSkin" };
-                if (material.HasProperty(PaletteBase))
-                {
-                    material.SetTexture(PaletteBase, paletteTexture);
-                }
-                if (material.HasProperty(PaletteBaseBlend))
-                {
-                    material.SetFloat(PaletteBaseBlend, paletteTexture != null ? 1f : 0f);
-                }
-                if (cosmetic != null && material.HasProperty(HSV))
-                {
-                    material.SetVector(HSV, hsv);
-                }
-                if (material.HasProperty(StaminaAmount))
-                {
-                    material.SetFloat(StaminaAmount, 0f);
-                }
-                renderer.sharedMaterial = material;
-                renderer.sprite = sprite;
-                renderer.flipX = localHand.handSprite.flipX;
-                renderer.flipY = localHand.handSprite.flipY;
-                renderer.gameObject.layer = 0;
-                return true;
+                built = Build(skin, hand, shader);
             }
             catch (Exception e)
             {
-                Plugin.Log?.LogWarning("Hand skin unavailable: " + e.Message);
-                return false;
+                Plugin.Log?.LogWarning("Hand skin " + skin + " unavailable: " + e.Message);
             }
+            if (built == null)
+            {
+                failedUntil[key] = Time.unscaledTime + 5f;
+                return null;
+            }
+            cache[key] = built;
+            return built;
+        }
+
+        private static Material Build(string skin, int hand, Shader shader)
+        {
+            ENT_Player player = ENT_Player.playerObject;
+            if (player == null || player.hands == null || player.hands.Length <= hand)
+            {
+                return null;
+            }
+            ENT_Player.Hand localHand = player.hands[hand];
+            string[] parts = skin.Split('|');
+            Cosmetic_HandItem cosmetic = HandSkins.FindCosmetic(parts[0]);
+            int paletteIndex = parts.Length > 1 && int.TryParse(parts[1], out int pi) ? pi : 0;
+
+            Texture palette = null;
+            Vector3? hsv = null;
+            if (cosmetic != null && cosmetic.cosmeticData != null)
+            {
+                Cosmetic_HandItem.Cosmetic_HandItem_Data data = cosmetic.cosmeticData;
+                if (data.palettes != null && data.palettes.Count > 0)
+                {
+                    palette = data.palettes[Mathf.Clamp(paletteIndex, 0, data.palettes.Count - 1)].texture;
+                }
+                // Only skins with the game's color sliders carry a hue/saturation/value tweak.
+                if (cosmetic.cosmeticInfo.flags != null && cosmetic.cosmeticInfo.flags.Contains("setting-hsv"))
+                {
+                    var tweak = new Vector3(Part(parts, 2, data.hsv.x), Part(parts, 3, data.hsv.y), Part(parts, 4, data.hsv.z));
+                    if (tweak.y > 0.01f || tweak.z > 0.01f)
+                    {
+                        hsv = tweak;
+                    }
+                }
+            }
+            if (palette == null)
+            {
+                // Default hands, and skins drawn in the default colors: that palette lives on the game's
+                // hand material.
+                Material handMaterial = localHand.handSprite != null ? localHand.handSprite.sharedMaterial : null;
+                if (handMaterial != null && handMaterial.HasProperty("_PaletteBase"))
+                {
+                    palette = handMaterial.GetTexture("_PaletteBase");
+                }
+            }
+            Color32[] palettePixels = palette != null ? TextureReader.Read(palette, new Rect(0, 0, palette.width, 1), false) : null;
+
+            // The game's "normal" pose is the back of the hand; "open" shows the palm.
+            SkinBaker.Result? back = Picture(localHand, cosmetic, hand, "normal", palettePixels, hsv);
+            if (!back.HasValue)
+            {
+                return null;
+            }
+            SkinBaker.Result palm = Picture(localHand, cosmetic, hand, "open", palettePixels, hsv) ?? back.Value;
+
+            // Our glove UVs put the thumb on the right of the back picture. The skin art for each hand
+            // shows that hand from behind once the game's own flip is applied, drawn as a left hand.
+            bool flip = localHand.handSprite != null && localHand.handSprite.flipX;
+            bool mirror = flip != (hand == 1);
+            const int cellWidth = 64, cellHeight = 96;
+            var texture = new Texture2D(cellWidth * 2, cellHeight, TextureFormat.RGBA32, false)
+            {
+                name = "Belay_HandSkin_" + parts[0],
+                filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Clamp,
+            };
+            texture.SetPixels32(SkinBaker.Atlas(back.Value, palm, mirror, cellWidth, cellHeight));
+            texture.Apply(false, true);
+
+            var material = new Material(shader) { name = "Belay_HandSkin", color = Color.white, mainTexture = texture };
+            if (material.HasProperty("_EmissionColor"))
+            {
+                material.EnableKeyword("_EMISSION");
+                material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+                material.SetTexture("_EmissionMap", texture);
+                material.SetColor("_EmissionColor", Color.white * ClimberAvatar.SelfLight);
+            }
+            if (material.HasProperty("_Glossiness"))
+            {
+                material.SetFloat("_Glossiness", 0.05f);
+            }
+            return material;
+        }
+
+        private static SkinBaker.Result? Picture(ENT_Player.Hand localHand, Cosmetic_HandItem cosmetic, int hand, string pose,
+            Color32[] palette, Vector3? hsv)
+        {
+            Sprite sprite = localHand.GetPoseSprite(pose);
+            if (sprite == null)
+            {
+                return null;
+            }
+            List<Cosmetic_HandItem.SwapSprite> swaps = cosmetic?.cosmeticData?.swapSprites;
+            if (swaps != null)
+            {
+                foreach (Cosmetic_HandItem.SwapSprite swap in swaps)
+                {
+                    if (swap.spriteName == sprite.name && (swap.hand == -1 || swap.hand == hand)
+                        && swap.replacementSprites != null && swap.replacementSprites.Count > 0 && swap.replacementSprites[0] != null)
+                    {
+                        sprite = swap.replacementSprites[0];
+                        break;
+                    }
+                }
+            }
+            Rect rect = sprite.textureRect;
+            Color32[] pixels = TextureReader.Read(sprite.texture, rect, palette != null);
+            if (pixels == null)
+            {
+                return null;
+            }
+            return SkinBaker.Bake(pixels, Mathf.RoundToInt(rect.width), Mathf.RoundToInt(rect.height), palette, hsv);
         }
 
         private static float Part(string[] parts, int index, float fallback)
         {
             return parts.Length > index && float.TryParse(parts[index], NumberStyles.Float, CultureInfo.InvariantCulture, out float v) ? v : fallback;
+        }
+    }
+
+    /// <summary>Reads pixels from any texture, readable or not, without changing the stored values.</summary>
+    internal static class TextureReader
+    {
+        public static Color32[] Read(Texture texture, Rect rect, bool expectIndexed)
+        {
+            if (texture == null)
+            {
+                return null;
+            }
+            int x = Mathf.RoundToInt(rect.x), y = Mathf.RoundToInt(rect.y);
+            int w = Mathf.RoundToInt(rect.width), h = Mathf.RoundToInt(rect.height);
+            if (texture is Texture2D t2 && t2.isReadable)
+            {
+                Color32[] all = t2.GetPixels32();
+                return Crop(all, t2.width, x, y, w, h);
+            }
+            // Not readable: copy through the GPU. Try a raw copy first, then an sRGB round trip, and keep
+            // whichever preserves palette indexes when we expect them.
+            Color32[] linear = Blit(texture, x, y, w, h, RenderTextureReadWrite.Linear);
+            if (!expectIndexed || IndexLike(linear))
+            {
+                return linear;
+            }
+            Color32[] srgb = Blit(texture, x, y, w, h, RenderTextureReadWrite.sRGB);
+            return IndexLike(srgb) ? srgb : linear;
+        }
+
+        private static Color32[] Blit(Texture texture, int x, int y, int w, int h, RenderTextureReadWrite mode)
+        {
+            RenderTexture rt = RenderTexture.GetTemporary(texture.width, texture.height, 0, RenderTextureFormat.ARGB32, mode);
+            RenderTexture previous = RenderTexture.active;
+            try
+            {
+                Graphics.Blit(texture, rt);
+                RenderTexture.active = rt;
+                var copy = new Texture2D(w, h, TextureFormat.RGBA32, false, mode == RenderTextureReadWrite.Linear);
+                copy.ReadPixels(new Rect(x, y, w, h), 0, 0, false);
+                copy.Apply(false);
+                Color32[] pixels = copy.GetPixels32();
+                UnityEngine.Object.Destroy(copy);
+                return pixels;
+            }
+            finally
+            {
+                RenderTexture.active = previous;
+                RenderTexture.ReleaseTemporary(rt);
+            }
+        }
+
+        private static bool IndexLike(Color32[] pixels)
+        {
+            if (pixels == null)
+            {
+                return false;
+            }
+            int opaque = 0;
+            foreach (Color32 p in pixels)
+            {
+                if (p.a < 128)
+                {
+                    continue;
+                }
+                opaque++;
+                if (p.g != 0 || p.b != 0 || p.r >= 64)
+                {
+                    return false;
+                }
+            }
+            return opaque > 0;
+        }
+
+        private static Color32[] Crop(Color32[] all, int stride, int x, int y, int w, int h)
+        {
+            if (x == 0 && y == 0 && w == stride && all.Length == w * h)
+            {
+                return all;
+            }
+            var result = new Color32[w * h];
+            for (int row = 0; row < h; row++)
+            {
+                Array.Copy(all, (y + row) * stride + x, result, row * w, w);
+            }
+            return result;
         }
     }
 }

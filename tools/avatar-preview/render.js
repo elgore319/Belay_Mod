@@ -8,7 +8,7 @@ const threePath = process.env.THREE_PATH || path.join(path.dirname(require.resol
 const data = fs.readFileSync(process.argv[2] || 'preview.json', 'utf8');
 const out = process.argv[3] || 'preview.png';
 
-const views = [
+const views = process.env.VIEWS ? JSON.parse(process.env.VIEWS) : [
   ['standing', 200, 'Front'],
   ['standing', 290, 'Side'],
   ['standing', 20, 'Back'],
@@ -21,19 +21,19 @@ const page = `<html><body style="margin:0;background:#16171a"><canvas id="c"></c
 
 (async () => {
   const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
-  const tab = await browser.newPage({ viewport: { width: 360 * views.length, height: 620 }, deviceScaleFactor: 2 });
+  const W = Number(process.env.VIEW_W || 360), H = Number(process.env.VIEW_H || 620);
+  const tab = await browser.newPage({ viewport: { width: W * views.length, height: H }, deviceScaleFactor: 2 });
   await tab.setContent(page);
   await tab.addScriptTag({ path: threePath });
-  await tab.evaluate(({ data, views }) => {
+  await tab.evaluate(({ data, views, W, H }) => {
     const model = JSON.parse(data);
-    const W = 360, H = 620;
     const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
     renderer.setPixelRatio(2);
     renderer.setSize(W * views.length, H);
     renderer.setScissorTest(true);
-    const materials = model.textures.map((b64, i) => {
-      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-      const tex = new THREE.DataTexture(bytes, model.size, model.size, THREE.RGBAFormat);
+    const materials = model.textures.map((t, i) => {
+      const bytes = Uint8Array.from(atob(t.data), c => c.charCodeAt(0));
+      const tex = new THREE.DataTexture(bytes, t.w, t.h, THREE.RGBAFormat);
       tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter;
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true;
       return new THREE.MeshLambertMaterial({ map: tex, emissive: i === 9 ? 0xfff0c0 : 0x000000, side: THREE.DoubleSide });
@@ -64,14 +64,21 @@ const page = `<html><body style="margin:0;background:#16171a"><canvas id="c"></c
       }
       const floor = new THREE.Mesh(new THREE.CircleGeometry(0.6, 32), new THREE.MeshStandardMaterial({ color: 0x24262b }));
       floor.rotation.x = -Math.PI / 2;
-      if (name !== 'hanging') scene.add(floor);
+      if (name !== 'hanging' && name !== 'skins') scene.add(floor);
       scenes[name] = scene;
     }
     views.forEach(([name, angle, label], i) => {
       const camera = new THREE.PerspectiveCamera(30, W / H, 0.1, 50);
       const a = angle * Math.PI / 180;
-      camera.position.set(Math.sin(a) * 4.3, 1.35, Math.cos(a) * 4.3);
-      camera.lookAt(0, 1.02, 0);
+      if (name === 'skins') {
+        const n = Math.min(3, model.skins.length);
+        const d = 1.0 * n * 1.02 / (2 * Math.tan(15 * Math.PI / 180) * (W / H));
+        camera.position.set(Math.sin(a) * d, 0.08, Math.cos(a) * d);
+        camera.lookAt(0, 0.08, 0);
+      } else {
+        camera.position.set(Math.sin(a) * 4.3, 1.35, Math.cos(a) * 4.3);
+        camera.lookAt(0, 1.02, 0);
+      }
       renderer.setViewport(i * W, 0, W, H);
       renderer.setScissor(i * W, 0, W, H);
       renderer.render(scenes[name], camera);
@@ -79,8 +86,20 @@ const page = `<html><body style="margin:0;background:#16171a"><canvas id="c"></c
     const labels = document.createElement('div');
     labels.style.cssText = 'position:absolute;top:14px;left:0;display:flex;font:15px sans-serif;color:#ccd';
     labels.innerHTML = views.map(v => `<div style="width:${W}px;text-align:center">${v[2]}</div>`).join('');
+    if (views.length === 1 && views[0][0] === 'skins') {
+      const flip = views[0][1] === 180;
+      const rows = Math.ceil(model.skins.length / 3);
+      for (let r = 0; r < rows; r++) {
+        let row = model.skins.slice(r * 3, r * 3 + 3);
+        if (flip) row = row.reverse();
+        const names = document.createElement('div');
+        names.style.cssText = `position:absolute;top:${H / 2 + (r - (rows - 1) / 2) * H * 0.42 * 0.95 + H * 0.17}px;left:0;display:flex;font:16px sans-serif;color:#ccd;width:${W}px`;
+        names.innerHTML = row.map(n => `<div style="flex:1;text-align:center">${n}</div>`).join('');
+        document.body.appendChild(names);
+      }
+    }
     document.body.appendChild(labels);
-  }, { data, views });
+  }, { data, views, W, H });
   await tab.screenshot({ path: out });
   await browser.close();
   console.log('wrote ' + out);

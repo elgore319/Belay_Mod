@@ -16,6 +16,7 @@
     <Compile Include="..\..\src\Belay\Players\Avatar\MeshKit.cs" />
     <Compile Include="..\..\src\Belay\Players\Avatar\AvatarDesign.cs" />
     <Compile Include="..\..\src\Belay\Players\Avatar\PixelTextures.cs" />
+    <Compile Include="..\..\src\Belay\Players\Avatar\SkinBaker.cs" />
     <Reference Include="UnityEngine.CoreModule" HintPath="$(GameDir)\White Knuckle_Data\Managed\UnityEngine.CoreModule.dll" />
   </ItemGroup>
 </Project>

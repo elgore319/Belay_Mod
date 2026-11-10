@@ -52,6 +52,12 @@ namespace Belay.Players.Avatar
 
         public readonly List<Vector2> UVs = new List<Vector2>();
 
+        /// <summary>
+        /// When set, gives every vertex's UV directly from its position and its face's normal (e.g. a
+        /// picture projected from above onto the top faces and another from below onto the bottom).
+        /// </summary>
+        public System.Func<Vector3, Vector3, Vector2> UvProjection;
+
         public void Tri(Vector3 a, Vector3 b, Vector3 c, Vector3 inside)
         {
             Tri(a, b, c, inside, null);
@@ -102,7 +108,8 @@ namespace Belay.Players.Avatar
                 }
                 Normals.Add(vertexNormal);
                 Vector3 m = new Vector3(p.x * UvAxisScale.x, p.y * UvAxisScale.y, p.z * UvAxisScale.z) / TileSize;
-                UVs.Add(drop == 0 ? new Vector2(m.z, m.y) : drop == 1 ? new Vector2(m.x, m.z) : new Vector2(m.x, m.y));
+                UVs.Add(UvProjection != null ? UvProjection(p, normal)
+                    : drop == 0 ? new Vector2(m.z, m.y) : drop == 1 ? new Vector2(m.x, m.z) : new Vector2(m.x, m.y));
             }
         }
 

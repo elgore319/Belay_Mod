@@ -23,6 +23,9 @@ namespace Belay.Players.Avatar
         /// </summary>
         public const float Scale = 0.83f;
 
+        /// <summary>How much of its own texture the avatar shows with no light on it, like the game's world.</summary>
+        public const float SelfLight = 0.55f;
+
         private static ConfigEntry<bool> headlamps;
 
         public static bool HeadlampsEnabled
@@ -49,9 +52,13 @@ namespace Belay.Players.Avatar
         private readonly Transform leftBoot, rightBoot;
         private readonly Transform leftFist, rightFist, leftOpen, rightOpen;
         private readonly Transform pack, packLid;
-        private readonly HandSkinRenderer leftSkin, rightSkin;
+        private readonly Material[] materials;
+        private readonly Material[] leftHandMaterials, rightHandMaterials;
         private readonly Light lamp;
         private float packOut;
+        private readonly Vector3[] idleHandOffset = new Vector3[2];
+        private readonly float[] reachBlend = new float[2];
+        private bool airborneNow;
 
         private Quaternion torsoRotation = Quaternion.identity;
         private float bodyYaw;
@@ -69,7 +76,9 @@ namespace Belay.Players.Avatar
         public ClimberAvatar(Transform parent, Color color)
         {
             EnsureMeshes();
-            Material[] materials = MakeMaterials(color);
+            materials = MakeMaterials(color);
+            leftHandMaterials = (Material[])materials.Clone();
+            rightHandMaterials = (Material[])materials.Clone();
 
             root = new GameObject("Climber").transform;
             root.SetParent(parent, false);
@@ -92,9 +101,6 @@ namespace Belay.Players.Avatar
             rightFist = Part("RightFist", fistRight, materials);
             leftOpen = Part("LeftHand", openLeft, materials);
             rightOpen = Part("RightHand", openRight, materials);
-
-            leftSkin = new HandSkinRenderer(root, 0);
-            rightSkin = new HandSkinRenderer(root, 1);
 
             var lampObject = new GameObject("Headlamp");
             lampObject.transform.SetParent(head, false);
@@ -214,8 +220,14 @@ namespace Belay.Players.Avatar
             }
 
             // Arms reach to the synced hand positions.
-            PoseArm(leftArm, -1f, pelvis, leftHand, leftGrip, leftFist, leftOpen, leftSkin, leftHandSkin);
-            PoseArm(rightArm, 1f, pelvis, rightHand, rightGrip, rightFist, rightOpen, rightSkin, rightHandSkin);
+            ApplyHandSkin(0, leftHandSkin, leftHandMaterials, leftFist, leftOpen);
+            ApplyHandSkin(1, rightHandSkin, rightHandMaterials, rightFist, rightOpen);
+            airborneNow = airborne;
+            Quaternion look = Quaternion.Euler(Mathf.Clamp(signedPitch, -89f, 89f), yaw, 0);
+            Vector3 eye = position + Vector3.up * 0.45f;
+            bool holdingPack = packOut > 0.01f;
+            PoseArm(0, leftArm, -1f, pelvis, leftHand, leftGrip, holdingPack, eye, look, dt, leftFist, leftOpen);
+            PoseArm(1, rightArm, 1f, pelvis, rightHand, rightGrip, holdingPack, eye, look, dt, rightFist, rightOpen);
 
             // Legs.
             float ground = position.y - FeetDrop + AvatarDesign.AnkleHeight * Scale;
@@ -262,10 +274,67 @@ namespace Belay.Players.Avatar
             posed = true;
         }
 
-        private void PoseArm(Limb arm, float side, Vector3 pelvis, Vector3 hand, bool grip, Transform fist, Transform open,
-            HandSkinRenderer skinRenderer, string skin)
+        /// <summary>Dresses a hand in the teammate's glove cosmetic, or our own glove when there is none.</summary>
+        private void ApplyHandSkin(int hand, string skin, Material[] handMaterials, Transform fist, Transform open)
+        {
+            Material glove = HandSkinMaterials.For(skin, hand, litShader) ?? materials[Slot.Glove];
+            if (handMaterials[Slot.Glove] == glove)
+            {
+                return;
+            }
+            handMaterials[Slot.Glove] = glove;
+            fist.GetComponent<MeshRenderer>().sharedMaterials = handMaterials;
+            open.GetComponent<MeshRenderer>().sharedMaterials = handMaterials;
+        }
+
+        /// <summary>
+        /// Poses one arm. A hand on a hold always lands on it, stretching the arm if the hold is far. A
+        /// free hand rests naturally at the side (swinging while walking) and only follows the synced hand
+        /// when the player actually reaches out with it, without stretching. The synced position of a free
+        /// hand is the first-person view model, which normally floats in front of the camera, so "reaching"
+        /// means it has moved away from where it usually sits relative to the view.
+        /// </summary>
+        private void PoseArm(int index, Limb arm, float side, Vector3 pelvis, Vector3 hand, bool grip, bool holdingPack,
+            Vector3 eye, Quaternion look, float dt, Transform fist, Transform open)
         {
             Vector3 shoulder = pelvis + torsoRotation * (new Vector3(side * AvatarDesign.ShoulderWidth, AvatarDesign.ShoulderHeight - 0.02f, 0) * Scale);
+            float reach = (AvatarDesign.UpperArm + AvatarDesign.Forearm) * Scale;
+
+            Vector3 viewOffset = Quaternion.Inverse(look) * (hand - eye);
+            float reaching = 0f;
+            if (!grip && !holdingPack)
+            {
+                if (idleHandOffset[index] == Vector3.zero)
+                {
+                    idleHandOffset[index] = viewOffset;
+                }
+                float away = (viewOffset - idleHandOffset[index]).magnitude;
+                reaching = Mathf.Clamp01((away - 0.12f) / 0.15f);
+                // Learn the resting spot slowly, and only while the hand is near it.
+                if (reaching < 0.5f)
+                {
+                    idleHandOffset[index] = Vector3.Lerp(idleHandOffset[index], viewOffset, 1f - Mathf.Exp(-0.5f * dt));
+                }
+            }
+            float target = grip || holdingPack ? 1f : reaching;
+            reachBlend[index] = posed ? Mathf.MoveTowards(reachBlend[index], target, dt * (target > reachBlend[index] ? 6f : 3f)) : target;
+
+            // Relaxed: hanging by the side, a little forward, swinging opposite the legs; raised when falling.
+            Vector3 rest = airborneNow
+                ? new Vector3(side * 0.28f, -0.25f, 0.12f)
+                : new Vector3(side * 0.07f, -0.5f, 0.06f + Mathf.Sin(walkPhase + (side > 0 ? 0f : Mathf.PI)) * 0.14f * walkAmount);
+            Vector3 restHand = shoulder + torsoRotation * (rest * Scale);
+            if (!grip && !holdingPack)
+            {
+                // A free reach never stretches the arm.
+                Vector3 fromShoulder = hand - shoulder;
+                if (fromShoulder.magnitude > reach)
+                {
+                    hand = shoulder + fromShoulder.normalized * reach;
+                }
+            }
+            hand = Vector3.Lerp(restHand, hand, reachBlend[index]);
+
             Vector3 toHand = hand - shoulder;
             Vector3 dir = toHand.sqrMagnitude > 1e-6f ? toHand.normalized : torsoRotation * Vector3.forward;
             // The synced point is where the palm closes on the hold; the wrist sits just behind it.
@@ -273,26 +342,14 @@ namespace Belay.Players.Avatar
             // Elbows point out, down and back.
             Vector3 pole = shoulder + torsoRotation * new Vector3(side * 0.6f, -0.6f, -0.35f);
             Vector3 up = torsoRotation * Vector3.up;
-            Vector3 elbowToWrist = arm.Solve(shoulder, wrist, pole, up, true) - arm.Joint;
+            Vector3 elbowToWrist = arm.Solve(shoulder, wrist, pole, up, grip) - arm.Joint;
 
             // Back of the hand faces up when reaching forward and away from the wall when reaching up.
             Vector3 forearmDir = elbowToWrist.sqrMagnitude > 1e-6f ? elbowToWrist.normalized : dir;
             Vector3 back = Vector3.Lerp(up, -(torsoRotation * Vector3.forward), Mathf.Abs(Vector3.Dot(forearmDir, up)));
             Quaternion handRotation = SafeLook(forearmDir, back);
-            // The teammate's own glove cosmetic replaces the modeled glove when it can be shown.
-            bool skinned = skin != null && skinRenderer.Show(skin, grip, hand, forearmDir, 0.3f * Scale);
-            if (skin == null)
-            {
-                skinRenderer.Hide();
-            }
             Transform shown = grip ? fist : open;
             Transform hidden = grip ? open : fist;
-            if (skinned)
-            {
-                if (fist.gameObject.activeSelf) fist.gameObject.SetActive(false);
-                if (open.gameObject.activeSelf) open.gameObject.SetActive(false);
-                return;
-            }
             if (!shown.gameObject.activeSelf)
             {
                 shown.gameObject.SetActive(true);
@@ -454,16 +511,20 @@ namespace Belay.Players.Avatar
                 texture.Apply(false, true);
 
                 var material = new Material(litShader) { color = Color.white, mainTexture = texture };
+                // The game's levels are mostly self-lit textures in the dark, so plain lighting leaves the
+                // avatar near black. Give every surface a share of its own texture as glow.
+                if (material.HasProperty("_EmissionColor"))
+                {
+                    material.EnableKeyword("_EMISSION");
+                    material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+                    material.SetTexture("_EmissionMap", texture);
+                    material.SetColor("_EmissionColor", i == Slot.Lamp ? recipes[i].Base * 2.5f : Color.white * SelfLight);
+                }
                 // Matte, like the game's characters; only the goggles and metal catch a little light.
                 float gloss = i == Slot.Visor ? 0.6f : i == Slot.Metal ? 0.35f : 0f;
                 if (material.HasProperty("_Glossiness"))
                 {
                     material.SetFloat("_Glossiness", gloss);
-                }
-                if (i == Slot.Lamp && material.HasProperty("_EmissionColor"))
-                {
-                    material.EnableKeyword("_EMISSION");
-                    material.SetColor("_EmissionColor", recipes[i].Base * 2.5f);
                 }
                 materials[i] = material;
             }

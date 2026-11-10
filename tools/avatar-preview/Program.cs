@@ -38,18 +38,40 @@ internal static class Program
     private static void Main(string[] args)
     {
         PixelTextures.Recipe[] recipes = AvatarDesign.Recipes(new Color(1f, 0.45f, 0.2f));
-        var sb = new StringBuilder("{\"size\":" + PixelTextures.Size + ",\"textures\":[");
+        var textures = new List<string>();
         for (int i = 0; i < recipes.Length; i++)
         {
-            Color32[] px = PixelTextures.Generate(recipes[i], 101 + i * 7);
-            var bytes = new byte[px.Length * 4];
-            for (int j = 0; j < px.Length; j++)
-            {
-                bytes[j * 4] = px[j].r; bytes[j * 4 + 1] = px[j].g; bytes[j * 4 + 2] = px[j].b; bytes[j * 4 + 3] = 255;
-            }
-            sb.Append(i > 0 ? "," : "").Append('"').Append(Convert.ToBase64String(bytes)).Append('"');
+            textures.Add(Tex(PixelTextures.Generate(recipes[i], 101 + i * 7), PixelTextures.Size, PixelTextures.Size));
         }
-        sb.Append("],\"figures\":{");
+
+        // Optional hand skins: skins/manifest.txt lines "name|w|h|back.raw|palm.raw|palette.raw:width or -",
+        // raw files being RGBA rows bottom-up (see README).
+        var skinNames = new List<string>();
+        string manifest = Environment.GetEnvironmentVariable("SKINS_DIR");
+        if (manifest != null && File.Exists(Path.Combine(manifest, "manifest.txt")))
+        {
+            foreach (string line in File.ReadAllLines(Path.Combine(manifest, "manifest.txt")))
+            {
+                string[] f = line.Split('|');
+                int w = int.Parse(f[1]), h = int.Parse(f[2]);
+                Color32[] palette = null;
+                if (f[5] != "-")
+                {
+                    string[] pf = f[5].Split(':');
+                    palette = Raw(Path.Combine(manifest, pf[0]));
+                    Array.Resize(ref palette, int.Parse(pf[1]));
+                }
+                SkinBaker.Result back = SkinBaker.Bake(Raw(Path.Combine(manifest, f[3])), w, h, palette, null);
+                SkinBaker.Result palm = SkinBaker.Bake(Raw(Path.Combine(manifest, f[4])), w, h, palette, null);
+                textures.Add(Tex(SkinBaker.Atlas(back, palm, false, 64, 96), 128, 96));
+                textures.Add(Tex(SkinBaker.Atlas(back, palm, true, 64, 96), 128, 96));
+                skinNames.Add(f[0]);
+            }
+        }
+
+        var sb = new StringBuilder("{\"size\":" + PixelTextures.Size + ",\"textures\":[");
+        sb.Append(string.Join(",", textures)).Append("],\"skins\":[");
+        sb.Append(string.Join(",", skinNames.ConvertAll(n => "\"" + n + "\""))).Append("],\"figures\":{");
 
         Figure("standing", standing: true, leftGrip: false, rightGrip: false,
             new Vector3(-0.22f, 1.25f, 0.45f), new Vector3(0.22f, 1.25f, 0.45f));
@@ -57,6 +79,10 @@ internal static class Program
             new Vector3(-0.2f, 1.95f, 0.32f), new Vector3(0.38f, 1.55f, 0.4f));
         Figure("inventory", standing: true, leftGrip: true, rightGrip: true, Vector3.zero, Vector3.zero, inventory: true);
 
+        if (skinNames.Count > 0)
+        {
+            SkinFigure(skinNames.Count);
+        }
         sb.Append(string.Join(",", Figures)).Append("}}");
         File.WriteAllText(args.Length > 0 ? args[0] : "preview.json", sb.ToString());
         Console.WriteLine("wrote preview.json");
@@ -154,6 +180,53 @@ internal static class Program
         return end;
     }
 
+    private static int gloveSlot = Slot.Glove;
+
+    /// <summary>Each skin on a left open hand, left fist, right fist and right open hand, in a row.</summary>
+    private static void SkinFigure(int count)
+    {
+        tris = new StringBuilder();
+        for (int i = 0; i < count; i++)
+        {
+            // Three skins per row.
+            int columns = Math.Min(3, count), rows = (count + columns - 1) / columns;
+            float x = (i % columns - (columns - 1) * 0.5f) * 1.0f;
+            float y = ((rows - 1) * 0.5f - i / columns) * 0.42f;
+            // Fingers up, back of the hand toward the camera (which looks along +z from -z).
+            for (int j = 0; j < 4; j++)
+            {
+                bool left = j < 2;
+                bool fist = j == 1 || j == 2;
+                gloveSlot = Slot.Count + i * 2 + (left ? 0 : 1);
+                Frame f = Frame.Look(new Vector3(x + (j - 1.5f) * 0.23f, y + (fist ? 0.04f : 0f), 0), Vector3.up, new Vector3(0, 0, -1));
+                Emit(k => { if (fist) AvatarDesign.BuildFist(k, left); else AvatarDesign.BuildOpenHand(k, left); }, f);
+            }
+        }
+        gloveSlot = Slot.Glove;
+        Figures.Add("\"skins\":[" + tris.ToString().TrimEnd(',') + "]");
+    }
+
+    private static Color32[] Raw(string path)
+    {
+        byte[] b = File.ReadAllBytes(path);
+        var px = new Color32[b.Length / 4];
+        for (int i = 0; i < px.Length; i++)
+        {
+            px[i] = new Color32(b[i * 4], b[i * 4 + 1], b[i * 4 + 2], b[i * 4 + 3]);
+        }
+        return px;
+    }
+
+    private static string Tex(Color32[] px, int w, int h)
+    {
+        var bytes = new byte[px.Length * 4];
+        for (int j = 0; j < px.Length; j++)
+        {
+            bytes[j * 4] = px[j].r; bytes[j * 4 + 1] = px[j].g; bytes[j * 4 + 2] = px[j].b; bytes[j * 4 + 3] = 255;
+        }
+        return "{\"w\":" + w + ",\"h\":" + h + ",\"data\":\"" + Convert.ToBase64String(bytes) + "\"}";
+    }
+
     private static void Emit(Action<MeshKit> build, Frame frame)
     {
         var kit = new MeshKit(Slot.Count);
@@ -163,7 +236,7 @@ internal static class Program
             List<int> list = kit.Submeshes[s];
             for (int i = 0; i < list.Count; i += 3)
             {
-                tris.Append('[').Append(s);
+                tris.Append('[').Append(s == Slot.Glove ? gloveSlot : s);
                 for (int j = 0; j < 3; j++)
                 {
                     int v = list[i + j];
