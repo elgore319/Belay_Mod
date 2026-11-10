@@ -68,6 +68,7 @@ namespace Belay.Players
                 LeftHanging = IsHandHanging(player, 0),
                 RightHanging = IsHandHanging(player, 1),
                 Dead = player.dead,
+                InventoryOpen = Inventory.IsShowingInventory(),
             };
         }
 

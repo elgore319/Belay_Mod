@@ -44,6 +44,8 @@ namespace Belay.Net
         public bool LeftHanging;
         public bool RightHanging;
         public bool Dead;
+        /// <summary>Inventory screen open: the avatar holds its backpack open in front of it.</summary>
+        public bool InventoryOpen;
 
         public void Write(BinaryWriter w)
         {
@@ -56,6 +58,7 @@ namespace Belay.Net
             if (LeftHanging) flags |= 1;
             if (RightHanging) flags |= 2;
             if (Dead) flags |= 4;
+            if (InventoryOpen) flags |= 8;
             w.Write(flags);
         }
 
@@ -73,6 +76,7 @@ namespace Belay.Net
             s.LeftHanging = (flags & 1) != 0;
             s.RightHanging = (flags & 2) != 0;
             s.Dead = (flags & 4) != 0;
+            s.InventoryOpen = (flags & 8) != 0;
             return s;
         }
     }

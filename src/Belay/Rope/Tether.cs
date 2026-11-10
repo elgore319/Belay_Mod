@@ -134,7 +134,7 @@ namespace Belay.Rope
                 foreach (RemotePlayer partner in RopePartners())
                 {
                     active.Add(partner.SteamId);
-                    DrawRope(partner, from, partner.LocalPosition + Vector3.down * 0.4f);
+                    DrawRope(partner, from, partner.RopeAnchor);
                 }
             }
             foreach (KeyValuePair<SteamId, LineRenderer> rope in ropes)
