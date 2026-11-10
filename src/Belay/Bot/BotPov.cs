@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Belay.Players;
 using UnityEngine;
 
@@ -252,40 +253,64 @@ namespace Belay.Bot
             }
         }
 
+        private readonly List<Renderer> hiddenSelf = new List<Renderer>();
+
+        // RemotePlayer (and the avatar on it) may switch its own renderers back on in Update/LateUpdate, so
+        // all hiding happens per camera, right before each one culls: the stand-in for you (and its
+        // headlamp) only exists for the bot camera, and the bot's own body is hidden only from it.
         private void HandlePreCull(Camera rendering)
         {
-            if (rendering != cam || cam == null || Watched == null)
+            if (youStandIn == null)
             {
                 return;
             }
-            if (youStandIn != null)
+            bool botView = cam != null && rendering == cam && Watched != null;
+            SetStandIn(botView);
+            if (!botView)
             {
-                SetRenderers(youStandIn, true);
-                Transform tag = youStandIn.transform.Find("NameTag");
-                if (tag != null)
-                {
-                    tag.rotation = Quaternion.LookRotation(tag.position - cam.transform.position);
-                }
+                return;
             }
+            Transform tag = youStandIn.transform.Find("NameTag");
+            if (tag != null)
+            {
+                tag.rotation = Quaternion.LookRotation(tag.position - cam.transform.position);
+            }
+            hiddenSelf.Clear();
             if (PlayerSync.Instance.Remotes.TryGetValue(Watched.Id, out RemotePlayer self) && self != null)
             {
-                SetRenderers(self, false);
+                foreach (Renderer r in self.GetComponentsInChildren<Renderer>(true))
+                {
+                    if (r.enabled)
+                    {
+                        r.enabled = false;
+                        hiddenSelf.Add(r);
+                    }
+                }
             }
         }
 
         private void HandlePostRender(Camera rendering)
         {
-            if (rendering != cam || cam == null || Watched == null)
+            if (cam == null || rendering != cam)
             {
                 return;
             }
+            SetStandIn(false);
+            foreach (Renderer r in hiddenSelf)
+            {
+                if (r != null)
+                {
+                    r.enabled = true;
+                }
+            }
+            hiddenSelf.Clear();
+        }
+
+        private void SetStandIn(bool on)
+        {
             if (youStandIn != null)
             {
-                SetRenderers(youStandIn, false);
-            }
-            if (PlayerSync.Instance.Remotes.TryGetValue(Watched.Id, out RemotePlayer self) && self != null)
-            {
-                SetRenderers(self, true);
+                SetRenderers(youStandIn, on);
             }
         }
 
@@ -294,6 +319,10 @@ namespace Belay.Bot
             foreach (Renderer r in player.GetComponentsInChildren<Renderer>(true))
             {
                 r.enabled = on;
+            }
+            foreach (Light l in player.GetComponentsInChildren<Light>(true))
+            {
+                l.enabled = on;
             }
         }
 
