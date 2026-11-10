@@ -89,38 +89,54 @@ namespace Belay.Players.Avatar
         public static void BuildTorso(MeshKit k)
         {
             // Hips and seat of the pants.
-            k.Use(Slot.Pants).Block(new Vector3(0, -0.12f, 0), 0.18f, 0.31f, 0.2f, 0.34f, 0.21f);
+            k.Use(Slot.Pants).Loft(new[]
+            {
+                new Vector4(-0.14f, 0.14f, 0.095f, 0f),
+                new Vector4(-0.06f, 0.168f, 0.108f, -0.005f),
+                new Vector4(0.0f, 0.17f, 0.108f, 0f),
+            }, 12, true, false);
 
-            // Padded jacket: waist, ribs, a broad chest that leans forward a little.
-            k.Use(Slot.Jacket);
-            k.Block(new Vector3(0, 0.03f, 0), 0.2f, 0.34f, 0.21f, 0.38f, 0.24f, 0.005f);
-            k.Block(new Vector3(0, 0.23f, 0.005f), 0.2f, 0.38f, 0.24f, 0.44f, 0.26f, 0.015f);
-            k.Block(new Vector3(0, 0.43f, 0.02f), 0.09f, 0.44f, 0.26f, 0.3f, 0.21f, -0.01f);
+            // Padded jacket: pinched at the waist, full through the chest, rounding into the shoulders.
+            k.Use(Slot.Jacket).Loft(new[]
+            {
+                new Vector4(-0.01f, 0.172f, 0.11f, 0f),
+                new Vector4(0.09f, 0.165f, 0.108f, 0.003f),
+                new Vector4(0.22f, 0.19f, 0.118f, 0.01f),
+                new Vector4(0.34f, 0.212f, 0.126f, 0.016f),
+                new Vector4(0.43f, 0.205f, 0.118f, 0.012f),
+                new Vector4(0.49f, 0.165f, 0.1f, 0.004f),
+                new Vector4(0.52f, 0.11f, 0.08f, 0f),
+            });
             // Hood rolled into a thick collar.
             k.Use(Slot.JacketTrim);
-            k.Block(new Vector3(0, 0.49f, -0.01f), 0.1f, 0.26f, 0.2f, 0.21f, 0.16f, -0.015f);
+            k.Loft(new[]
+            {
+                new Vector4(0.47f, 0.135f, 0.1f, -0.01f),
+                new Vector4(0.54f, 0.118f, 0.092f, -0.014f),
+                new Vector4(0.58f, 0.1f, 0.08f, -0.018f),
+            }, 10, false, true);
             k.Ellipsoid(new Vector3(0, 0.55f, -0.09f), new Vector3(0.12f, 0.07f, 0.06f), 3, 7);
             // Zip flap, chest pocket, hem band.
-            k.Box(new Vector3(0, 0.27f, 0.131f), new Vector3(0.035f, 0.44f, 0.014f));
-            k.Box(new Vector3(0.1f, 0.33f, 0.137f), new Vector3(0.12f, 0.1f, 0.016f));
-            k.Block(new Vector3(0, 0.015f, 0), 0.04f, 0.355f, 0.225f, 0.36f, 0.23f);
+            k.Box(new Vector3(0, 0.25f, 0.128f), new Vector3(0.035f, 0.4f, 0.016f));
+            k.Box(new Vector3(0.095f, 0.33f, 0.126f), new Vector3(0.11f, 0.1f, 0.02f));
+            k.Loft(new[] { new Vector4(-0.005f, 0.177f, 0.115f, 0f), new Vector4(0.035f, 0.174f, 0.114f, 0.001f) });
 
             // Padded shoulder plates.
             k.Use(Slot.Pad);
             for (int side = -1; side <= 1; side += 2)
             {
-                k.Block(new Vector3(side * (ShoulderWidth + 0.01f), ShoulderHeight - 0.04f, 0), 0.08f, 0.13f, 0.17f, 0.1f, 0.14f, 0f, side * -0.02f);
+                k.Ellipsoid(new Vector3(side * (ShoulderWidth - 0.005f), ShoulderHeight - 0.02f, 0.005f), new Vector3(0.075f, 0.06f, 0.09f), 3, 8, true);
             }
 
             // Harness: waist belt, buckle, belay loop, gear loops with carabiners, pack straps.
             k.Use(Slot.Webbing);
-            k.Block(new Vector3(0, -0.045f, 0), 0.065f, 0.365f, 0.235f, 0.365f, 0.235f);
+            k.Loft(new[] { new Vector4(-0.075f, 0.178f, 0.116f, 0f), new Vector4(-0.01f, 0.178f, 0.116f, 0f) });
             k.Block(new Vector3(0, -0.14f, 0.095f), 0.1f, 0.055f, 0.045f, 0.065f, 0.045f, 0.015f);
-            k.Box(new Vector3(-0.115f, 0.33f, 0.136f), new Vector3(0.05f, 0.27f, 0.016f));
-            k.Box(new Vector3(0.115f, 0.33f, 0.136f), new Vector3(0.05f, 0.27f, 0.016f));
-            k.Box(new Vector3(0, 0.37f, 0.142f), new Vector3(0.23f, 0.022f, 0.012f));
+            k.Box(new Vector3(-0.11f, 0.33f, 0.12f), new Vector3(0.04f, 0.26f, 0.02f));
+            k.Box(new Vector3(0.11f, 0.33f, 0.12f), new Vector3(0.04f, 0.26f, 0.02f));
+            k.Box(new Vector3(0, 0.37f, 0.138f), new Vector3(0.23f, 0.022f, 0.012f));
             k.Use(Slot.Metal);
-            k.Box(new Vector3(0, -0.015f, 0.122f), new Vector3(0.075f, 0.04f, 0.014f));
+            k.Box(new Vector3(0, -0.04f, 0.118f), new Vector3(0.075f, 0.04f, 0.014f));
             k.Use(Slot.Rope);
             k.Torus(new Vector3(0, -HarnessLoopDrop - 0.02f, 0.13f), Vector3.right, 0.038f, 0.011f, 8);
             k.Use(Slot.Metal);

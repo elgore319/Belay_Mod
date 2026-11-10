@@ -188,6 +188,58 @@ namespace Belay.Players.Avatar
             }
         }
 
+        /// <summary>
+        /// A rounded body swept up through elliptical rings: each ring is (height, half width, half depth,
+        /// forward shift). Shaded smooth around, so torsos read as soft, not boxy. Ends are capped.
+        /// </summary>
+        public void Loft(Vector4[] rings, int sides = 12, bool capBottom = true, bool capTop = true)
+        {
+            var points = new Vector3[rings.Length, sides];
+            for (int r = 0; r < rings.Length; r++)
+            {
+                for (int i = 0; i < sides; i++)
+                {
+                    float angle = (i + 0.5f) * Mathf.PI * 2f / sides;
+                    points[r, i] = new Vector3(Mathf.Sin(angle) * rings[r].y, rings[r].x, Mathf.Cos(angle) * rings[r].z + rings[r].w);
+                }
+            }
+            for (int r = 0; r < rings.Length - 1; r++)
+            {
+                Vector4 lo = rings[r], hi = rings[r + 1];
+                Vector3 inside = new Vector3(0, (lo.x + hi.x) * 0.5f, (lo.w + hi.w) * 0.5f);
+                Vector3 Around(Vector3 p)
+                {
+                    float t = Mathf.Approximately(hi.x, lo.x) ? 0f : Mathf.Clamp01((p.y - lo.x) / (hi.x - lo.x));
+                    float rx = Mathf.Lerp(lo.y, hi.y, t), rz = Mathf.Lerp(lo.z, hi.z, t), shift = Mathf.Lerp(lo.w, hi.w, t);
+                    var n = new Vector3(p.x / (rx * rx), 0, (p.z - shift) / (rz * rz)).normalized;
+                    // Lean the normal up or down where the body narrows or widens.
+                    float slope = (lo.y + lo.z - hi.y - hi.z) * 0.5f / Mathf.Max(hi.x - lo.x, 0.01f);
+                    return (n + Vector3.up * Mathf.Clamp(slope, -2f, 2f)).normalized;
+                }
+                for (int i = 0; i < sides; i++)
+                {
+                    int j = (i + 1) % sides;
+                    Tri(points[r, i], points[r, j], points[r + 1, j], inside, Around);
+                    Tri(points[r, i], points[r + 1, j], points[r + 1, i], inside, Around);
+                }
+            }
+            int last = rings.Length - 1;
+            Vector3 bottom = new Vector3(0, rings[0].x, rings[0].w);
+            Vector3 top = new Vector3(0, rings[last].x, rings[last].w);
+            for (int i = 0; i < sides; i++)
+            {
+                int j = (i + 1) % sides;
+                if (capBottom)
+                {
+                    Tri(bottom, points[0, i], points[0, j], bottom + Vector3.up, p => Vector3.down);
+                }
+                if (capTop)
+                {
+                    Tri(top, points[last, i], points[last, j], top + Vector3.down, p => Vector3.up);
+                }
+            }
+        }
+
         /// <summary>A faceted ellipsoid, or its upper half when <paramref name="dome"/> is set.</summary>
         public void Ellipsoid(Vector3 center, Vector3 radii, int rings, int segments, bool dome = false)
         {
