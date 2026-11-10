@@ -12,6 +12,7 @@ Fixes from the first playtest. Your game updates to this automatically on the ne
 - **Level sync checker.** A few seconds after each level loads, every player's copy is compared with the host's (layout, mirroring, variants and textures). The HUD shows "Levels synced: N", and any difference pops up on screen and is written to LogOutput.log with both versions.
 - **Mass distance on the HUD**, so you can see how far below you the mass is.
 - A warning on the main menu if another multiplayer mod is switched on.
+- During a run, the Belay menu (F7) only opens while the game is paused, so it never fights the game for the mouse. It closes when you unpause.
 
 ## Install (new players)
 1. Download **Belay-0.5.1-installer.zip** and extract it.
