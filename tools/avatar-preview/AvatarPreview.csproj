@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Renders the Belay climber outside the game so the model can be reviewed without launching
+    White Knuckle. It compiles the mod's pure-geometry files (MeshKit, AvatarDesign) against
+    UnityEngine.CoreModule for Vector3/Color only, poses them, and writes preview.json for render.py.
+    Usage: dotnet run -p:GameDir=... && python3 render.py
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <DefineConstants>$(DefineConstants);AVATAR_PREVIEW</DefineConstants>
+    <GameDir Condition="'$(GameDir)' == ''">D:\SteamLibrary\steamapps\common\White Knuckle</GameDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\..\src\Belay\Players\Avatar\MeshKit.cs" />
+    <Compile Include="..\..\src\Belay\Players\Avatar\AvatarDesign.cs" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="$(GameDir)\White Knuckle_Data\Managed\UnityEngine.CoreModule.dll" />
+  </ItemGroup>
+</Project>
