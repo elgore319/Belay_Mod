@@ -111,7 +111,10 @@ namespace Belay.Run
                     }
                 }
             }
+            string profile = HostProfile.Capture(mode);
             RunInfo run = NetSession.Instance.StartRun(mode.gamemodeName, settings);
+            NetSession.Instance.SetLobbyData(HostProfile.LobbyKey, profile);
+            HostProfile.Load(profile, run.RunId);
             LocalRunId = run.RunId;
             Plugin.Log.LogInfo($"Starting run {run.RunId}: {run.Gamemode} [{string.Join(",", run.Settings)}] seed {run.Seed}");
         }
@@ -156,6 +159,7 @@ namespace Belay.Run
             }
             CL_SaveManager.loadSessionSaveOnLoad = false;
             CL_SaveManager.isSavedRun = false;
+            HostProfile.Load(NetSession.Instance.GetLobbyData(HostProfile.LobbyKey), run.RunId);
             LocalRunId = run.RunId;
             Plugin.Log.LogInfo($"Following host into run {run.RunId}: {run.Gamemode} seed {run.Seed}");
             SceneManager.LoadScene(mode.gamemodeScene);

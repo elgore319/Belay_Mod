@@ -131,6 +131,13 @@ namespace Belay.UI
             {
                 SetOpen(true);
             }
+            if (onMainMenu && BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey("shenxl.MultiPlayerMod"))
+            {
+                GUI.color = new UnityEngine.Color(1f, 0.45f, 0.4f);
+                GUI.Label(new Rect(Screen.width - 520, Screen.height - 90, 510, 40),
+                    "Another multiplayer mod (MultiPlayer Mod) is on and conflicts with Belay. Turn it off in Belay > Mods, then restart.");
+                GUI.color = UnityEngine.Color.white;
+            }
         }
 
         private void DrawHud()
@@ -159,6 +166,16 @@ namespace Belay.UI
             if (catchFlash > 0f)
             {
                 text += "   CAUGHT!";
+            }
+            if (Players.WorldSpace.Ready && DEN_DeathFloor.instance != null && DEN_DeathFloor.instance.IsActive())
+            {
+                float below = ENT_Player.playerObject.transform.position.y - ((Component)DEN_DeathFloor.instance).transform.position.y;
+                text += below > 0f ? $"   Mass: {Mathf.RoundToInt(below)} m below" : "   Mass: HERE";
+            }
+            int waiting = InterludeGate.MissingInCurrentRoom;
+            if (waiting > 0)
+            {
+                GUI.Label(new Rect(Screen.width / 2f - 200f, 70f, 400f, 30f), $"Waiting for {waiting} teammate{(waiting == 1 ? "" : "s")} to reach the room");
             }
             GUI.Label(new Rect(10, Screen.height - 30, 400, 25), text);
         }

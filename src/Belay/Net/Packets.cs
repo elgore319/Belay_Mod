@@ -16,6 +16,7 @@ namespace Belay.Net
         ReviveRequest = 30,
         Revived = 31,
         RunOver = 32,
+        ButtonPress = 40,
     }
 
     public static class Channels

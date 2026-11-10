@@ -5,6 +5,14 @@ Fixes from the first playtest. Your game updates to this automatically on the ne
 - **Spectating.** When you died, the camera stayed where you died. It now follows the teammate you're spectating (Tab switches teammates).
 - **Levels looked different for each player.** The level order matched, but mirroring, room variants, props and textures were randomized separately on each PC. Each level's randomness now comes from the lobby seed, so everyone climbs the same tower.
 
+- **Different towers for players with different progress.** Some areas only spawn depending on your save (beaten the game, unlocks, facility upgrades, flags). For a lobby run, everyone now uses the host's progress, so the tower matches.
+
+## New
+- **Interludes wait for the team.** Interlude and breakroom buttons can't be pressed until every living teammate is inside the room. The HUD shows how many you're waiting for.
+- **Shared buttons.** Pressing a level button presses it for everyone, so hatches and lifts move for the whole team. Shop and roach buttons stay personal.
+- **Mass distance on the HUD**, so you can see how far below you the mass is.
+- A warning on the main menu if another multiplayer mod is switched on.
+
 ## Install (new players)
 1. Download **Belay-0.5.1-installer.zip** and extract it.
 2. Close the game and double-click **Install Belay.bat**.
