@@ -15,7 +15,7 @@ namespace Belay.UI
     /// <summary>
     /// The Belay mod menu. It's drawn with IMGUI on its own (no game UI objects are created, moved or
     /// patched, so other mods' menus are untouched), opens from a small "Belay" button on the main and
-    /// pause menus or the menu key (during a run, only while paused), and only captures input while it is open.
+    /// pause menus or the menu key, and only captures input while it is open.
     /// </summary>
     public class BelayMenu : MonoBehaviour
     {
@@ -31,6 +31,12 @@ namespace Belay.UI
         private static readonly string[] TabLabels = { "Lobby", "Players", "Rules", "Mods", "Settings" };
 
         private bool open;
+
+        /// <summary>True while the menu is open in a run: mouse look and new grabs are ignored (see MenuInputPatches).</summary>
+        internal static bool CapturingInput { get; private set; }
+
+        /// <summary>True while a text box in the menu has the keyboard, so typing doesn't move the player.</summary>
+        internal static bool Typing => CapturingInput && GUIUtility.keyboardControl != 0;
         private Tab tab;
         private Rect window = new Rect(40, 40, 440, 520);
         private Vector2 modScroll;
@@ -51,20 +57,9 @@ namespace Belay.UI
         {
             if (Input.GetKeyDown(Plugin.MenuKey.Value))
             {
-                if (open || CanOpen)
-                {
-                    SetOpen(!open);
-                }
-                else
-                {
-                    Run.RunFlow.Instance?.ShowNotice("Pause the game to open the Belay menu", 2f);
-                }
+                SetOpen(!open);
             }
-            if (open && !CanOpen)
-            {
-                // The run was unpaused: the mouse belongs to the game again.
-                SetOpen(false);
-            }
+            CapturingInput = open && CL_GameManager.IsInGame();
             if (open)
             {
                 // The game re-locks the cursor every frame while playing.
@@ -77,12 +72,6 @@ namespace Belay.UI
             }
             catchFlash = Mathf.Max(0f, catchFlash - Time.unscaledDeltaTime);
         }
-
-        /// <summary>
-        /// During a run the menu only opens while the game is paused, so it never fights the game for
-        /// the mouse. On the main menu it opens any time.
-        /// </summary>
-        private static bool CanOpen => !CL_GameManager.IsInGame() || (CL_GameManager.gMan != null && CL_GameManager.gMan.isPaused);
 
         private void SetOpen(bool value)
         {
