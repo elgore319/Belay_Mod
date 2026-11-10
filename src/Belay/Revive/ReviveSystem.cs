@@ -275,7 +275,7 @@ namespace Belay.Revive
                 return;
             }
             SteamId target = dead[0];
-            string name = new Friend(target).Name;
+            string name = NetSession.NameOf(target);
             int cost = Cost;
             int wallet = CL_GameManager.GetRoaches();
             if (wallet < cost)
@@ -345,13 +345,17 @@ namespace Belay.Revive
             }
         }
 
+        /// <summary>Raised on every machine when someone is revived (target, reviver, spawn in shared space).</summary>
+        public static event System.Action<SteamId, SteamId, Vector3> Revived;
+
         private void ApplyRevive(SteamId target, SteamId reviver, Vector3 sharedSpawn)
         {
+            Revived?.Invoke(target, reviver, sharedSpawn);
             if (reviver == SteamClient.SteamId)
             {
                 // Paid from the reviver's own wallet only.
                 CL_GameManager.AddRoaches(-Cost);
-                RunFlowNotice("Revived " + new Friend(target).Name);
+                RunFlowNotice("Revived " + NetSession.NameOf(target));
             }
             if (target != SteamClient.SteamId || !WorldSpace.Ready)
             {
@@ -364,7 +368,7 @@ namespace Belay.Revive
             player.Teleport(WorldSpace.ToLocal(sharedSpawn));
             player.ResetFallingHeight();
             player.AddIgnoreFallDamageTime(3f);
-            RunFlowNotice(new Friend(reviver).Name + " revived you");
+            RunFlowNotice(NetSession.NameOf(reviver) + " revived you");
         }
 
         private static void RunFlowNotice(string text)

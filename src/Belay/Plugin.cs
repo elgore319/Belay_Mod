@@ -31,6 +31,8 @@ namespace Belay
         public static ConfigEntry<KeyCode> SpectateNextKey;
         public static ConfigEntry<bool> AutoUpdate;
         public static ConfigEntry<string> UpdateRepo;
+        public static ConfigEntry<KeyCode> BotPovKey;
+        public static ConfigEntry<float> BotFollowDelay;
 
         private void Awake()
         {
@@ -44,6 +46,8 @@ namespace Belay
             SpectateNextKey = Config.Bind("Revive", "SpectateNextKey", KeyCode.Tab, "While dead, switch which teammate you watch.");
             SendRate = Config.Bind("Network", "SendRate", 20, "Player state updates sent per second.");
             AutoUpdate = Config.Bind("Updates", "AutoUpdate", true, "Download new Belay releases on launch. They apply the next time the game starts.");
+            BotPovKey = Config.Bind("Test Bot", "PovWindowKey", KeyCode.F8, "Shows or hides the test bot's point-of-view window.");
+            BotFollowDelay = Config.Bind("Test Bot", "FollowDelay", 2f, "Seconds a following test bot trails behind you (each extra bot adds this again).");
             UpdateRepo = Config.Bind("Updates", "UpdateRepo", "elgore319/Belay_Mod", "GitHub repo (owner/name) whose releases Belay updates from.");
 
             var harmony = new Harmony(Guid);
@@ -63,6 +67,7 @@ namespace Belay
             gameObject.AddComponent<ReviveSystem>();
             gameObject.AddComponent<BelayMenu>();
             gameObject.AddComponent<Updater>();
+            gameObject.AddComponent<Bot.TestBot>();
 
             Log.LogInfo($"{Name} {Version} loaded");
         }

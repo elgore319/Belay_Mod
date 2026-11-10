@@ -86,7 +86,7 @@ namespace Belay.Players
         {
             if (!Remotes.TryGetValue(id, out RemotePlayer remote) || remote == null)
             {
-                remote = RemotePlayer.Create(id, new Friend(id).Name, ColorFor(id));
+                remote = RemotePlayer.Create(id, NetSession.NameOf(id), ColorFor(id));
                 Remotes[id] = remote;
             }
             remote.Apply(state);

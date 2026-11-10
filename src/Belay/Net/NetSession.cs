@@ -194,10 +194,63 @@ namespace Belay.Net
 
         public IEnumerable<Friend> Members => InLobby ? CurrentLobby.Value.Members : Enumerable.Empty<Friend>();
 
-        /// <summary>Members in join order, used to decide who is roped to whom.</summary>
+        /// <summary>Members in join order, used to decide who is roped to whom. Local test bots come last.</summary>
         public List<SteamId> MemberOrder()
         {
-            return Members.Select(m => m.Id).ToList();
+            List<SteamId> order = Members.Select(m => m.Id).ToList();
+            if (InLobby)
+            {
+                order.AddRange(LocalBots);
+            }
+            return order;
+        }
+
+        // ---------------------------------------------------------------- Local test bots
+        // Bot/TestBot.cs adds fake teammates that live only on this machine. They count as members for
+        // gameplay (rope, goo, revive, interlude gate) but have no Steam connection, so nothing is sent to them.
+
+        public readonly List<SteamId> LocalBots = new List<SteamId>();
+        public readonly Dictionary<SteamId, string> LocalBotNames = new Dictionary<SteamId, string>();
+
+        public bool IsLocalBot(SteamId id) => LocalBotNames.ContainsKey(id);
+
+        /// <summary>Display name for a member, including local bots.</summary>
+        public static string NameOf(SteamId id)
+        {
+            if (Instance != null && Instance.LocalBotNames.TryGetValue(id, out string name))
+            {
+                return name;
+            }
+            return new Friend(id).Name;
+        }
+
+        public void AddLocalBot(SteamId id, string name)
+        {
+            if (!LocalBotNames.ContainsKey(id))
+            {
+                LocalBots.Add(id);
+                LocalBotNames[id] = name;
+                OnLobbyChanged?.Invoke();
+            }
+        }
+
+        public void RemoveLocalBot(SteamId id)
+        {
+            if (LocalBotNames.Remove(id))
+            {
+                LocalBots.Remove(id);
+                OnPlayerLeft?.Invoke(id);
+                OnLobbyChanged?.Invoke();
+            }
+        }
+
+        /// <summary>Feed a local bot's state through the same path as a network snapshot.</summary>
+        public void InjectLocalBotState(SteamId id, PlayerState state)
+        {
+            if (InLobby && IsLocalBot(id))
+            {
+                OnPlayerState?.Invoke(id, state);
+            }
         }
 
         public string GetLobbyData(string key)
