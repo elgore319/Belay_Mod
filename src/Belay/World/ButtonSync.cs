@@ -1,0 +1,168 @@
+using System.Text;
+using Belay.Net;
+using Belay.Players;
+using HarmonyLib;
+using UnityEngine;
+
+namespace Belay.World
+{
+    /// <summary>
+    /// Level buttons are shared: when anyone presses one, it's pressed for everyone, so whatever it
+    /// drives (hatches, lifts, lights, animated doors) changes on every PC at once. In interludes the
+    /// press is only allowed once the whole team is inside (see InterludeGate).
+    /// Buttons that buy things or act on the presser's own player are left alone, because currency
+    /// is never shared.
+    /// </summary>
+    public class ButtonSync : MonoBehaviour
+    {
+        public static ButtonSync Instance { get; private set; }
+
+        /// <summary>Set while replaying someone else's press, so it isn't sent back or gated.</summary>
+        internal static bool Applying;
+
+        private void Awake()
+        {
+            Instance = this;
+        }
+
+        private void Start()
+        {
+            NetSession.Instance.On(PacketType.ButtonPress, (origin, r) => ApplyPress(r.ReadString()));
+        }
+
+        internal static bool Shareable(CL_Button button)
+        {
+            return button != null && button.activeEvent != null && Shareable(button, button.activeEvent);
+        }
+
+        /// <summary>
+        /// True when this level object's events can safely run on every PC: it sits inside a level and
+        /// none of its events buy something or act on the local player.
+        /// </summary>
+        internal static bool Shareable(Component owner, params UnityEngine.Events.UnityEventBase[] events)
+        {
+            if (owner == null || owner.GetComponentInParent<M_Level>() == null)
+            {
+                return false;
+            }
+            foreach (var ev in events)
+            {
+                if (ev == null) continue;
+                for (int i = 0; i < ev.GetPersistentEventCount(); i++)
+                {
+                    Object target = ev.GetPersistentTarget(i);
+                    string method = ev.GetPersistentMethodName(i) ?? "";
+                    string type = target != null ? target.GetType().Name : "";
+                    if (IsPersonal(type) || IsPersonal(method))
+                    {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        private static bool IsPersonal(string name)
+        {
+            string n = name.ToLowerInvariant();
+            return n.Contains("roach") || n.Contains("trader") || n.Contains("shop") || n.Contains("vend")
+                || n.Contains("buy") || n.Contains("purchase") || n.Contains("currency") || n.Contains("inventory")
+                || n.Contains("ent_player") || n.Contains("perk") || n.Contains("cosmetic");
+        }
+
+        internal void Broadcast(CL_Button button)
+        {
+            string id = ObjectId(button);
+            Plugin.Log.LogInfo("Button pressed: " + id);
+            NetSession.Instance.Send(PacketType.ButtonPress, w => w.Write(id));
+        }
+
+        private static void ApplyPress(string id)
+        {
+            foreach (CL_Button button in FindObjectsByType<CL_Button>(FindObjectsSortMode.None))
+            {
+                if (button == null || ObjectId(button) != id)
+                {
+                    continue;
+                }
+                Applying = true;
+                try
+                {
+                    var presses = Traverse.Create(button).Field("presses");
+                    int before = presses.GetValue<int>();
+                    button.Interact();
+                    if (presses.GetValue<int>() == before)
+                    {
+                        // Our copy wasn't ready (still inactive, cooling down, or switched on by
+                        // something only the presser did). The press happened, so run it anyway.
+                        Plugin.Log.LogInfo("Forcing teammate's press on a button that wasn't ready here: " + id);
+                        presses.SetValue(before + 1);
+                        button.hasBeenPressed = true;
+                        button.activeEvent?.Invoke();
+                        AudioManager.PlaySound(button.pressSound, button.transform.position);
+                    }
+                }
+                catch (System.Exception e)
+                {
+                    Plugin.Log.LogWarning($"Teammate's button press failed here ({id}): {e.Message}");
+                }
+                finally
+                {
+                    Applying = false;
+                }
+                return;
+            }
+            Plugin.Log.LogInfo("Teammate pressed a button that isn't loaded here: " + id);
+        }
+
+        /// <summary>Same scheme as doors: level name, the level's shared height, then the sibling path inside it.</summary>
+        internal static string ObjectId(Component c)
+        {
+            Transform t = c.transform;
+            M_Level level = t.GetComponentInParent<M_Level>();
+            Transform root = level != null ? level.transform : null;
+            var path = new StringBuilder();
+            for (Transform cursor = t; cursor != null && cursor != root; cursor = cursor.parent)
+            {
+                path.Insert(0, "/" + cursor.GetSiblingIndex() + cursor.name);
+            }
+            if (root == null)
+            {
+                return c.gameObject.scene.name + path;
+            }
+            return root.name + "@" + Mathf.RoundToInt(WorldSpace.ToShared(root.position).y) + path;
+        }
+    }
+
+    [HarmonyPatch(typeof(CL_Button), nameof(CL_Button.Interact), new System.Type[0])]
+    internal static class ButtonPressPatch
+    {
+        [HarmonyPrefix]
+        private static void Prefix(CL_Button __instance, out int __state)
+        {
+            __state = Traverse.Create(__instance).Field("presses").GetValue<int>();
+        }
+
+        [HarmonyPostfix]
+        private static void Postfix(CL_Button __instance, int __state)
+        {
+            if (ButtonSync.Applying || ButtonSync.Instance == null || NetSession.Instance == null || !NetSession.Instance.InLobby || !WorldSpace.Ready)
+            {
+                return;
+            }
+            int now = Traverse.Create(__instance).Field("presses").GetValue<int>();
+            if (now <= __state)
+            {
+                return;
+            }
+            if (ButtonSync.Shareable(__instance))
+            {
+                ButtonSync.Instance.Broadcast(__instance);
+            }
+            else
+            {
+                Plugin.Log.LogInfo("Button kept local (personal or outside a level): " + ButtonSync.ObjectId(__instance));
+            }
+        }
+    }
+}

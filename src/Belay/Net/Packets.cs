@@ -16,6 +16,12 @@ namespace Belay.Net
         ReviveRequest = 30,
         Revived = 31,
         RunOver = 32,
+        ButtonPress = 40,
+        LevelHash = 41,
+        LevelMismatch = 42,
+        HoldInteract = 43,
+        LeverAngle = 44,
+        HandTouch = 45,
     }
 
     public static class Channels
