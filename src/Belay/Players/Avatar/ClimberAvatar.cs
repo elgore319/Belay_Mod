@@ -49,6 +49,7 @@ namespace Belay.Players.Avatar
         private readonly Transform leftBoot, rightBoot;
         private readonly Transform leftFist, rightFist, leftOpen, rightOpen;
         private readonly Transform pack, packLid;
+        private readonly HandSkinRenderer leftSkin, rightSkin;
         private readonly Light lamp;
         private float packOut;
 
@@ -92,6 +93,9 @@ namespace Belay.Players.Avatar
             leftOpen = Part("LeftHand", openLeft, materials);
             rightOpen = Part("RightHand", openRight, materials);
 
+            leftSkin = new HandSkinRenderer(root, 0);
+            rightSkin = new HandSkinRenderer(root, 1);
+
             var lampObject = new GameObject("Headlamp");
             lampObject.transform.SetParent(head, false);
             lampObject.transform.localPosition = new Vector3(0, 0.215f, 0.17f);
@@ -118,7 +122,8 @@ namespace Belay.Players.Avatar
         /// world positions, <paramref name="velocity"/> is in meters per second.
         /// </summary>
         public void Pose(Vector3 position, float yaw, float pitch, Vector3 leftHand, Vector3 rightHand,
-            bool leftGrip, bool rightGrip, Vector3 velocity, bool inventoryOpen, float dt)
+            bool leftGrip, bool rightGrip, Vector3 velocity, bool inventoryOpen, float dt,
+            string leftHandSkin = null, string rightHandSkin = null)
         {
             bool hanging = leftGrip || rightGrip;
             Vector3 flat = new Vector3(velocity.x, 0, velocity.z);
@@ -209,8 +214,8 @@ namespace Belay.Players.Avatar
             }
 
             // Arms reach to the synced hand positions.
-            PoseArm(leftArm, -1f, pelvis, leftHand, leftGrip, leftFist, leftOpen);
-            PoseArm(rightArm, 1f, pelvis, rightHand, rightGrip, rightFist, rightOpen);
+            PoseArm(leftArm, -1f, pelvis, leftHand, leftGrip, leftFist, leftOpen, leftSkin, leftHandSkin);
+            PoseArm(rightArm, 1f, pelvis, rightHand, rightGrip, rightFist, rightOpen, rightSkin, rightHandSkin);
 
             // Legs.
             float ground = position.y - FeetDrop + AvatarDesign.AnkleHeight * Scale;
@@ -257,7 +262,8 @@ namespace Belay.Players.Avatar
             posed = true;
         }
 
-        private void PoseArm(Limb arm, float side, Vector3 pelvis, Vector3 hand, bool grip, Transform fist, Transform open)
+        private void PoseArm(Limb arm, float side, Vector3 pelvis, Vector3 hand, bool grip, Transform fist, Transform open,
+            HandSkinRenderer skinRenderer, string skin)
         {
             Vector3 shoulder = pelvis + torsoRotation * (new Vector3(side * AvatarDesign.ShoulderWidth, AvatarDesign.ShoulderHeight - 0.02f, 0) * Scale);
             Vector3 toHand = hand - shoulder;
@@ -273,8 +279,20 @@ namespace Belay.Players.Avatar
             Vector3 forearmDir = elbowToWrist.sqrMagnitude > 1e-6f ? elbowToWrist.normalized : dir;
             Vector3 back = Vector3.Lerp(up, -(torsoRotation * Vector3.forward), Mathf.Abs(Vector3.Dot(forearmDir, up)));
             Quaternion handRotation = SafeLook(forearmDir, back);
+            // The teammate's own glove cosmetic replaces the modeled glove when it can be shown.
+            bool skinned = skin != null && skinRenderer.Show(skin, grip, hand, forearmDir, 0.3f * Scale);
+            if (skin == null)
+            {
+                skinRenderer.Hide();
+            }
             Transform shown = grip ? fist : open;
             Transform hidden = grip ? open : fist;
+            if (skinned)
+            {
+                if (fist.gameObject.activeSelf) fist.gameObject.SetActive(false);
+                if (open.gameObject.activeSelf) open.gameObject.SetActive(false);
+                return;
+            }
             if (!shown.gameObject.activeSelf)
             {
                 shown.gameObject.SetActive(true);

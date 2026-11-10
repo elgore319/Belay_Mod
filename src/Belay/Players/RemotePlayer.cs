@@ -108,8 +108,10 @@ namespace Belay.Players
             leftHand = Vector3.Lerp(leftHand, WorldSpace.ToLocal(Latest.LeftHand), Latest.LeftHanging ? gripT : t);
             rightHand = Vector3.Lerp(rightHand, WorldSpace.ToLocal(Latest.RightHand), Latest.RightHanging ? gripT : t);
 
+            HandSkins.PublishTick();
             avatar.Pose(transform.position, Latest.Yaw, Latest.Pitch, leftHand, rightHand,
-                Latest.LeftHanging, Latest.RightHanging, velocity, Latest.InventoryOpen, dt);
+                Latest.LeftHanging, Latest.RightHanging, velocity, Latest.InventoryOpen, dt,
+                HandSkins.SkinOf(SteamId, 0), HandSkins.SkinOf(SteamId, 1));
 
             UpdateNameTag();
         }
