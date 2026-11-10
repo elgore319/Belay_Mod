@@ -18,7 +18,7 @@ namespace Belay
     {
         public const string Guid = "elgore319.belay";
         public const string Name = "Belay";
-        public const string Version = "0.5.0";
+        public const string Version = "0.5.1";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
@@ -46,7 +46,9 @@ namespace Belay
             AutoUpdate = Config.Bind("Updates", "AutoUpdate", true, "Download new Belay releases on launch. They apply the next time the game starts.");
             UpdateRepo = Config.Bind("Updates", "UpdateRepo", "elgore319/Belay_Mod", "GitHub repo (owner/name) whose releases Belay updates from.");
 
-            new Harmony(Guid).PatchAll(typeof(Plugin).Assembly);
+            var harmony = new Harmony(Guid);
+            harmony.PatchAll(typeof(Plugin).Assembly);
+            Patches.LevelRandomPatches.Apply(harmony);
 
             // BepInEx's manager object survives scene loads, so our components live on it too.
             gameObject.AddComponent<NetSession>();

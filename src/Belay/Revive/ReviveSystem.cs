@@ -121,8 +121,19 @@ namespace Belay.Revive
             RemotePlayer target = alive[Mathf.Abs(spectateIndex) % alive.Count];
             // The dead player's controller is disabled, so we can carry the camera along with the teammate.
             // This also keeps the levels around them loaded.
+            ENT_Player player = ENT_Player.playerObject;
             Quaternion facing = Quaternion.Euler(0f, target.Latest.Yaw, 0f);
-            ENT_Player.playerObject.transform.position = target.LocalPosition + facing * new Vector3(0f, 1.5f, -3f);
+            Vector3 eye = target.LocalPosition + facing * new Vector3(0f, 1.5f, -3f);
+            player.transform.position = eye;
+            player.transform.rotation = facing;
+            // The game only moves its camera rig in FixedUpdate while the player is alive, so a dead
+            // player's camera stays where they died. Snap the rig to the player and tilt it down a little
+            // toward the teammate (mouse look is off while dead, and comes back on revive).
+            player.ResetCameraInterpolation();
+            if (player.camTransform != null)
+            {
+                player.camTransform.localRotation = Quaternion.Euler(15f, 0f, 0f);
+            }
             Prompt = "Spectating " + target.DisplayName + ".  [" + Plugin.SpectateNextKey.Value + "] next player";
         }
 

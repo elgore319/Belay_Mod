@@ -107,6 +107,17 @@ namespace Belay.World
     [HarmonyPatch(typeof(DEN_DeathFloor), nameof(DEN_DeathFloor.Update))]
     internal static class DeathFloorPatches
     {
+        /// <summary>How far below the lowest living climber a scripted goo jump is allowed to land.</summary>
+        private const float ScriptedJumpMargin = 10f;
+
+        // Host, in shared space (immune to world-offset shifts): goo height after our last Update, and a
+        // scripted jump that's waiting for everyone to get above it.
+        private static DEN_DeathFloor trackedGoo;
+        private static float lastPostY = float.NaN;
+        private static float pendingJumpY = float.NaN;
+
+        private static bool Active => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+
         private static void PinToHost(DEN_DeathFloor goo)
         {
             float? target = GooSync.Instance.ClientTargetHeight();
@@ -119,7 +130,50 @@ namespace Belay.World
             }
         }
 
-        private static bool Active => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        /// <summary>
+        /// Interludes and breakrooms move the goo with scene scripts (UT_GooController, UT_GooTakeover and
+        /// friends) when the player who triggers them arrives. Single-player that's fine; in a lobby it
+        /// dropped the goo on everyone still climbing below. On the host, any rise that happens outside
+        /// the goo's own Update is held just under the lowest living player and applied once everyone is
+        /// above it. The goo still climbs and kills normally.
+        /// </summary>
+        private static void HoldScriptedJumps(DEN_DeathFloor goo)
+        {
+            if (goo != trackedGoo)
+            {
+                trackedGoo = goo;
+                lastPostY = float.NaN;
+                pendingJumpY = float.NaN;
+            }
+            if (float.IsNaN(lastPostY))
+            {
+                return;
+            }
+            Transform t = ((Component)goo).transform;
+            Vector3 pos = t.position;
+            float y = WorldSpace.ToShared(pos).y;
+            float limit = WorldSpace.ToShared(new Vector3(0f, GooSync.LowestPlayerHeight(), 0f)).y - ScriptedJumpMargin;
+            float target = y;
+            if (y > lastPostY + 0.05f && y > limit)
+            {
+                if (float.IsNaN(pendingJumpY))
+                {
+                    Plugin.Log.LogInfo($"Holding a scripted goo jump to {y:F1} until everyone is above it");
+                }
+                pendingJumpY = float.IsNaN(pendingJumpY) ? y : Mathf.Max(pendingJumpY, y);
+                target = Mathf.Max(lastPostY, limit);
+            }
+            else if (!float.IsNaN(pendingJumpY) && limit >= pendingJumpY)
+            {
+                target = Mathf.Max(y, pendingJumpY);
+                pendingJumpY = float.NaN;
+            }
+            if (target != y)
+            {
+                pos.y = WorldSpace.ToLocal(new Vector3(0f, target, 0f)).y;
+                t.position = pos;
+            }
+        }
 
         [HarmonyPrefix]
         private static void Prefix(DEN_DeathFloor __instance, ref float ___rubberbandMult, out float __state)
@@ -131,6 +185,7 @@ namespace Belay.World
             }
             if (NetSession.Instance.IsHost)
             {
+                HoldScriptedJumps(__instance);
                 // The game rubberbands by distance to the host; rescale it so it's distance to the lowest climber.
                 float gooY = ((Component)__instance).transform.position.y;
                 float hostDistance = Mathf.Abs(gooY - ENT_Player.playerObject.transform.position.y);
@@ -150,7 +205,16 @@ namespace Belay.World
         private static void Postfix(DEN_DeathFloor __instance, ref float ___rubberbandMult, float __state)
         {
             ___rubberbandMult = __state;
-            if (Active && !NetSession.Instance.IsHost)
+            if (!Active)
+            {
+                lastPostY = float.NaN;
+                return;
+            }
+            if (NetSession.Instance.IsHost)
+            {
+                lastPostY = WorldSpace.ToShared(((Component)__instance).transform.position).y;
+            }
+            else
             {
                 PinToHost(__instance);
             }
