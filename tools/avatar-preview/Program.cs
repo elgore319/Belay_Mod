@@ -34,15 +34,20 @@ internal static class Program
 
     private static readonly List<string> Figures = new List<string>();
     private static StringBuilder tris;
-    private static Color[] colors;
 
     private static void Main(string[] args)
     {
-        colors = AvatarDesign.Colors(new Color(1f, 0.45f, 0.2f));
-        var sb = new StringBuilder("{\"colors\":[");
-        for (int i = 0; i < colors.Length; i++)
+        PixelTextures.Recipe[] recipes = AvatarDesign.Recipes(new Color(1f, 0.45f, 0.2f));
+        var sb = new StringBuilder("{\"size\":" + PixelTextures.Size + ",\"textures\":[");
+        for (int i = 0; i < recipes.Length; i++)
         {
-            sb.Append(i > 0 ? "," : "").Append(F(colors[i].r)).Append(',').Append(F(colors[i].g)).Append(',').Append(F(colors[i].b));
+            Color32[] px = PixelTextures.Generate(recipes[i], 101 + i * 7);
+            var bytes = new byte[px.Length * 4];
+            for (int j = 0; j < px.Length; j++)
+            {
+                bytes[j * 4] = px[j].r; bytes[j * 4 + 1] = px[j].g; bytes[j * 4 + 2] = px[j].b; bytes[j * 4 + 3] = 255;
+            }
+            sb.Append(i > 0 ? "," : "").Append('"').Append(Convert.ToBase64String(bytes)).Append('"');
         }
         sb.Append("],\"figures\":{");
 
@@ -50,13 +55,15 @@ internal static class Program
             new Vector3(-0.22f, 1.25f, 0.45f), new Vector3(0.22f, 1.25f, 0.45f));
         Figure("hanging", standing: false, leftGrip: true, rightGrip: false,
             new Vector3(-0.2f, 1.95f, 0.32f), new Vector3(0.38f, 1.55f, 0.4f));
+        Figure("inventory", standing: true, leftGrip: true, rightGrip: true, Vector3.zero, Vector3.zero, inventory: true);
 
         sb.Append(string.Join(",", Figures)).Append("}}");
         File.WriteAllText(args.Length > 0 ? args[0] : "preview.json", sb.ToString());
         Console.WriteLine("wrote preview.json");
     }
 
-    private static void Figure(string name, bool standing, bool leftGrip, bool rightGrip, Vector3 leftHand, Vector3 rightHand)
+    private static void Figure(string name, bool standing, bool leftGrip, bool rightGrip, Vector3 leftHand, Vector3 rightHand,
+        bool inventory = false)
     {
         tris = new StringBuilder();
         Vector3 pelvis = new Vector3(0, AvatarDesign.PelvisHeight, 0);
@@ -65,8 +72,27 @@ internal static class Program
         Frame torso = Frame.Look(pelvis, new Vector3(0, -Mathf.Sin(rad), Mathf.Cos(rad)), Vector3.up);
         Emit(AvatarDesign.BuildTorso, torso);
 
+        // Backpack on the back, or held open in front (same placement as ClimberAvatar).
+        Frame pack;
+        if (inventory)
+        {
+            float tilt = -30f * Mathf.Deg2Rad;
+            pack = Frame.Look(torso.Apply(new Vector3(0, 0.26f, 0.44f)),
+                torso.Dir(new Vector3(0, Mathf.Sin(-tilt), Mathf.Cos(tilt))), torso.Dir(new Vector3(0, Mathf.Cos(tilt), -Mathf.Sin(-tilt))));
+            leftHand = pack.Apply(new Vector3(0.17f, -0.03f, 0.07f));
+            rightHand = pack.Apply(new Vector3(-0.17f, -0.03f, 0.07f));
+        }
+        else
+        {
+            pack = Frame.Look(torso.Apply(AvatarDesign.PackOnBack), -torso.Forward, torso.Up);
+        }
+        Emit(AvatarDesign.BuildPack, pack);
+        float open = (inventory ? 115f : 0f) * Mathf.Deg2Rad;
+        Emit(AvatarDesign.BuildPackLid, Frame.Look(pack.Apply(AvatarDesign.PackLidHinge),
+            pack.Dir(new Vector3(0, Mathf.Sin(open), Mathf.Cos(open))), pack.Dir(new Vector3(0, Mathf.Cos(open), -Mathf.Sin(open)))));
+
         Vector3 neck = torso.Apply(new Vector3(0, AvatarDesign.NeckHeight, 0.01f));
-        float pitch = (standing ? 10f : -25f) * Mathf.Deg2Rad;
+        float pitch = (inventory ? 40f : standing ? 10f : -25f) * Mathf.Deg2Rad;
         Emit(AvatarDesign.BuildHead, Frame.Look(neck, new Vector3(0, -Mathf.Sin(pitch), Mathf.Cos(pitch)), Vector3.up));
 
         Arm(torso, -1, leftHand, leftGrip);
@@ -140,9 +166,16 @@ internal static class Program
                 tris.Append('[').Append(s);
                 for (int j = 0; j < 3; j++)
                 {
-                    // Unity is left-handed (x right, y up, z forward); write as x, z, y for a right-handed plot.
-                    Vector3 p = frame.Apply(kit.Vertices[list[i + j]]);
-                    tris.Append(',').Append(F(p.x)).Append(',').Append(F(p.z)).Append(',').Append(F(p.y));
+                    int v = list[i + j];
+                    // Unity is left-handed (x right, y up, z forward); render.js mirrors z.
+                    Vector3 p = frame.Apply(kit.Vertices[v]);
+                    Vector3 n = kit.Normals[v];
+                    n = frame.Dir(new Vector3(n.x, n.y, n.z / frame.ScaleZ)).normalized;
+                    Vector2 uv = kit.UVs[v];
+                    foreach (float f in new[] { p.x, p.y, p.z, n.x, n.y, n.z, uv.x, uv.y })
+                    {
+                        tris.Append(',').Append(F(f));
+                    }
                 }
                 tris.Append("],");
             }

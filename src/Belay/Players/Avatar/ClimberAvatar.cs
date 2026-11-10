@@ -38,6 +38,7 @@ namespace Belay.Players.Avatar
             }
         }
 
+        private static Mesh packMesh, packLidMesh;
         private static Mesh torsoMesh, headMesh, upperArmMesh, forearmMesh, thighMesh, shinMesh, bootMesh;
         private static Mesh fistLeft, fistRight, openLeft, openRight;
         private static Shader litShader;
@@ -47,7 +48,9 @@ namespace Belay.Players.Avatar
         private readonly Limb leftArm, rightArm, leftLeg, rightLeg;
         private readonly Transform leftBoot, rightBoot;
         private readonly Transform leftFist, rightFist, leftOpen, rightOpen;
+        private readonly Transform pack, packLid;
         private readonly Light lamp;
+        private float packOut;
 
         private Quaternion torsoRotation = Quaternion.identity;
         private float bodyYaw;
@@ -72,6 +75,8 @@ namespace Belay.Players.Avatar
 
             torso = Part("Torso", torsoMesh, materials);
             head = Part("Head", headMesh, materials);
+            pack = Part("Pack", packMesh, materials);
+            packLid = Part("PackLid", packLidMesh, materials);
             leftArm = new Limb(Part("LeftUpperArm", upperArmMesh, materials), Part("LeftForearm", forearmMesh, materials),
                 AvatarDesign.UpperArm * Scale, AvatarDesign.Forearm * Scale);
             rightArm = new Limb(Part("RightUpperArm", upperArmMesh, materials), Part("RightForearm", forearmMesh, materials),
@@ -113,7 +118,7 @@ namespace Belay.Players.Avatar
         /// world positions, <paramref name="velocity"/> is in meters per second.
         /// </summary>
         public void Pose(Vector3 position, float yaw, float pitch, Vector3 leftHand, Vector3 rightHand,
-            bool leftGrip, bool rightGrip, Vector3 velocity, float dt)
+            bool leftGrip, bool rightGrip, Vector3 velocity, bool inventoryOpen, float dt)
         {
             bool hanging = leftGrip || rightGrip;
             Vector3 flat = new Vector3(velocity.x, 0, velocity.z);
@@ -163,6 +168,34 @@ namespace Belay.Players.Avatar
             Vector3 pelvis = position + Vector3.up * (AvatarDesign.PelvisHeight * Scale - FeetDrop + bob);
             torso.SetPositionAndRotation(pelvis, torsoRotation);
             RopeAnchor = pelvis + torsoRotation * (new Vector3(0, -AvatarDesign.HarnessLoopDrop - 0.02f, 0.13f) * Scale);
+
+            // Backpack: rides on the back, and swings round to be held open in front while the
+            // teammate is looking through their inventory.
+            packOut = posed ? Mathf.MoveTowards(packOut, inventoryOpen ? 1f : 0f, dt / 0.4f) : (inventoryOpen ? 1f : 0f);
+            float e = packOut * packOut * (3f - 2f * packOut);
+            Vector3 backPosition = pelvis + torsoRotation * (AvatarDesign.PackOnBack * Scale);
+            Quaternion backRotation = torsoRotation * Quaternion.Euler(0, 180f, 0);
+            Vector3 frontPosition = pelvis + torsoRotation * (new Vector3(0, 0.26f, 0.44f) * Scale);
+            Quaternion frontRotation = torsoRotation * Quaternion.Euler(-30f, 0, 0);
+            float arc = Mathf.Sin(e * Mathf.PI);
+            Vector3 packPosition = Vector3.Lerp(backPosition, frontPosition, e)
+                + torsoRotation * (new Vector3(0.38f * arc, 0.06f * arc, 0) * Scale);
+            Quaternion packRotation = Quaternion.Slerp(backRotation, torsoRotation * Quaternion.Euler(0, 90f, 0), Mathf.Clamp01(e * 2f));
+            if (e > 0.5f)
+            {
+                packRotation = Quaternion.Slerp(torsoRotation * Quaternion.Euler(0, 90f, 0), frontRotation, (e - 0.5f) * 2f);
+            }
+            pack.SetPositionAndRotation(packPosition, packRotation);
+            packLid.SetPositionAndRotation(pack.TransformPoint(AvatarDesign.PackLidHinge), packRotation * Quaternion.Euler(-115f * e, 0, 0));
+            if (e > 0.01f)
+            {
+                // Both hands hold the sides of the pack.
+                leftHand = Vector3.Lerp(leftHand, pack.TransformPoint(new Vector3(0.17f, -0.03f, 0.07f)), e);
+                rightHand = Vector3.Lerp(rightHand, pack.TransformPoint(new Vector3(-0.17f, -0.03f, 0.07f)), e);
+                leftGrip |= e > 0.5f;
+                rightGrip |= e > 0.5f;
+                signedPitch = Mathf.Lerp(signedPitch, 40f, e);
+            }
 
             // Head looks where the camera looks.
             Vector3 neck = pelvis + torsoRotation * (new Vector3(0, AvatarDesign.NeckHeight, 0.01f) * Scale);
@@ -357,6 +390,8 @@ namespace Belay.Players.Avatar
                 return;
             }
             torsoMesh = Build("Belay_Torso", AvatarDesign.BuildTorso);
+            packMesh = Build("Belay_Pack", AvatarDesign.BuildPack);
+            packLidMesh = Build("Belay_PackLid", AvatarDesign.BuildPackLid);
             headMesh = Build("Belay_Head", AvatarDesign.BuildHead);
             upperArmMesh = Build("Belay_UpperArm", AvatarDesign.BuildUpperArm);
             forearmMesh = Build("Belay_Forearm", AvatarDesign.BuildForearm);
@@ -387,24 +422,30 @@ namespace Belay.Players.Avatar
                 litShader = probe.GetComponent<Renderer>().sharedMaterial.shader;
                 Object.Destroy(probe);
             }
-            Color[] colors = AvatarDesign.Colors(color);
+            PixelTextures.Recipe[] recipes = AvatarDesign.Recipes(color);
             var materials = new Material[Slot.Count];
             for (int i = 0; i < Slot.Count; i++)
             {
-                var material = new Material(litShader) { color = colors[i] };
-                float gloss = i == Slot.Visor ? 0.85f : i == Slot.Metal ? 0.6f : i == Slot.Helmet ? 0.4f : 0.12f;
+                var texture = new Texture2D(PixelTextures.Size, PixelTextures.Size, TextureFormat.RGBA32, false)
+                {
+                    name = "Belay_Avatar_" + i,
+                    filterMode = FilterMode.Point,
+                    wrapMode = TextureWrapMode.Repeat,
+                };
+                texture.SetPixels32(PixelTextures.Generate(recipes[i], 101 + i * 7));
+                texture.Apply(false, true);
+
+                var material = new Material(litShader) { color = Color.white, mainTexture = texture };
+                // Matte, like the game's characters; only the goggles and metal catch a little light.
+                float gloss = i == Slot.Visor ? 0.6f : i == Slot.Metal ? 0.35f : 0f;
                 if (material.HasProperty("_Glossiness"))
                 {
                     material.SetFloat("_Glossiness", gloss);
                 }
-                if (i == Slot.Metal && material.HasProperty("_Metallic"))
-                {
-                    material.SetFloat("_Metallic", 0.7f);
-                }
                 if (i == Slot.Lamp && material.HasProperty("_EmissionColor"))
                 {
                     material.EnableKeyword("_EMISSION");
-                    material.SetColor("_EmissionColor", colors[i] * 2.5f);
+                    material.SetColor("_EmissionColor", recipes[i].Base * 2.5f);
                 }
                 materials[i] = material;
             }

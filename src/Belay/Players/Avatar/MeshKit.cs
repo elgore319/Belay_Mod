@@ -35,7 +35,33 @@ namespace Belay.Players.Avatar
             return this;
         }
 
+        /// <summary>World-ish size of one texture repeat, in meters. Pixel textures tile at this size.</summary>
+        public float TileSize = 0.75f;
+
+        /// <summary>
+        /// Real-world length of each local axis per mesh unit, for UVs. Limbs are built one unit long and
+        /// stretched in game, so they set z to their nominal bone length to keep texels square.
+        /// </summary>
+        public Vector3 UvAxisScale = Vector3.one;
+
+        /// <summary>
+        /// 0 gives hard faceted edges; 1 gives soft rounded shading like the game's characters. Rounded
+        /// shapes (tubes, ellipsoids) always shade smooth along their sides.
+        /// </summary>
+        public float Softness = 0.6f;
+
+        public readonly List<Vector2> UVs = new List<Vector2>();
+
         public void Tri(Vector3 a, Vector3 b, Vector3 c, Vector3 inside)
+        {
+            Tri(a, b, c, inside, null);
+        }
+
+        /// <summary>
+        /// Adds a triangle. Normals come from <paramref name="smooth"/> (a per-point outward direction)
+        /// when given, otherwise from the face bent toward the shape's center by <see cref="Softness"/>.
+        /// </summary>
+        public void Tri(Vector3 a, Vector3 b, Vector3 c, Vector3 inside, System.Func<Vector3, Vector3> smooth)
         {
             Vector3 normal = Vector3.Cross(b - a, c - a);
             float length = normal.magnitude;
@@ -52,12 +78,31 @@ namespace Belay.Players.Avatar
                 c = swap;
                 normal = -normal;
             }
+
+            // Project UVs on the plane the face mostly points along, so texels stay square.
+            Vector3 n = new Vector3(Mathf.Abs(normal.x), Mathf.Abs(normal.y), Mathf.Abs(normal.z));
+            int drop = n.x >= n.y && n.x >= n.z ? 0 : n.y >= n.z ? 1 : 2;
+
             List<int> tris = Submeshes[current];
             foreach (Vector3 p in new[] { a, b, c })
             {
                 tris.Add(Vertices.Count);
                 Vertices.Add(p);
-                Normals.Add(normal);
+                Vector3 vertexNormal;
+                if (smooth != null)
+                {
+                    vertexNormal = smooth(p);
+                }
+                else
+                {
+                    Vector3 outward = p - inside;
+                    vertexNormal = outward.sqrMagnitude > 1e-8f
+                        ? (normal + outward.normalized * Softness).normalized
+                        : normal;
+                }
+                Normals.Add(vertexNormal);
+                Vector3 m = new Vector3(p.x * UvAxisScale.x, p.y * UvAxisScale.y, p.z * UvAxisScale.z) / TileSize;
+                UVs.Add(drop == 0 ? new Vector2(m.z, m.y) : drop == 1 ? new Vector2(m.x, m.z) : new Vector2(m.x, m.y));
             }
         }
 
@@ -119,10 +164,18 @@ namespace Belay.Players.Avatar
                 ringB[i] = b + radial * radiusB;
             }
             Vector3 inside = (a + b) * 0.5f;
+            Vector3 start = a;
+            Vector3 Radial(Vector3 p)
+            {
+                Vector3 off = p - start;
+                Vector3 r = off - axis * Vector3.Dot(off, axis);
+                return r.sqrMagnitude > 1e-10f ? r.normalized : axis;
+            }
             for (int i = 0; i < sides; i++)
             {
                 int j = (i + 1) % sides;
-                Quad(ringA[i], ringA[j], ringB[j], ringB[i], inside);
+                Tri(ringA[i], ringA[j], ringB[j], inside, Radial);
+                Tri(ringA[i], ringB[j], ringB[i], inside, Radial);
             }
             if (caps)
             {
@@ -149,6 +202,11 @@ namespace Belay.Players.Avatar
                     Mathf.Cos(lat) * Mathf.Cos(lon) * radii.z);
             }
             Vector3 inside = dome ? center + Vector3.up * radii.y * 0.4f : center;
+            Vector3 Outward(Vector3 p)
+            {
+                Vector3 d = p - center;
+                return new Vector3(d.x / (radii.x * radii.x), d.y / (radii.y * radii.y), d.z / (radii.z * radii.z)).normalized;
+            }
             for (int r = 0; r < rings; r++)
             {
                 for (int s = 0; s < segments; s++)
@@ -156,15 +214,16 @@ namespace Belay.Players.Avatar
                     Vector3 a = Point(r, s), b = Point(r, s + 1), c = Point(r + 1, s + 1), d = Point(r + 1, s);
                     if (r == rings - 1)
                     {
-                        Tri(a, b, c, inside);
+                        Tri(a, b, c, inside, Outward);
                     }
                     else if (!dome && r == 0)
                     {
-                        Tri(a, c, d, inside);
+                        Tri(a, c, d, inside, Outward);
                     }
                     else
                     {
-                        Quad(a, b, c, d, inside);
+                        Tri(a, b, c, inside, Outward);
+                        Tri(a, c, d, inside, Outward);
                     }
                 }
             }
@@ -208,6 +267,7 @@ namespace Belay.Players.Avatar
             var mesh = new Mesh { name = name };
             mesh.SetVertices(Vertices);
             mesh.SetNormals(Normals);
+            mesh.SetUVs(0, UVs);
             mesh.subMeshCount = Submeshes.Length;
             for (int i = 0; i < Submeshes.Length; i++)
             {

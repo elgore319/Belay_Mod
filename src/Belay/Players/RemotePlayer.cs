@@ -109,7 +109,7 @@ namespace Belay.Players
             rightHand = Vector3.Lerp(rightHand, WorldSpace.ToLocal(Latest.RightHand), Latest.RightHanging ? gripT : t);
 
             avatar.Pose(transform.position, Latest.Yaw, Latest.Pitch, leftHand, rightHand,
-                Latest.LeftHanging, Latest.RightHanging, velocity, dt);
+                Latest.LeftHanging, Latest.RightHanging, velocity, Latest.InventoryOpen, dt);
 
             UpdateNameTag();
         }

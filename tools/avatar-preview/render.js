@@ -10,10 +10,11 @@ const out = process.argv[3] || 'preview.png';
 
 const views = [
   ['standing', 200, 'Front'],
-  ['standing', 270, 'Side'],
+  ['standing', 290, 'Side'],
   ['standing', 20, 'Back'],
   ['hanging', 210, 'Hanging by one hand'],
-  ['hanging', 330, 'Hanging, from behind'],
+  ['inventory', 195, 'Checking inventory'],
+  ['inventory', 270, 'Inventory, side'],
 ];
 
 const page = `<html><body style="margin:0;background:#16171a"><canvas id="c"></canvas></body></html>`;
@@ -30,35 +31,40 @@ const page = `<html><body style="margin:0;background:#16171a"><canvas id="c"></c
     renderer.setPixelRatio(2);
     renderer.setSize(W * views.length, H);
     renderer.setScissorTest(true);
-    const materials = [];
-    for (let i = 0; i < model.colors.length / 3; i++) {
-      const color = new THREE.Color().setRGB(model.colors[i * 3], model.colors[i * 3 + 1], model.colors[i * 3 + 2], THREE.SRGBColorSpace);
-      materials.push(new THREE.MeshStandardMaterial({
-        color, flatShading: true, roughness: i === 8 ? 0.2 : 0.8, metalness: i === 4 ? 0.6 : 0,
-        emissive: i === 9 ? color : new THREE.Color(0), side: THREE.DoubleSide,
-      }));
-    }
+    const materials = model.textures.map((b64, i) => {
+      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      const tex = new THREE.DataTexture(bytes, model.size, model.size, THREE.RGBAFormat);
+      tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter;
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true;
+      return new THREE.MeshLambertMaterial({ map: tex, emissive: i === 9 ? 0xfff0c0 : 0x000000, side: THREE.DoubleSide });
+    });
     const scenes = {};
     for (const name of Object.keys(model.figures)) {
       const scene = new THREE.Scene();
       scene.background = new THREE.Color(0x16171a);
-      scene.add(new THREE.HemisphereLight(0xbfc8d6, 0x2a2420, 1.1));
-      const key = new THREE.DirectionalLight(0xffffff, 1.6); key.position.set(-2, 3, 3); scene.add(key);
+      scene.add(new THREE.HemisphereLight(0xc8ccd6, 0x2a2420, 1.6));
+      const key = new THREE.DirectionalLight(0xffffff, 1.4); key.position.set(-2, 3, 3); scene.add(key);
       const rim = new THREE.DirectionalLight(0x99aaff, 0.6); rim.position.set(2, 2, -3); scene.add(rim);
       const bySlot = {};
       for (const t of model.figures[name]) {
-        (bySlot[t[0]] = bySlot[t[0]] || []).push(
-          t[1], t[3], -t[2], t[4], t[6], -t[5], t[7], t[9], -t[8]);
+        const g = (bySlot[t[0]] = bySlot[t[0]] || { p: [], n: [], uv: [] });
+        for (let v = 0; v < 3; v++) {
+          const o = 1 + v * 8;
+          g.p.push(t[o], t[o + 1], -t[o + 2]);
+          g.n.push(t[o + 3], t[o + 4], -t[o + 5]);
+          g.uv.push(t[o + 6], t[o + 7]);
+        }
       }
       for (const slot of Object.keys(bySlot)) {
         const g = new THREE.BufferGeometry();
-        g.setAttribute('position', new THREE.Float32BufferAttribute(bySlot[slot], 3));
-        g.computeVertexNormals();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(bySlot[slot].p, 3));
+        g.setAttribute('normal', new THREE.Float32BufferAttribute(bySlot[slot].n, 3));
+        g.setAttribute('uv', new THREE.Float32BufferAttribute(bySlot[slot].uv, 2));
         scene.add(new THREE.Mesh(g, materials[slot]));
       }
       const floor = new THREE.Mesh(new THREE.CircleGeometry(0.6, 32), new THREE.MeshStandardMaterial({ color: 0x24262b }));
       floor.rotation.x = -Math.PI / 2;
-      if (name === 'standing') scene.add(floor);
+      if (name !== 'hanging') scene.add(floor);
       scenes[name] = scene;
     }
     views.forEach(([name, angle, label], i) => {
