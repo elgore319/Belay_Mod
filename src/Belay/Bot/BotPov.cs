@@ -54,6 +54,8 @@ namespace Belay.Bot
         private Vector2 resizeStart;
         private Vector2 sizeStart;
         private float pitch;
+        private float yaw;
+        private BotPlayer aimedAt;
 
         public static bool SecondMonitorAvailable => Display.displays.Length > 1;
 
@@ -155,9 +157,18 @@ namespace Belay.Bot
             RemotePlayer body = PlayerSync.Instance.Remotes[Watched.Id];
             // Follow the smoothed body so the view doesn't stutter at the network send rate.
             float t = 1f - Mathf.Exp(-15f * Time.unscaledDeltaTime);
+            // Aim from the bot's own look direction, not the body transform: the avatar turns its model
+            // itself and can leave the root's rotation fixed.
+            if (aimedAt != Watched)
+            {
+                aimedAt = Watched;
+                yaw = Watched.State.Yaw;
+                pitch = Watched.State.Pitch;
+            }
+            yaw = Mathf.LerpAngle(yaw, Watched.State.Yaw, t);
             pitch = Mathf.LerpAngle(pitch, Watched.State.Pitch, t);
             cam.transform.position = body.transform.position + Vector3.up * EyeHeight;
-            cam.transform.rotation = Quaternion.Euler(pitch, body.transform.eulerAngles.y, 0f);
+            cam.transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
             cam.enabled = true;
             UpdateStandIn();
         }
