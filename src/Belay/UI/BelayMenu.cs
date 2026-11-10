@@ -172,6 +172,11 @@ namespace Belay.UI
                 float below = ENT_Player.playerObject.transform.position.y - ((Component)DEN_DeathFloor.instance).transform.position.y;
                 text += below > 0f ? $"   Mass: {Mathf.RoundToInt(below)} m below" : "   Mass: HERE";
             }
+            LevelCheck check = LevelCheck.Instance;
+            if (check != null && check.Checked > 0)
+            {
+                text += check.Mismatches == 0 ? $"   Levels synced: {check.Checked}" : $"   LEVELS DIFFER: {check.Mismatches} of {check.Checked}";
+            }
             int waiting = InterludeGate.MissingInCurrentRoom;
             if (waiting > 0)
             {

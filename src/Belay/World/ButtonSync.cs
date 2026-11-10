@@ -32,18 +32,31 @@ namespace Belay.World
 
         internal static bool Shareable(CL_Button button)
         {
-            if (button == null || button.GetComponentInParent<M_Level>() == null || button.activeEvent == null)
+            return button != null && button.activeEvent != null && Shareable(button, button.activeEvent);
+        }
+
+        /// <summary>
+        /// True when this level object's events can safely run on every PC: it sits inside a level and
+        /// none of its events buy something or act on the local player.
+        /// </summary>
+        internal static bool Shareable(Component owner, params UnityEngine.Events.UnityEventBase[] events)
+        {
+            if (owner == null || owner.GetComponentInParent<M_Level>() == null)
             {
                 return false;
             }
-            for (int i = 0; i < button.activeEvent.GetPersistentEventCount(); i++)
+            foreach (var ev in events)
             {
-                Object target = button.activeEvent.GetPersistentTarget(i);
-                string method = button.activeEvent.GetPersistentMethodName(i) ?? "";
-                string type = target != null ? target.GetType().Name : "";
-                if (IsPersonal(type) || IsPersonal(method))
+                if (ev == null) continue;
+                for (int i = 0; i < ev.GetPersistentEventCount(); i++)
                 {
-                    return false;
+                    Object target = ev.GetPersistentTarget(i);
+                    string method = ev.GetPersistentMethodName(i) ?? "";
+                    string type = target != null ? target.GetType().Name : "";
+                    if (IsPersonal(type) || IsPersonal(method))
+                    {
+                        return false;
+                    }
                 }
             }
             return true;
@@ -68,19 +81,36 @@ namespace Belay.World
         {
             foreach (CL_Button button in FindObjectsByType<CL_Button>(FindObjectsSortMode.None))
             {
-                if (button != null && ObjectId(button) == id)
+                if (button == null || ObjectId(button) != id)
                 {
-                    Applying = true;
-                    try
-                    {
-                        button.Interact();
-                    }
-                    finally
-                    {
-                        Applying = false;
-                    }
-                    return;
+                    continue;
                 }
+                Applying = true;
+                try
+                {
+                    var presses = Traverse.Create(button).Field("presses");
+                    int before = presses.GetValue<int>();
+                    button.Interact();
+                    if (presses.GetValue<int>() == before)
+                    {
+                        // Our copy wasn't ready (still inactive, cooling down, or switched on by
+                        // something only the presser did). The press happened, so run it anyway.
+                        Plugin.Log.LogInfo("Forcing teammate's press on a button that wasn't ready here: " + id);
+                        presses.SetValue(before + 1);
+                        button.hasBeenPressed = true;
+                        button.activeEvent?.Invoke();
+                        AudioManager.PlaySound(button.pressSound, button.transform.position);
+                    }
+                }
+                catch (System.Exception e)
+                {
+                    Plugin.Log.LogWarning($"Teammate's button press failed here ({id}): {e.Message}");
+                }
+                finally
+                {
+                    Applying = false;
+                }
+                return;
             }
             Plugin.Log.LogInfo("Teammate pressed a button that isn't loaded here: " + id);
         }
@@ -121,9 +151,17 @@ namespace Belay.World
                 return;
             }
             int now = Traverse.Create(__instance).Field("presses").GetValue<int>();
-            if (now > __state && ButtonSync.Shareable(__instance))
+            if (now <= __state)
+            {
+                return;
+            }
+            if (ButtonSync.Shareable(__instance))
             {
                 ButtonSync.Instance.Broadcast(__instance);
+            }
+            else
+            {
+                Plugin.Log.LogInfo("Button kept local (personal or outside a level): " + ButtonSync.ObjectId(__instance));
             }
         }
     }

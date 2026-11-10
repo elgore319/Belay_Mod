@@ -81,6 +81,9 @@ namespace Belay.Patches
             return id;
         }
 
+        /// <summary>The level's generation-order id, the same on every PC.</summary>
+        internal static int LevelIdOf(M_Level level) => LevelId(level);
+
         private static void OnSpawnPrefix(M_Level __instance)
         {
             if (!Active)

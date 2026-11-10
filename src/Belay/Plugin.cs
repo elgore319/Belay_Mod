@@ -58,6 +58,8 @@ namespace Belay
             gameObject.AddComponent<GooSync>();
             gameObject.AddComponent<DoorSync>();
             gameObject.AddComponent<ButtonSync>();
+            gameObject.AddComponent<InteractionSync>();
+            gameObject.AddComponent<LevelCheck>();
             gameObject.AddComponent<ReviveSystem>();
             gameObject.AddComponent<BelayMenu>();
             gameObject.AddComponent<Updater>();
