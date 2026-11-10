@@ -13,6 +13,8 @@ Fixes from the first playtest. Your game updates to this automatically on the ne
 - **Mass distance on the HUD**, so you can see how far below you the mass is.
 - A warning on the main menu if another multiplayer mod is switched on.
 - While the Belay menu (F7) is open during a run, the mouse no longer turns the camera and clicks no longer grab, so it never tugs your character. Grips you are already holding stay held.
+- **Climber avatars.** Teammates now look like climbers instead of placeholders, with 3D hands that wear each player's equipped hand skin (all 22 skins).
+- **Test bots** for trying things solo: add a fake teammate from the menu and watch what it sees in a separate view.
 
 ## Install (new players)
 1. Download **Belay-0.5.1-installer.zip** and extract it.
