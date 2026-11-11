@@ -49,7 +49,9 @@ namespace Belay.Players
             if (sendTimer <= 0f)
             {
                 sendTimer = 1f / Mathf.Max(1, Plugin.SendRate.Value);
-                net.BroadcastState(CaptureLocal());
+                PlayerState state = CaptureLocal();
+                PlayerContact.Instance?.FillLocal(ref state);
+                net.BroadcastState(state);
             }
         }
 

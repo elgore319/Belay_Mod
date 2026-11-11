@@ -23,6 +23,8 @@ namespace Belay.Players
         private TextMesh nameShadow;
         private Color color;
         private bool hasState;
+        private RemoteBody body;
+        private bool bodyFailed;
 
         public Vector3 LocalPosition => transform.position;
         public bool IsHanging => Latest.LeftHanging || Latest.RightHanging;
@@ -87,6 +89,7 @@ namespace Belay.Players
         {
             bool visible = hasState && WorldSpace.Ready && !Latest.Dead;
             SetVisible(visible);
+            UpdateBody(visible);
             if (!visible)
             {
                 return;
@@ -143,6 +146,34 @@ namespace Belay.Players
                     text.text = label;
                 }
             }
+        }
+
+        /// <summary>The solid, grippable capsule (made once the level is up, since its layer comes from the player).</summary>
+        private void UpdateBody(bool visible)
+        {
+            bool solid = visible && Plugin.SolidTeammates.Value;
+            if (body == null)
+            {
+                if (!solid)
+                {
+                    return;
+                }
+                if (bodyFailed)
+                {
+                    return;
+                }
+                try
+                {
+                    body = RemoteBody.Create(this);
+                }
+                catch (System.Exception e)
+                {
+                    bodyFailed = true;
+                    Plugin.Log.LogWarning($"Couldn't make {DisplayName} solid: {e}");
+                    return;
+                }
+            }
+            body.SetSolid(solid);
         }
 
         private void SetVisible(bool visible)
