@@ -606,7 +606,7 @@ namespace Belay.Bot
             GUILayout.EndHorizontal();
             if (BotPov.SecondMonitorAvailable)
             {
-                if (GUILayout.Button(pov.OnSecondMonitor ? "POV is fullscreen on monitor 2" : "Show POV fullscreen on monitor 2 (until restart)"))
+                if (GUILayout.Button(pov.OnSecondMonitor ? "POV is fullscreen on monitor 2" : "Show POV fullscreen on monitor 2 (until restart; keeps your mouse on monitor 1)"))
                 {
                     pov.UseSecondMonitor();
                 }

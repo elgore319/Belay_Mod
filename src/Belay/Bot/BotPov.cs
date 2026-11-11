@@ -140,6 +140,7 @@ namespace Belay.Bot
 
         private void LateUpdate()
         {
+            KeepCursorOnMainWindow();
             if (!Active)
             {
                 if (cam != null)
@@ -171,6 +172,20 @@ namespace Belay.Bot
             cam.transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
             cam.enabled = true;
             UpdateStandIn();
+        }
+
+        /// <summary>
+        /// With the POV on monitor 2, Unity opens a second game window there. Any time the cursor is free
+        /// (menus, inventory, a frame where the game unlocks it), it can slide onto that window, and a click
+        /// there (climbing is all clicks) moves focus to it, which feels like being tabbed out. While that
+        /// window exists, a free cursor is kept inside the main window instead. Alt-Tab still works.
+        /// </summary>
+        private void KeepCursorOnMainWindow()
+        {
+            if (OnSecondMonitor && Application.isFocused && Cursor.lockState == CursorLockMode.None)
+            {
+                Cursor.lockState = CursorLockMode.Confined;
+            }
         }
 
         private void EnsureCamera()
