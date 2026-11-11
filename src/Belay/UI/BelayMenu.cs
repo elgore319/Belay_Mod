@@ -483,7 +483,6 @@ namespace Belay.UI
         private void DrawSettingsTab()
         {
             DrawKeyBinding("Open Belay menu", Plugin.MenuKey);
-            DrawKeyBinding("Revive teammate", Plugin.ReviveKey);
             DrawKeyBinding("Next spectated player", Plugin.SpectateNextKey);
             DrawKeyBinding("Pull teammate up (rope)", Plugin.RopePullKey);
             DrawKeyBinding("Vote: take the shortcut", Plugin.VoteYesKey);

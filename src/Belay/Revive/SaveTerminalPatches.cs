@@ -60,11 +60,11 @@ namespace Belay.Revive
             string status = ReviveSystem.TerminalStatus();
             if (status.Contains("EVERYONE IS ALIVE"))
             {
-                ShowMessage(__instance, "Co-op: this terminal is a revive station. Everyone is alive right now.");
+                ShowMessage(__instance, "Co-op: this terminal revives teammates. Everyone is alive right now.");
             }
             else
             {
-                ShowMessage(__instance, "Co-op: this terminal is a revive station.\n" + status + "\nRevive them here?",
+                ShowMessage(__instance, "Co-op: this terminal revives teammates.\n" + status + "\nRevive them here?",
                     () => ShowMessage(__instance, ReviveSystem.TerminalRevive()));
             }
             return false;

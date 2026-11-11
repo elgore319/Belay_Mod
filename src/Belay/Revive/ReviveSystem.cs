@@ -9,16 +9,15 @@ using UnityEngine;
 namespace Belay.Revive
 {
     /// <summary>
-    /// Death in a lobby doesn't end your run: you spectate your teammates instead. Every breakroom /
-    /// interlude (an M_Level with safeArea) gets a revive station, where a living player pays roaches from
-    /// their own wallet to bring one dead teammate back. Wallets are never shared. The run only ends when
-    /// everyone is dead.
+    /// Death in a lobby doesn't end your run: you spectate your teammates instead. A living player brings
+    /// a dead teammate back at a save terminal (paying roaches from their own wallet; see
+    /// SaveTerminalPatches) or by using a disk they're holding (free, uses up the disk). Wallets are never
+    /// shared. The run only ends when everyone is dead.
     /// </summary>
     public class ReviveSystem : MonoBehaviour
     {
         public const int DefaultCost = 10;
         public const int MaxCost = 50;
-        private const float StationRange = 3f;
         private const float RunOverDelay = 3f;
 
         public static ReviveSystem Instance { get; private set; }
@@ -33,8 +32,6 @@ namespace Belay.Revive
         private int spectateIndex;
         private float allDeadSince = -1f;
         private bool runOver;
-        private float nextStationScan;
-        private readonly List<ReviveStation> stations = new List<ReviveStation>();
         /// <summary>Host: targets revived recently, to stop two players paying for the same revive.</summary>
         private readonly Dictionary<SteamId, float> recentRevives = new Dictionary<SteamId, float>();
 
@@ -78,7 +75,6 @@ namespace Belay.Revive
                 Spectating = false;
                 runOver = false;
                 allDeadSince = -1f;
-                stations.Clear();
                 return;
             }
             ENT_Player player = ENT_Player.playerObject;
@@ -87,18 +83,13 @@ namespace Belay.Revive
                 Spectating = false;
             }
 
-            ScanForStations();
             if (Spectating)
             {
                 if (Input.GetKeyDown(Plugin.SpectateNextKey.Value))
                 {
                     spectateIndex++;
                 }
-                Prompt = "You died. A teammate can revive you at a revive station.  [" + Plugin.SpectateNextKey.Value + "] next player";
-            }
-            else
-            {
-                UpdateStationPrompt(player);
+                Prompt = "You died. A teammate can revive you at a save terminal, or by using a disk.  [" + Plugin.SpectateNextKey.Value + "] next player";
             }
 
             if (NetSession.Instance.IsHost)
@@ -298,72 +289,6 @@ namespace Belay.Revive
             finally
             {
                 AllowGameOver = false;
-            }
-        }
-
-        // ---------------------------------------------------------------- Stations
-
-        private void ScanForStations()
-        {
-            if (Time.unscaledTime < nextStationScan || WorldLoader.instance == null || !WorldLoader.isLoaded)
-            {
-                return;
-            }
-            nextStationScan = Time.unscaledTime + 1f;
-            stations.RemoveAll(s => s == null);
-            WorldLoader.BranchInfo branch = WorldLoader.instance.GetCurrentBranch();
-            if (branch == null)
-            {
-                return;
-            }
-            foreach (WorldLoader.LevelInfo info in branch.levelTracker)
-            {
-                M_Level level = info?.GetLevel();
-                if (level != null && level.safeArea && ((Component)level).GetComponentInChildren<ReviveStation>(true) == null)
-                {
-                    stations.Add(ReviveStation.Create(level));
-                }
-            }
-        }
-
-        private void UpdateStationPrompt(ENT_Player player)
-        {
-            if (player.dead)
-            {
-                return;
-            }
-            ReviveStation near = null;
-            foreach (ReviveStation station in stations)
-            {
-                if (station != null && Vector3.Distance(station.transform.position, player.transform.position) < StationRange)
-                {
-                    near = station;
-                    break;
-                }
-            }
-            if (near == null)
-            {
-                return;
-            }
-            List<SteamId> dead = DeadMembers();
-            if (dead.Count == 0)
-            {
-                Prompt = "Revive station: everyone is alive.";
-                return;
-            }
-            SteamId target = dead[0];
-            string name = NetSession.NameOf(target);
-            int cost = Cost;
-            int wallet = CL_GameManager.GetRoaches();
-            if (wallet < cost)
-            {
-                Prompt = $"Revive {name}: needs {cost} roaches (you have {wallet}).";
-                return;
-            }
-            Prompt = $"[{Plugin.ReviveKey.Value}] Revive {name} for {cost} roaches (you have {wallet}).";
-            if (Input.GetKeyDown(Plugin.ReviveKey.Value))
-            {
-                RequestRevive(target, near.SpawnPoint, false);
             }
         }
 
@@ -608,59 +533,6 @@ namespace Belay.Revive
         private static void RunFlowNotice(string text)
         {
             Run.RunFlow.Instance?.ShowNotice(text);
-        }
-    }
-
-    /// <summary>A glowing pillar placed at a safe area's spawn point. Visual only, no collider.</summary>
-    public class ReviveStation : MonoBehaviour
-    {
-        public Vector3 SpawnPoint => transform.position + transform.forward * 1.2f + Vector3.up * 0.5f;
-
-        public static ReviveStation Create(M_Level level)
-        {
-            Transform levelTransform = ((Component)level).transform;
-            Transform entrance = level.GetLevelEntrance();
-            Vector3 pos = level.spawnPosition != null ? level.GetSpawnPosition()
-                : entrance != null ? entrance.position + Vector3.up
-                : levelTransform.position;
-            pos += levelTransform.forward * 1.5f;
-
-            var root = new GameObject("Belay_ReviveStation");
-            root.transform.SetParent(levelTransform, true);
-            root.transform.position = pos;
-            Vector3 flatForward = Vector3.ProjectOnPlane(levelTransform.forward, Vector3.up);
-            root.transform.rotation = flatForward.sqrMagnitude > 0.001f ? Quaternion.LookRotation(flatForward) : Quaternion.identity;
-            var station = root.AddComponent<ReviveStation>();
-
-            GameObject pillar = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            Object.Destroy(pillar.GetComponent<Collider>());
-            pillar.transform.SetParent(root.transform, false);
-            pillar.transform.localScale = new Vector3(0.5f, 0.6f, 0.5f);
-            pillar.GetComponent<Renderer>().material.color = new Color(0.3f, 1f, 0.6f);
-
-            var label = new GameObject("Label");
-            label.transform.SetParent(root.transform, false);
-            label.transform.localPosition = Vector3.up * 0.9f;
-            TextMesh text = label.AddComponent<TextMesh>();
-            text.text = "REVIVE STATION";
-            text.characterSize = 0.04f;
-            text.fontSize = 48;
-            text.anchor = TextAnchor.LowerCenter;
-            text.color = new Color(0.3f, 1f, 0.6f);
-            return station;
-        }
-
-        private void Update()
-        {
-            Camera cam = Camera.main;
-            if (cam != null)
-            {
-                Transform label = transform.Find("Label");
-                if (label != null)
-                {
-                    label.rotation = Quaternion.LookRotation(label.position - cam.transform.position);
-                }
-            }
         }
     }
 
