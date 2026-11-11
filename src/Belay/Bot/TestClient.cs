@@ -138,7 +138,13 @@ namespace Belay.Bot
                 float speed = lag > delay * 1.5f ? 1.5f : 1f;
                 playhead = Mathf.Min(newest, playhead + Time.deltaTime * speed);
             }
-            Vector3 target = WorldSpace.ToLocal(SampleAt(playhead));
+            Vector3 shared = SampleAt(playhead);
+            if (Vector3.Distance(shared, hostShared) < KeepDistance)
+            {
+                // Teammates are solid: never jump onto the host (it would launch them). Hold position instead.
+                shared = me;
+            }
+            Vector3 target = WorldSpace.ToLocal(shared);
 
             // Face the host.
             Vector3 eye = target + Vector3.up * BotPov.EyeHeight;
