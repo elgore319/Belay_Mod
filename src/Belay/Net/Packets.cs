@@ -24,7 +24,10 @@ namespace Belay.Net
         HandTouch = 45,
         ItemPickup = 46,
         ItemDrop = 47,
-        ShortcutOpened = 48,
+        ShortcutVoteRequest = 48,
+        ShortcutVote = 49,
+        ShortcutVoteState = 50,
+        ShortcutResult = 51,
     }
 
     public static class Channels
