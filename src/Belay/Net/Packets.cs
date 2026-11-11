@@ -24,6 +24,7 @@ namespace Belay.Net
         HandTouch = 45,
         ItemPickup = 46,
         ItemDrop = 47,
+        ShortcutOpened = 48,
     }
 
     public static class Channels

@@ -64,6 +64,7 @@ namespace Belay
             gameObject.AddComponent<ButtonSync>();
             gameObject.AddComponent<InteractionSync>();
             gameObject.AddComponent<ItemSync>();
+            gameObject.AddComponent<ShortcutSync>();
             gameObject.AddComponent<LevelCheck>();
             gameObject.AddComponent<ReviveSystem>();
             gameObject.AddComponent<BelayMenu>();

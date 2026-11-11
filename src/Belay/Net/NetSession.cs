@@ -377,7 +377,7 @@ namespace Belay.Net
         }
 
         /// <summary>Packets a client sends that the host passes on to every other client.</summary>
-        private static readonly HashSet<PacketType> RelayedByHost = new HashSet<PacketType> { PacketType.DoorOpen, PacketType.ButtonPress, PacketType.HoldInteract, PacketType.LeverAngle, PacketType.HandTouch, PacketType.ItemPickup, PacketType.ItemDrop };
+        private static readonly HashSet<PacketType> RelayedByHost = new HashSet<PacketType> { PacketType.DoorOpen, PacketType.ButtonPress, PacketType.HoldInteract, PacketType.LeverAngle, PacketType.HandTouch, PacketType.ItemPickup, PacketType.ItemDrop, PacketType.ShortcutOpened };
 
         private readonly Dictionary<PacketType, Action<SteamId, BinaryReader>> handlers =
             new Dictionary<PacketType, Action<SteamId, BinaryReader>>();
