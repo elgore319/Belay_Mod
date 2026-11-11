@@ -1,11 +1,8 @@
-## Belay 0.5.11
+A fix for the test bot. Your game updates to this automatically on the next launch, then asks you to restart.
 
-**Shortcut votes now happen at terminals.**
+## Fixed
+- **Opening the bot's POV window launched you out of bounds.** The POV draws a stand-in for you in the bot's view, and since teammates became solid it had a solid body sitting inside you. The stand-in is never solid now.
+- **Bots and the test client no longer step into you.** Teammates are solid, so a following bot (or the test client's autopilot) waits instead of moving onto your spot, and "Bring to me" places the bot in a clear spot beside you instead of inside you or a wall.
 
-- When someone sits at a terminal, the team votes on every shortcut between that terminal and the next one. If several shortcuts come before the next terminal (for example terminal, shortcut, shortcut), that terminal runs one vote for each, one after another.
-- Vote with F1 (shortcut) or F2 (normal path). A tie or no votes means the normal path.
-- If the team picks the shortcut, it opens for everyone as soon as someone reaches it, with no second vote. The normal path is blocked when it opens.
-- If the team picks the normal path, the shortcut is blocked off.
-- A shortcut that nobody voted on yet, because there was no terminal before it or nobody sat at one, still asks the team when someone tries to open it, as in 0.5.10.
-
-Everyone in the lobby needs 0.5.11 (network protocol changed).
+## Still on 0.5.0 or 0.5.1?
+Download **Belay-0.5.12-installer.zip** below, extract it and double-click **Install Belay.bat**. Everyone in a lobby needs the same Belay version.

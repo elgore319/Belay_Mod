@@ -251,6 +251,8 @@ namespace Belay.Bot
             if (youStandIn == null)
             {
                 youStandIn = RemotePlayer.Create(default, "You", new Color(1f, 1f, 1f));
+                // It stands exactly where you are, so it must never be solid.
+                youStandIn.Ghost = true;
             }
             youStandIn.Apply(PlayerSync.CaptureLocal());
             SetRenderers(youStandIn, false);

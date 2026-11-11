@@ -43,6 +43,8 @@ namespace Belay.Bot
         private const float TrailStep = 0.05f;
         private const float TrailSeconds = 180f;
         private const float KeepDistance = 1.6f;
+        private const float MinBotSpacing = 0.9f;
+        private const float SpawnDistance = 1.6f;
 
         private struct Sample
         {
@@ -163,15 +165,59 @@ namespace Belay.Bot
             {
                 return;
             }
-            ENT_Player player = ENT_Player.playerObject;
             PlayerState you = PlayerSync.CaptureLocal();
-            Vector3 back = Quaternion.Euler(0f, you.Yaw, 0f) * new Vector3(0f, 0f, -1.5f);
-            bot.State = Offset(you, back);
+            Vector3 offset = ClearSpotNear(WorldSpace.ToLocal(you.Position), you.Yaw);
+            bot.State = Offset(you, offset);
             bot.State.Dead = bot.Dead;
             bot.State.LeftHanging = bot.State.RightHanging = bot.Anchored && bot.Mode == BotMode.Hold;
             bot.HasState = true;
-            bot.Playhead = trail.Count > 0 ? trail[trail.Count - 1].Time : -1f;
+            // Start replaying from now, never from a point on your path where you're still standing.
+            bot.Playhead = trail.Count > 0 ? trail[trail.Count - 1].Time : float.MaxValue;
             Push(bot);
+        }
+
+        /// <summary>
+        /// Teammates are solid, so a bot must never appear inside you or a wall. Try behind, beside and in
+        /// front of you, then above.
+        /// </summary>
+        private Vector3 ClearSpotNear(Vector3 you, float yaw)
+        {
+            Quaternion facing = Quaternion.Euler(0f, yaw, 0f);
+            Vector3[] tries =
+            {
+                facing * new Vector3(0f, 0f, -SpawnDistance),
+                facing * new Vector3(-SpawnDistance, 0f, 0f),
+                facing * new Vector3(SpawnDistance, 0f, 0f),
+                facing * new Vector3(0f, 0f, SpawnDistance),
+                new Vector3(0f, SpawnDistance + 0.5f, 0f),
+            };
+            int mask = ~((1 << Players.PlayerContact.BodyLayer) | (1 << ENT_Player.playerObject.gameObject.layer));
+            foreach (Vector3 offset in tries)
+            {
+                Vector3 c = you + offset;
+                if (!Physics.CheckCapsule(c - Vector3.up * 0.55f, c + Vector3.up * 0.55f, Players.RemoteBody.Radius + 0.05f, mask, QueryTriggerInteraction.Ignore))
+                {
+                    return offset;
+                }
+            }
+            return tries[0];
+        }
+
+        /// <summary>True if a body at this shared position would touch you or another bot.</summary>
+        private bool Crowded(BotPlayer bot, Vector3 shared, Vector3 you, bool youAlive)
+        {
+            if (youAlive && Vector3.Distance(shared, you) < KeepDistance)
+            {
+                return true;
+            }
+            foreach (BotPlayer other in Bots)
+            {
+                if (other != bot && other.HasState && !other.Dead && Vector3.Distance(shared, other.State.Position) < MinBotSpacing)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>A teammate punched or hammered this bot: shove it (a following bot walks back after).</summary>
@@ -257,7 +303,7 @@ namespace Belay.Bot
                     if (bot.Mode == BotMode.Follow)
                     {
                         // Each bot keeps its distance from whoever is just ahead of it in the line.
-                        StepFollow(bot, i + 1, ahead, youAlive || i > 0);
+                        StepFollow(bot, i + 1, ahead, youAlive || i > 0, you, youAlive);
                     }
                     else
                     {
@@ -317,7 +363,7 @@ namespace Belay.Bot
             }
         }
 
-        private void StepFollow(BotPlayer bot, int place, Vector3 ahead, bool aheadMoving)
+        private void StepFollow(BotPlayer bot, int place, Vector3 ahead, bool aheadMoving, Vector3 you, bool youAlive)
         {
             if (trail.Count == 0)
             {
@@ -326,20 +372,33 @@ namespace Belay.Bot
             float delay = Mathf.Max(0.25f, Plugin.BotFollowDelay.Value) * place;
             float oldest = trail[0].Time;
             float newest = trail[trail.Count - 1].Time;
-            if (bot.Playhead < oldest)
+            if (bot.Playhead == float.MaxValue)
+            {
+                // Just placed next to you: pick up the trail from here on.
+                bot.Playhead = newest;
+            }
+            else if (bot.Playhead < oldest)
             {
                 bot.Playhead = Mathf.Max(oldest, newest - delay);
             }
             float lag = Time.time - bot.Playhead;
             bool tooClose = aheadMoving && Vector3.Distance(bot.State.Position, ahead) < KeepDistance;
+            float next = bot.Playhead;
             if (!tooClose && lag > delay * 0.5f)
             {
                 // Catch up a bit faster when it's fallen behind (it waited, or you sprinted).
                 float speed = lag > delay * 1.5f ? 1.5f : 1f;
-                bot.Playhead = Mathf.Min(newest, bot.Playhead + Time.deltaTime * speed);
+                next = Mathf.Min(newest, bot.Playhead + Time.deltaTime * speed);
             }
+            PlayerState candidate = SampleAt(next);
+            if (Crowded(bot, candidate.Position, you, youAlive))
+            {
+                // Bodies are solid: wait where it is rather than step into you (that launches you).
+                return;
+            }
+            bot.Playhead = next;
             bool keepDead = bot.State.Dead;
-            bot.State = SampleAt(bot.Playhead);
+            bot.State = candidate;
             bot.State.Dead = keepDead;
         }
 

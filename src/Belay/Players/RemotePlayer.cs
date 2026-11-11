@@ -12,6 +12,9 @@ namespace Belay.Players
     {
         public Steamworks.SteamId SteamId;
         public string DisplayName;
+
+        /// <summary>Never solid (e.g. the test bot camera's stand-in for you, which sits where you are).</summary>
+        public bool Ghost;
         public PlayerState Latest;
         public float LastReceived;
 
@@ -151,7 +154,7 @@ namespace Belay.Players
         /// <summary>The solid, grippable capsule (made once the level is up, since its layer comes from the player).</summary>
         private void UpdateBody(bool visible)
         {
-            bool solid = visible && Plugin.SolidTeammates.Value;
+            bool solid = visible && Plugin.SolidTeammates.Value && !Ghost;
             if (body == null)
             {
                 if (!solid)
