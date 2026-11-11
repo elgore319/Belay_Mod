@@ -279,18 +279,31 @@ namespace Belay.Players.Avatar
 
         private static void HandSetup(MeshKit k, float thumbSide)
         {
-            // The skin texture is an atlas: the back of the hand on the left half, the palm on the right
-            // (seen from the front, so the thumb is on the other side).
+            // The skin texture is an atlas in thirds: the back of the hand, the palm (seen from the front,
+            // so the thumb is on the other side), and a swatch of the skin's finger colors. The game's
+            // pictures are drawn in perspective with the fingers spread, so they only line up with the
+            // flat parts of the 3D hand; fingers and thumb take the swatch instead of a slice of picture.
             k.UvProjection = (p, n) =>
             {
                 float u = Mathf.Clamp01((p.x * thumbSide - HandUvMinX) / HandUvWidth);
                 float v = Mathf.Clamp01((p.z - HandUvMinZ) / HandUvLength);
-                return n.y >= -0.2f ? new Vector2(u * 0.5f, v) : new Vector2(0.5f + (1f - u) * 0.5f, v);
+                return n.y >= -0.2f ? new Vector2(u / 3f, v) : new Vector2((1f + (1f - u)) / 3f, v);
             };
             k.Softness = 0.75f;
             k.Use(Slot.Glove);
-            // Cuff and the heel of the hand.
-            k.Tube(new Vector3(0, -0.005f, HandUvMinZ), new Vector3(0, -0.01f, 0.005f), 0.05f, 0.046f, 8);
+            // Cuff, running into the heel of the hand.
+            k.Tube(new Vector3(0, -0.008f, HandUvMinZ), new Vector3(0, -0.008f, 0.012f), 0.042f, 0.04f, 8);
+        }
+
+        /// <summary>From here on, faces take the finger swatch (the right third of the skin atlas).</summary>
+        private static void FingerUv(MeshKit k, float thumbSide)
+        {
+            k.UvProjection = (p, n) =>
+            {
+                float u = Mathf.Clamp01((p.x * thumbSide - HandUvMinX) / HandUvWidth);
+                float v = Mathf.Clamp01((p.z - HandUvMinZ) / HandUvLength);
+                return new Vector2((2f + u * 0.98f + 0.01f) / 3f, v);
+            };
         }
 
         private static void Finger(MeshKit k, float radius, params Vector3[] joints)
@@ -309,7 +322,9 @@ namespace Belay.Players.Avatar
         {
             float t = left ? 1f : -1f;
             HandSetup(k, t);
-            k.Block(new Vector3(0, -0.03f, 0.0f), 0.05f, 0.085f, 0.1f, 0.09f, 0.105f, 0.008f);
+            // Palm from the wrist to the knuckles, so the curled fingers grow out of it.
+            k.Block(new Vector3(0, -0.032f, 0.052f), 0.048f, 0.08f, 0.1f, 0.088f, 0.104f, 0.006f);
+            FingerUv(k, t);
             float[] curl = { 0.0f, 0.004f, 0.0f, -0.008f };
             for (int i = 0; i < 4; i++)
             {
@@ -332,7 +347,8 @@ namespace Belay.Players.Avatar
         {
             float t = left ? 1f : -1f;
             HandSetup(k, t);
-            k.Block(new Vector3(0, -0.022f, 0.0f), 0.036f, 0.085f, 0.1f, 0.09f, 0.105f, 0.0f);
+            k.Block(new Vector3(0, -0.022f, 0.05f), 0.034f, 0.08f, 0.1f, 0.088f, 0.102f, 0.0f);
+            FingerUv(k, t);
             float[] length = { 0.072f, 0.082f, 0.078f, 0.062f };
             for (int i = 0; i < 4; i++)
             {

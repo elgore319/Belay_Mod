@@ -82,6 +82,9 @@ namespace Belay.Players.Avatar
         private float walkAmount;
         private Vector3 leftFoot, rightFoot;
         private bool posed;
+        private float crouchAmount;
+        private Vector3 wallPush;
+        private float frontWall = 1f;
 
         /// <summary>Where the rope clips in: the harness belay loop.</summary>
         public Vector3 RopeAnchor { get; private set; }
@@ -145,7 +148,8 @@ namespace Belay.Players.Avatar
         /// </summary>
         public void Pose(Vector3 position, float yaw, float pitch, Vector3 leftHand, Vector3 rightHand,
             bool leftGrip, bool rightGrip, Vector3 velocity, bool inventoryOpen, float dt,
-            string leftHandSkin = null, string rightHandSkin = null, string leftItem = null, string rightItem = null)
+            string leftHandSkin = null, string rightHandSkin = null, string leftItem = null, string rightItem = null,
+            bool crouched = false)
         {
             bool hanging = leftGrip || rightGrip;
             Vector3 flat = new Vector3(velocity.x, 0, velocity.z);
@@ -154,15 +158,46 @@ namespace Belay.Players.Avatar
             bool grounded = !hanging && !airborne;
             float follow = posed ? 1f - Mathf.Exp(-10f * dt) : 1f;
 
+            // Crouching halves the game's capsule (the camera drops 0.75 m), so the avatar kneels down
+            // with it instead of sticking its head through vent ceilings.
+            float crouchTarget = crouched && !hanging ? 1f : 0f;
+            crouchAmount = posed ? Mathf.MoveTowards(crouchAmount, crouchTarget, dt / 0.25f) : crouchTarget;
+            float c = crouchAmount * crouchAmount * (3f - 2f * crouchAmount);
+
             // Body yaw trails the camera a little, so turning your head doesn't snap the whole body.
-            bodyYaw = posed ? Mathf.LerpAngle(bodyYaw, yaw, 1f - Mathf.Exp(-6f * dt)) : yaw;
-            if (Mathf.Abs(Mathf.DeltaAngle(bodyYaw, yaw)) > 60f)
+            // On the wall the body faces the holds instead, so looking around doesn't swing the
+            // backpack or the legs into the rock.
+            float bodyTarget = yaw;
+            bool facingHolds = false;
+            if (hanging)
+            {
+                Vector3 grip = leftGrip && rightGrip ? (leftHand + rightHand) * 0.5f : leftGrip ? leftHand : rightHand;
+                Vector3 toGrip = grip - position;
+                toGrip.y = 0f;
+                if (toGrip.sqrMagnitude > 0.01f)
+                {
+                    bodyTarget = Mathf.Atan2(toGrip.x, toGrip.z) * Mathf.Rad2Deg;
+                    facingHolds = true;
+                }
+            }
+            bodyYaw = posed ? Mathf.LerpAngle(bodyYaw, bodyTarget, 1f - Mathf.Exp(-6f * dt)) : bodyTarget;
+            if (!facingHolds && Mathf.Abs(Mathf.DeltaAngle(bodyYaw, yaw)) > 60f)
             {
                 bodyYaw = yaw - Mathf.Sign(Mathf.DeltaAngle(bodyYaw, yaw)) * 60f;
             }
             Quaternion yawRotation = Quaternion.Euler(0, bodyYaw, 0);
             Vector3 forward = yawRotation * Vector3.forward;
             Vector3 right = yawRotation * Vector3.right;
+
+            // Keep the body out of nearby walls: the game's capsule (0.3 m radius) never enters them,
+            // but the backpack, shoulders and a lagging smoothed position can.
+            Vector3 push = WallPush(position, forward, right, c);
+            wallPush = posed ? Vector3.Lerp(wallPush, push, 1f - Mathf.Exp(-12f * dt)) : push;
+            position += wallPush;
+            frontWall = hanging ? Mathf.Min(
+                    WorldProbe.Distance(position + Vector3.down * 0.35f, forward, 0.8f),
+                    WorldProbe.Distance(position + Vector3.down * 0.65f, forward, 0.8f))
+                : 0.8f;
 
             // Walk cycle.
             walkAmount = Mathf.MoveTowards(walkAmount, grounded ? Mathf.Clamp01(speed / 3f) : 0f, dt * 4f);
@@ -189,10 +224,11 @@ namespace Belay.Players.Avatar
             {
                 lean -= 10f;
             }
-            Quaternion torsoTarget = yawRotation * Quaternion.Euler(Mathf.Clamp(lean, -20f, 20f), 0, roll);
+            Quaternion torsoTarget = yawRotation * Quaternion.Euler(Mathf.Clamp(lean, -20f, 20f) + 60f * c, 0, roll);
             torsoRotation = posed ? Quaternion.Slerp(torsoRotation, torsoTarget, follow) : torsoTarget;
 
-            Vector3 pelvis = position + Vector3.up * (AvatarDesign.PelvisHeight * Scale - FeetDrop + bob);
+            Vector3 pelvis = position + Vector3.up * (AvatarDesign.PelvisHeight * Scale - FeetDrop + bob - 0.5f * c)
+                - forward * (0.12f * c);
             torso.SetPositionAndRotation(pelvis, torsoRotation);
             RopeAnchor = pelvis + torsoRotation * (new Vector3(0, -AvatarDesign.HarnessLoopDrop - 0.02f, 0.13f) * Scale);
 
@@ -226,7 +262,8 @@ namespace Belay.Players.Avatar
 
             // Head looks where the camera looks.
             Vector3 neck = pelvis + torsoRotation * (new Vector3(0, AvatarDesign.NeckHeight, 0.01f) * Scale);
-            Quaternion headRotation = Quaternion.Euler(Mathf.Clamp(signedPitch, -75f, 75f) * 0.85f, yaw, 0);
+            float headYaw = bodyYaw + Mathf.Clamp(Mathf.DeltaAngle(bodyYaw, yaw), -80f, 80f);
+            Quaternion headRotation = Quaternion.Euler(Mathf.Clamp(signedPitch, -75f, 75f) * 0.85f, headYaw, 0);
             head.SetPositionAndRotation(neck, headRotation);
             HeadTop = neck + Vector3.up * (0.3f * Scale);
             bool lampOn = HeadlampsEnabled;
@@ -242,7 +279,7 @@ namespace Belay.Players.Avatar
             bool rightHolds = Hold(1, inventoryOpen ? null : rightItem, rightFist);
             airborneNow = airborne;
             Quaternion look = Quaternion.Euler(Mathf.Clamp(signedPitch, -89f, 89f), yaw, 0);
-            Vector3 eye = position + Vector3.up * 0.45f;
+            Vector3 eye = position + Vector3.up * (0.45f - 0.75f * c);
             bool holdingPack = packOut > 0.01f;
             PoseArm(0, leftArm, -1f, pelvis, leftHand, leftGrip, leftHolds, holdingPack, eye, look, dt, leftFist, leftOpen);
             PoseArm(1, rightArm, 1f, pelvis, rightHand, rightGrip, rightHolds, holdingPack, eye, look, dt, rightFist, rightOpen);
@@ -255,9 +292,11 @@ namespace Belay.Players.Avatar
             Vector3 targetLeft, targetRight;
             if (grounded)
             {
-                float stride = 0.28f * walkAmount;
-                targetLeft = StepTarget(hipLeft, ground, moveDir, stride, walkPhase);
-                targetRight = StepTarget(hipRight, ground, moveDir, stride, walkPhase + Mathf.PI);
+                float stride = 0.28f * walkAmount * (1f - 0.5f * c);
+                // Crouched: knees down, feet tucked back behind the hips.
+                Vector3 tuck = -forward * (0.3f * c);
+                targetLeft = StepTarget(hipLeft, ground, moveDir, stride, walkPhase) + tuck;
+                targetRight = StepTarget(hipRight, ground, moveDir, stride, walkPhase + Mathf.PI) + tuck;
             }
             else
             {
@@ -267,8 +306,10 @@ namespace Belay.Players.Avatar
                 Vector3 swing = Vector3.ClampMagnitude(-velocity * 0.06f, 0.35f);
                 if (hanging)
                 {
-                    targetLeft = hipLeft + Vector3.down * (legLength * 0.78f) + forward * 0.22f - right * 0.04f + swing;
-                    targetRight = hipRight + Vector3.down * (legLength * 0.95f) + forward * 0.05f + right * 0.03f + swing;
+                    // Feet stay on our side of the wall in front: at most up against it.
+                    float room = Mathf.Max(0f, frontWall - 0.12f);
+                    targetLeft = hipLeft + Vector3.down * (legLength * Mathf.Lerp(0.78f, 0.9f, WallNear())) + forward * Mathf.Min(0.22f, room) - right * 0.04f + swing;
+                    targetRight = hipRight + Vector3.down * (legLength * 0.95f) + forward * Mathf.Min(0.05f, room) + right * 0.03f + swing;
                 }
                 else
                 {
@@ -281,15 +322,59 @@ namespace Belay.Players.Avatar
             leftFoot = posed ? Vector3.Lerp(leftFoot, targetLeft, footFollow) : targetLeft;
             rightFoot = posed ? Vector3.Lerp(rightFoot, targetRight, footFollow) : targetRight;
 
-            Vector3 kneeHint = forward * 0.6f;
-            Vector3 ankleLeft = leftLeg.Solve(hipLeft, leftFoot, hipLeft + kneeHint - right * 0.1f, forward, false);
-            Vector3 ankleRight = rightLeg.Solve(hipRight, rightFoot, hipRight + kneeHint + right * 0.1f, forward, false);
+            // Knees bend forward, or out to the sides (frog legs) when a wall is right in front, and
+            // down to the floor when crouched.
+            float near = hanging ? WallNear() : 0f;
+            Vector3 kneeHint = forward * (0.6f * (1f - near) + 0.1f * near) + Vector3.down * (0.4f * c);
+            Vector3 ankleLeft = leftLeg.Solve(hipLeft, leftFoot, hipLeft + kneeHint - right * (0.1f + 0.5f * near), forward, false);
+            Vector3 ankleRight = rightLeg.Solve(hipRight, rightFoot, hipRight + kneeHint + right * (0.1f + 0.5f * near), forward, false);
             // Toes point down when the feet are off the ground.
             Quaternion bootRotation = grounded ? yawRotation : yawRotation * Quaternion.Euler(35f, 0, 0);
             leftBoot.SetPositionAndRotation(ankleLeft, Quaternion.Slerp(leftBoot.rotation, bootRotation, posed ? follow : 1f));
             rightBoot.SetPositionAndRotation(ankleRight, Quaternion.Slerp(rightBoot.rotation, bootRotation, posed ? follow : 1f));
 
             posed = true;
+        }
+
+        /// <summary>0 with open space in front of the legs, 1 with a wall right against them.</summary>
+        private float WallNear()
+        {
+            return Mathf.Clamp01((0.6f - frontWall) / 0.3f);
+        }
+
+        /// <summary>
+        /// How far to shift the body so its outline (chest in front, backpack behind, shoulders to the
+        /// sides) stays out of walls, probing from the capsule's center at chest and hip height.
+        /// </summary>
+        private static Vector3 WallPush(Vector3 center, Vector3 forward, Vector3 right, float crouch)
+        {
+            Vector3 total = Vector3.zero;
+            float chest = Mathf.Lerp(0.2f, -0.35f, crouch);
+            for (int h = 0; h < 2; h++)
+            {
+                Vector3 origin = center + Vector3.up * (h == 0 ? chest : -0.25f);
+                for (int d = 0; d < 4; d++)
+                {
+                    Vector3 dir = d == 0 ? forward : d == 1 ? -forward : d == 2 ? right : -right;
+                    float extent = d == 0 ? (crouch > 0.5f ? 0.4f : 0.2f) : d == 1 ? 0.3f : 0.26f;
+                    if (WorldProbe.Cast(origin, dir, extent, out RaycastHit hit))
+                    {
+                        Vector3 normal = hit.normal;
+                        normal.y = 0f;
+                        if (normal.sqrMagnitude > 0.01f)
+                        {
+                            Vector3 away = normal.normalized * (extent - hit.distance);
+                            // Several probes can see the same wall; keep the largest push along it.
+                            float along = Vector3.Dot(total, normal.normalized);
+                            if (along < away.magnitude)
+                            {
+                                total += normal.normalized * (away.magnitude - Mathf.Max(0f, along));
+                            }
+                        }
+                    }
+                }
+            }
+            return Vector3.ClampMagnitude(total, 0.25f);
         }
 
         /// <summary>Dresses a hand in the teammate's glove cosmetic, or our own glove when there is none.</summary>
@@ -402,7 +487,7 @@ namespace Belay.Players.Avatar
             Vector3 toHand = hand - shoulder;
             Vector3 dir = toHand.sqrMagnitude > 1e-6f ? toHand.normalized : torsoRotation * Vector3.forward;
             // The synced point is where the palm closes on the hold; the wrist sits just behind it.
-            Vector3 wrist = hand - dir * ((grip ? 0.06f : 0.04f) * Scale);
+            Vector3 wrist = hand - dir * ((grip ? 0.09f : 0.05f) * Scale);
             // Elbows point out, down and back.
             Vector3 pole = shoulder + torsoRotation * new Vector3(side * 0.6f, -0.6f, -0.35f);
             Vector3 up = torsoRotation * Vector3.up;

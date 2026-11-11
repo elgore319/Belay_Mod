@@ -238,7 +238,7 @@ namespace Belay.Players.Avatar
             bool flip = localHand.handSprite != null && localHand.handSprite.flipX;
             bool mirror = flip != (hand == 1);
             const int cellWidth = 64, cellHeight = 96;
-            var texture = new Texture2D(cellWidth * 2, cellHeight, TextureFormat.RGBA32, false)
+            var texture = new Texture2D(cellWidth * 3, cellHeight, TextureFormat.RGBA32, false)
             {
                 name = "Belay_HandSkin_" + parts[0],
                 filterMode = FilterMode.Point,

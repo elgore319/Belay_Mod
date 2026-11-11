@@ -1,6 +1,10 @@
-## Belay 0.6.0
+## Belay 0.6.1
 
-Playtest fixes:
-- **The run ends when everyone is dead.** Test bots no longer keep a run going once every real player is down (bots can't revive anyone). Added backup checks too: a client ends the run itself if the host's message never arrives, a leftover disk save can't turn the game over into a disk revive, and if the game-over screen doesn't start it is started directly.
-- **Blast doors use the door close countdown.** Big doors whose close trigger doesn't go through a normal door now wait for the countdown from the settings (10 to 20 s) and then shut for everyone at once.
-- **Terminals no longer pull teammates.** When a teammate's press or trigger is replayed on your PC, nothing in it can sit you down at a terminal.
+Teammate model fixes from playtest feedback. Your game updates to this automatically on the next launch, then asks you to restart.
+
+## Fixed
+- **Teammates' hands look like hands again.** The fingers were floating a few centimeters off the palm. They now grow out of the hand, and glove skins no longer smear: the outline streaks are gone and fingers take the skin's own finger colors.
+- **Crouching shows up for teammates.** A crouched teammate now kneels low instead of standing with their head through the vent ceiling.
+- **Less clipping into walls.** While climbing, a teammate's body faces the holds instead of wherever they look, their feet stop at the wall and their knees bend out to the sides. Bodies are nudged out of nearby walls and no longer cut through corners while catching up.
+
+Everyone in a lobby needs the same Belay version.

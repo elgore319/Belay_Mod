@@ -105,6 +105,11 @@ namespace Belay.Players
             {
                 Snap();
             }
+            // Smoothing trails the real player a little; never let it cut a corner through a wall.
+            if (WorldProbe.Blocked(transform.position, target))
+            {
+                t = 1f;
+            }
             Vector3 before = transform.position;
             transform.position = Vector3.Lerp(transform.position, target, t);
             velocity = Vector3.Lerp(velocity, (transform.position - before) / dt, 1f - Mathf.Exp(-8f * dt));
@@ -117,7 +122,8 @@ namespace Belay.Players
             HandSkins.PublishTick();
             avatar.Pose(transform.position, Latest.Yaw, Latest.Pitch, leftHand, rightHand,
                 Latest.LeftHanging, Latest.RightHanging, velocity, Latest.InventoryOpen, dt,
-                HandSkins.SkinOf(SteamId, 0), HandSkins.SkinOf(SteamId, 1), Latest.LeftItem, Latest.RightItem);
+                HandSkins.SkinOf(SteamId, 0), HandSkins.SkinOf(SteamId, 1), Latest.LeftItem, Latest.RightItem,
+                Latest.Crouched);
 
             UpdateNameTag();
         }

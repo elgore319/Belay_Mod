@@ -79,8 +79,8 @@ internal static class Program
                 }
                 SkinBaker.Result back = SkinBaker.Bake(Raw(Path.Combine(manifest, f[3])), w, h, palette, null, effect);
                 SkinBaker.Result palm = SkinBaker.Bake(Raw(Path.Combine(manifest, f[4])), w, h, palette, null, effect);
-                textures.Add(Tex(SkinBaker.Atlas(back, palm, false, 64, 96), 128, 96));
-                textures.Add(Tex(SkinBaker.Atlas(back, palm, true, 64, 96), 128, 96));
+                textures.Add(Tex(SkinBaker.Atlas(back, palm, false, 64, 96), 192, 96));
+                textures.Add(Tex(SkinBaker.Atlas(back, palm, true, 64, 96), 192, 96));
                 skinNames.Add(f[0]);
             }
         }
@@ -93,6 +93,8 @@ internal static class Program
             new Vector3(-0.22f, 1.25f, 0.45f), new Vector3(0.22f, 1.25f, 0.45f));
         Figure("hanging", standing: false, leftGrip: true, rightGrip: false,
             new Vector3(-0.2f, 1.95f, 0.32f), new Vector3(0.38f, 1.55f, 0.4f));
+        Figure("crouching", standing: true, leftGrip: false, rightGrip: false,
+            new Vector3(-0.22f, 0.55f, 0.6f), new Vector3(0.22f, 0.55f, 0.6f), crouch: true);
         Figure("inventory", standing: true, leftGrip: true, rightGrip: true, Vector3.zero, Vector3.zero, inventory: true);
 
         if (skinNames.Count > 0)
@@ -105,11 +107,13 @@ internal static class Program
     }
 
     private static void Figure(string name, bool standing, bool leftGrip, bool rightGrip, Vector3 leftHand, Vector3 rightHand,
-        bool inventory = false)
+        bool inventory = false, bool crouch = false)
     {
         tris = new StringBuilder();
-        Vector3 pelvis = new Vector3(0, AvatarDesign.PelvisHeight, 0);
-        float lean = standing ? 4f : -6f;
+        // Crouched: same offsets as ClimberAvatar, in the design's unscaled units.
+        float c = crouch ? 1f : 0f;
+        Vector3 pelvis = new Vector3(0, AvatarDesign.PelvisHeight - 0.5f / 0.83f * c, -0.12f / 0.83f * c);
+        float lean = (standing ? 4f : -6f) + 60f * c;
         float rad = lean * Mathf.Deg2Rad;
         Frame torso = Frame.Look(pelvis, new Vector3(0, -Mathf.Sin(rad), Mathf.Cos(rad)), Vector3.up);
         Emit(AvatarDesign.BuildTorso, torso);
@@ -145,10 +149,10 @@ internal static class Program
         {
             Vector3 hip = pelvis + new Vector3(side * AvatarDesign.HipWidth, -0.07f, 0);
             Vector3 foot = standing
-                ? new Vector3(hip.x, AvatarDesign.AnkleHeight, side < 0 ? 0.12f : -0.1f)
+                ? new Vector3(hip.x, AvatarDesign.AnkleHeight, (side < 0 ? 0.12f : -0.1f) * (1f - c) + hip.z - 0.3f / 0.83f * c)
                 : (side < 0 ? hip + Vector3.down * (legLength * 0.78f) + new Vector3(0.04f, 0, 0.22f)
                             : hip + Vector3.down * (legLength * 0.95f) + new Vector3(0.03f, 0, 0.05f));
-            Vector3 ankle = Limb(hip, foot, hip + new Vector3(side * 0.1f, 0, 0.6f), AvatarDesign.Thigh, AvatarDesign.Shin,
+            Vector3 ankle = Limb(hip, foot, hip + new Vector3(side * 0.1f, -0.4f * c, 0.6f), AvatarDesign.Thigh, AvatarDesign.Shin,
                 AvatarDesign.BuildThigh, AvatarDesign.BuildShin, false);
             float toe = standing ? 0f : 35f * Mathf.Deg2Rad;
             Emit(AvatarDesign.BuildBoot, Frame.Look(ankle, new Vector3(0, -Mathf.Sin(toe), Mathf.Cos(toe)), Vector3.up));
@@ -160,7 +164,7 @@ internal static class Program
     {
         Vector3 shoulder = torso.Apply(new Vector3(side * AvatarDesign.ShoulderWidth, AvatarDesign.ShoulderHeight - 0.02f, 0));
         Vector3 dir = (hand - shoulder).normalized;
-        Vector3 wrist = hand - dir * (grip ? 0.06f : 0.04f);
+        Vector3 wrist = hand - dir * (grip ? 0.09f : 0.05f);
         Vector3 pole = shoulder + torso.Dir(new Vector3(side * 0.6f, -0.6f, -0.35f));
         Vector3 elbow = Vector3.zero;
         Vector3 end = Limb(shoulder, wrist, pole, AvatarDesign.UpperArm, AvatarDesign.Forearm,
