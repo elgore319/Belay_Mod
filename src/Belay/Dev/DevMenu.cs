@@ -14,12 +14,13 @@ namespace Belay.Dev
         private static Vector2 levelScroll;
         private static bool moveGoo = true;
         private static bool invincible;
+        private static bool flying;
         private static bool hasSaved;
         private static Vector3 saved;
         private static string lastAction = "";
 
         /// <summary>
-        /// Keeps invincibility on while the box is ticked. The game turns its god mode off on a new
+        /// Keeps invincibility and flying on while their boxes are ticked. The game turns god mode and noclip off on a new
         /// player object and in some scripted events, so it's re-applied every frame.
         /// </summary>
         internal static void Tick()
@@ -28,6 +29,10 @@ namespace Belay.Dev
             if (invincible && player != null && !player.GetGodMode())
             {
                 player.SetGodMode(true);
+            }
+            if (flying && player != null && !player.noclip)
+            {
+                player.noclip = true;
             }
         }
 
@@ -55,6 +60,19 @@ namespace Belay.Dev
                 invincible = want;
                 player.SetGodMode(want);
                 Plugin.Log.LogInfo("[Dev] Invincible " + (want ? "on" : "off"));
+            }
+            bool fly = GUILayout.Toggle(flying, " Fly (through walls; Jump = up, Crouch = down, Sprint = faster)");
+            if (fly != flying)
+            {
+                flying = fly;
+                player.noclip = fly;
+                if (!fly)
+                {
+                    // Landing from a flight shouldn't count as one long fall.
+                    player.ResetFallingHeight();
+                    player.AddIgnoreFallDamageTime(3f);
+                }
+                Plugin.Log.LogInfo("[Dev] Fly " + (fly ? "on" : "off"));
             }
             moveGoo = GUILayout.Toggle(moveGoo, " Push the mass 20 m below me when I teleport");
             GUILayout.Space(4);
