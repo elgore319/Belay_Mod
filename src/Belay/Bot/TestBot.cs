@@ -22,10 +22,18 @@ namespace Belay.Bot
         public string Name;
         public BotMode Mode = BotMode.Follow;
         public bool Anchored;
-        public bool LookAtYou = true;
+        public bool LookAtYou;
         public bool Dead;
+        public float Health = TestBot.MaxHealth;
         public PlayerState State;
         public bool HasState;
+
+        /// <summary>Shove from a hit, added on top of the path and fading out.</summary>
+        public Vector3 KnockOffset;
+        public Vector3 KnockVelocity;
+
+        /// <summary>Seconds a closed door (or anything solid) has blocked its path.</summary>
+        public float Blocked;
 
         /// <summary>Follow mode: the point in your recorded trail the bot is replaying.</summary>
         public float Playhead = -1f;
@@ -45,6 +53,11 @@ namespace Belay.Bot
         private const float KeepDistance = 1.6f;
         private const float MinBotSpacing = 0.9f;
         private const float SpawnDistance = 1.6f;
+        /// <summary>Same health pool as you (the game's player has 10), so hits hurt a bot like they'd hurt you.</summary>
+        public static float MaxHealth => ENT_Player.playerObject != null ? ENT_Player.playerObject.maxHealth : 10f;
+
+        /// <summary>How far behind you (along your path) a following bot walks.</summary>
+        private const float FollowGap = 2.6f;
 
         private struct Sample
         {
@@ -168,6 +181,9 @@ namespace Belay.Bot
             PlayerState you = PlayerSync.CaptureLocal();
             Vector3 offset = ClearSpotNear(WorldSpace.ToLocal(you.Position), you.Yaw);
             bot.State = Offset(you, offset);
+            bot.KnockOffset = bot.KnockVelocity = Vector3.zero;
+            bot.Blocked = 0f;
+            bot.State.InventoryOpen = false;
             bot.State.Dead = bot.Dead;
             bot.State.LeftHanging = bot.State.RightHanging = bot.Anchored && bot.Mode == BotMode.Hold;
             bot.HasState = true;
@@ -228,9 +244,30 @@ namespace Belay.Bot
             {
                 return;
             }
-            bot.State = Offset(bot.State, velocity * 0.3f);
-            Push(bot);
+            bot.KnockVelocity += velocity;
         }
+
+        /// <summary>
+        /// Something other than a teammate hurt this bot (an enemy, a trap, a projectile). Bots have their
+        /// own health and die like a player, then wait for a revive.
+        /// </summary>
+        public bool Hurt(SteamId id, float amount, string what)
+        {
+            BotPlayer bot = Bots.Find(b => b.Id == id);
+            if (bot == null || bot.Dead || amount <= 0f)
+            {
+                return false;
+            }
+            bot.Health -= amount;
+            Plugin.Log.LogInfo($"{bot.Name} took {amount:F1} damage from {what} ({Mathf.Max(0f, bot.Health):F1} left)");
+            if (bot.Health <= 0f)
+            {
+                Kill(bot);
+            }
+            return true;
+        }
+
+        public bool IsBot(SteamId id) => Bots.Exists(b => b.Id == id);
 
         public void Kill(BotPlayer bot)
         {
@@ -251,6 +288,9 @@ namespace Belay.Bot
                 return;
             }
             bot.Dead = false;
+            bot.Health = MaxHealth;
+            bot.KnockOffset = bot.KnockVelocity = Vector3.zero;
+            bot.Blocked = 0f;
             bot.State.Dead = false;
             bot.State.Position = sharedSpawn;
             bot.State.LeftHand = sharedSpawn + new Vector3(-0.3f, 0.2f, 0.3f);
@@ -286,10 +326,29 @@ namespace Belay.Bot
                 return;
             }
 
+            // Paused: bots hold still (your camera can wander in menus) but keep reporting where they are.
+            bool paused = CL_GameManager.gMan != null && CL_GameManager.gMan.isPaused;
+            if (!paused)
+            {
+                Simulate();
+            }
+
+            sendTimer -= Time.unscaledDeltaTime;
+            if (sendTimer <= 0f)
+            {
+                sendTimer = 1f / Mathf.Max(1, Plugin.SendRate.Value);
+                foreach (BotPlayer bot in Bots)
+                {
+                    Push(bot);
+                }
+            }
+        }
+
+        private void Simulate()
+        {
             Record();
 
             Vector3 you = WorldSpace.ToShared(ENT_Player.playerObject.transform.position);
-            Vector3 ahead = you;
             bool youAlive = !ENT_Player.playerObject.dead;
             for (int i = 0; i < Bots.Count; i++)
             {
@@ -300,31 +359,29 @@ namespace Belay.Bot
                 }
                 if (!bot.Dead)
                 {
+                    // Work on the bot's path position; a shove from a hit rides on top of it.
+                    PlayerState path = Offset(bot.State, -bot.KnockOffset);
                     if (bot.Mode == BotMode.Follow)
                     {
-                        // Each bot keeps its distance from whoever is just ahead of it in the line.
-                        StepFollow(bot, i + 1, ahead, youAlive || i > 0, you, youAlive);
+                        StepFollow(bot, ref path, you, youAlive);
                     }
                     else
                     {
-                        bot.State.LeftHanging = bot.State.RightHanging = bot.Anchored;
+                        path.LeftHanging = path.RightHanging = bot.Anchored;
                     }
+                    UpdateKnock(bot, ref path);
+                    bool dead = bot.State.Dead;
+                    bot.State = Offset(path, bot.KnockOffset);
+                    bot.State.Dead = dead;
                     if (bot.LookAtYou && youAlive)
                     {
                         Face(bot, you);
                     }
+                    // A bot copies your moves, not your menus.
+                    bot.State.InventoryOpen = false;
                     CheckGoo(bot);
-                }
-                ahead = bot.State.Position;
-            }
-
-            sendTimer -= Time.unscaledDeltaTime;
-            if (sendTimer <= 0f)
-            {
-                sendTimer = 1f / Mathf.Max(1, Plugin.SendRate.Value);
-                foreach (BotPlayer bot in Bots)
-                {
-                    Push(bot);
+                    // Slow regeneration, like yours.
+                    bot.Health = Mathf.Min(MaxHealth, bot.Health + Time.deltaTime * 0.15f);
                 }
             }
         }
@@ -363,13 +420,13 @@ namespace Belay.Bot
             }
         }
 
-        private void StepFollow(BotPlayer bot, int place, Vector3 ahead, bool aheadMoving, Vector3 you, bool youAlive)
+        private void StepFollow(BotPlayer bot, ref PlayerState path, Vector3 you, bool youAlive)
         {
+            int place = Bots.IndexOf(bot) + 1;
             if (trail.Count == 0)
             {
                 return;
             }
-            float delay = Mathf.Max(0.25f, Plugin.BotFollowDelay.Value) * place;
             float oldest = trail[0].Time;
             float newest = trail[trail.Count - 1].Time;
             if (bot.Playhead == float.MaxValue)
@@ -379,27 +436,102 @@ namespace Belay.Bot
             }
             else if (bot.Playhead < oldest)
             {
-                bot.Playhead = Mathf.Max(oldest, newest - delay);
+                bot.Playhead = oldest;
             }
-            float lag = Time.time - bot.Playhead;
-            bool tooClose = aheadMoving && Vector3.Distance(bot.State.Position, ahead) < KeepDistance;
-            float next = bot.Playhead;
-            if (!tooClose && lag > delay * 0.5f)
+
+            // Walk your path at your pace, a fixed distance behind you. It speeds up the further behind it
+            // is (up to 3x) and eases off as it closes in, so it never stops and starts.
+            float target = TimeAtPathDistance(FollowGap * place);
+            float behind = target - bot.Playhead;
+            if (behind <= 0f)
             {
-                // Catch up a bit faster when it's fallen behind (it waited, or you sprinted).
-                float speed = lag > delay * 1.5f ? 1.5f : 1f;
-                next = Mathf.Min(newest, bot.Playhead + Time.deltaTime * speed);
+                return;
             }
+            float rate = Mathf.Clamp(0.6f + behind * 0.6f, 0.6f, 3f);
+            float next = Mathf.Min(target, bot.Playhead + Time.deltaTime * rate);
             PlayerState candidate = SampleAt(next);
             if (Crowded(bot, candidate.Position, you, youAlive))
             {
                 // Bodies are solid: wait where it is rather than step into you (that launches you).
                 return;
             }
+            if (PathBlocked(path.Position, candidate.Position))
+            {
+                // A blast door (or anything solid) closed after you went through: it's shut out, like a
+                // player would be. "Bring to me" fetches it.
+                bot.Blocked += Time.deltaTime;
+                return;
+            }
+            bot.Blocked = 0f;
             bot.Playhead = next;
-            bool keepDead = bot.State.Dead;
-            bot.State = candidate;
-            bot.State.Dead = keepDead;
+            path = candidate;
+        }
+
+        /// <summary>The trail time that lies this far (in meters along your path) behind your newest point.</summary>
+        private float TimeAtPathDistance(float meters)
+        {
+            float walked = 0f;
+            for (int i = trail.Count - 1; i > 0; i--)
+            {
+                float step = Vector3.Distance(trail[i].State.Position, trail[i - 1].State.Position);
+                if (step > 3f)
+                {
+                    // A teleport (revive, elevator, world shift): don't count it as walking.
+                    step = 0f;
+                }
+                walked += step;
+                if (walked >= meters)
+                {
+                    return trail[i - 1].Time;
+                }
+            }
+            return trail[0].Time;
+        }
+
+        /// <summary>True if something solid that isn't a player sits between two points on the path.</summary>
+        private static bool PathBlocked(Vector3 fromShared, Vector3 toShared)
+        {
+            Vector3 from = WorldSpace.ToLocal(fromShared);
+            Vector3 to = WorldSpace.ToLocal(toShared);
+            Vector3 delta = to - from;
+            float length = delta.magnitude;
+            if (length < 0.01f || length > 3f)
+            {
+                return false;
+            }
+            foreach (RaycastHit hit in Physics.RaycastAll(from, delta / length, length, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+            {
+                Collider c = hit.collider;
+                if (c == null || RemoteBody.Of(c) != null || c.GetComponentInParent<ENT_Player>() != null)
+                {
+                    continue;
+                }
+                return true;
+            }
+            return false;
+        }
+
+        private static void UpdateKnock(BotPlayer bot, ref PlayerState path)
+        {
+            if (bot.KnockVelocity.sqrMagnitude < 0.0001f && bot.KnockOffset.sqrMagnitude < 0.0001f)
+            {
+                bot.KnockOffset = bot.KnockVelocity = Vector3.zero;
+                return;
+            }
+            float dt = Time.deltaTime;
+            Vector3 move = bot.KnockVelocity * dt;
+            bot.KnockVelocity = Vector3.Lerp(bot.KnockVelocity, Vector3.zero, dt * 6f);
+            if (bot.Mode == BotMode.Hold)
+            {
+                // A holding bot stays where it was pushed.
+                path = Offset(path, move);
+                bot.KnockOffset = Vector3.zero;
+            }
+            else
+            {
+                // A following bot drifts back onto your path after the shove.
+                bot.KnockOffset = Vector3.Lerp(bot.KnockOffset + move, Vector3.zero, dt * 1.5f);
+            }
         }
 
         private PlayerState SampleAt(float time)
@@ -617,7 +749,13 @@ namespace Belay.Bot
         {
             GUILayout.BeginVertical(GUI.skin.box);
             GUILayout.BeginHorizontal();
-            string status = bot.Dead ? "dead (revive at a station)" : bot.Mode == BotMode.Follow ? "following" : bot.Anchored ? "holding on" : "standing";
+            string status = bot.Dead ? "dead (revive at a station)"
+                : bot.Blocked > 1f ? "blocked by a door (Bring to me)"
+                : bot.Mode == BotMode.Follow ? "following" : bot.Anchored ? "holding on" : "standing";
+            if (!bot.Dead)
+            {
+                status += $", health {Mathf.CeilToInt(bot.Health / Mathf.Max(0.01f, MaxHealth) * 100f)}%";
+            }
             GUILayout.Label($"{bot.Name}: {status}");
             if (pov.Watched != bot && GUILayout.Button("Watch", GUILayout.Width(60)))
             {

@@ -109,7 +109,9 @@ namespace Belay.Players
                 || info.HasTag("player");
             if (!fromLocalPlayer)
             {
-                return false;
+                // A local test bot has no PC of its own to get hurt on, so enemies and hazards hurt it here.
+                return Bot.TestBot.Instance != null && Bot.TestBot.Instance.IsBot(Owner.SteamId)
+                    && Bot.TestBot.Instance.Hurt(Owner.SteamId, info.amount, info.sourceObject != null ? info.sourceObject.name : "something");
             }
             Vector3 dir = info.direction.sqrMagnitude > 0.01f ? info.direction.normalized
                 : Camera.main != null ? Camera.main.transform.forward : transform.forward;

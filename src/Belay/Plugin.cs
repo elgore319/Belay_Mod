@@ -18,7 +18,7 @@ namespace Belay
     {
         public const string Guid = "elgore319.belay";
         public const string Name = "Belay";
-        public const string Version = "0.5.28";
+        public const string Version = "0.5.29";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
@@ -57,7 +57,7 @@ namespace Belay
             AutoUpdate = Config.Bind("Updates", "AutoUpdate", true, "Download new Belay releases on launch. They apply the next time the game starts.");
             BotPovKey = Config.Bind("Test Bot", "PovWindowKey", KeyCode.F8, "Shows or hides the test bot's point-of-view window.");
             TestClientAutopilotKey = Config.Bind("Test Bot", "TestClientAutopilotKey", KeyCode.F9, "In the test client window: switch between following you automatically and playing it yourself.");
-            BotFollowDelay = Config.Bind("Test Bot", "FollowDelay", 2f, "Seconds a following test bot trails behind you (each extra bot adds this again).");
+            BotFollowDelay = Config.Bind("Test Bot", "FollowDelay", 2f, "Seconds the test client window trails behind you when it follows you.");
             SolidTeammates = Config.Bind("Teammates", "SolidTeammates", true, "Teammates are solid: you bump into them, can stand on them, grip them to climb them, and lift them while you stand or hold the wall.");
             SyncProps = Config.Bind("World", "SyncProps", true, "Boxes and other loose physics objects move the same for everyone.");
             UpdateRepo = Config.Bind("Updates", "UpdateRepo", "elgore319/Belay_Mod", "GitHub repo (owner/name) whose releases Belay updates from.");
