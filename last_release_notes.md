@@ -1,9 +1,10 @@
-## Belay 0.5.16
+## Belay 0.5.17
 
-**Shortcut votes are easier to see, and a missed vote no longer blocks the shortcut.**
+**Saves no longer drop you back under the mass. In co-op, terminals and disks revive teammates instead.**
 
-- The vote panel is now a large, high-contrast banner near the top of the screen. It draws over everything else, including terminal screens.
-- If nobody votes at all, nothing is decided. The shortcut isn't blocked, and it asks again next time someone uses the terminal or tries to open it. Before this, a vote nobody answered counted as "normal path" and blocked the shortcut.
-- The game log now records when the vote appears on your screen.
+- Disk saves are off in a lobby. Loading one put you back at the terminal where you saved, usually far below your team and right in the mass's path, and regenerated the map differently from everyone else's.
+- The save terminal's disk page is now a revive station. Pick the reformat option and confirm to bring a dead teammate back next to you. It costs the usual revive price from your own wallet, and no disk is needed.
+- Disks can't be inserted into terminals in co-op. Instead, hold a disk and use it (your normal use button) to revive a dead teammate right where you are, for free. The disk is used up. If nobody is dead, the disk does what it normally does.
+- Solo play is unchanged.
 
-Everyone in the lobby needs 0.5.16 (network protocol changed).
+Everyone in the lobby needs 0.5.17 (network protocol changed).

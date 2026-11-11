@@ -363,20 +363,113 @@ namespace Belay.Revive
             Prompt = $"[{Plugin.ReviveKey.Value}] Revive {name} for {cost} roaches (you have {wallet}).";
             if (Input.GetKeyDown(Plugin.ReviveKey.Value))
             {
-                Vector3 spawn = WorldSpace.ToShared(near.SpawnPoint);
-                if (NetSession.Instance.IsHost)
-                {
-                    HostApproveRevive(target, NetSession.LocalId, spawn);
-                }
-                else
-                {
-                    NetSession.Instance.Send(PacketType.ReviveRequest, w =>
-                    {
-                        w.Write(target.Value);
-                        w.WriteVector(spawn);
-                    });
-                }
+                RequestRevive(target, near.SpawnPoint, false);
             }
+        }
+
+        private static void RequestRevive(SteamId target, Vector3 localSpawn, bool free)
+        {
+            Vector3 spawn = WorldSpace.ToShared(localSpawn);
+            if (NetSession.Instance.IsHost)
+            {
+                Instance.HostApproveRevive(target, NetSession.LocalId, spawn, free);
+            }
+            else
+            {
+                NetSession.Instance.Send(PacketType.ReviveRequest, w =>
+                {
+                    w.Write(target.Value);
+                    w.WriteVector(spawn);
+                    w.Write(free);
+                });
+            }
+        }
+
+        /// <summary>Just behind the local player, so a revived teammate doesn't land in front of them.</summary>
+        private static Vector3 SpotBehindLocalPlayer()
+        {
+            ENT_Player player = ENT_Player.playerObject;
+            Vector3 back = Vector3.ProjectOnPlane(-player.transform.forward, Vector3.up);
+            if (back.sqrMagnitude < 0.001f)
+            {
+                back = Vector3.back;
+            }
+            return player.transform.position + back.normalized * 1.2f + Vector3.up * 0.3f;
+        }
+
+        /// <summary>The first dead teammate (not counting yourself), if any.</summary>
+        internal static bool FirstDeadTeammate(out SteamId target)
+        {
+            List<SteamId> dead = DeadMembers();
+            dead.Remove(NetSession.LocalId);
+            target = dead.Count > 0 ? dead[0] : default;
+            return dead.Count > 0;
+        }
+
+        // ---------------------------------------------------------------- Disks in hand
+
+        /// <summary>
+        /// Using a disk held in your hand revives a dead teammate right where you are, for free. The disk
+        /// is used up. Returns false (so the disk does whatever it normally does) when nobody is dead.
+        /// </summary>
+        internal static bool DiskRevive()
+        {
+            ENT_Player player = ENT_Player.playerObject;
+            if (!Active || Instance == null || player == null || player.dead || !FirstDeadTeammate(out SteamId target))
+            {
+                return false;
+            }
+            RequestRevive(target, SpotBehindLocalPlayer(), true);
+            Plugin.Log.LogInfo("Disk revive requested for " + NetSession.NameOf(target));
+            return true;
+        }
+
+        // ---------------------------------------------------------------- Save terminals
+
+        /// <summary>
+        /// In a lobby, the save terminal's disk page is a revive station instead. Loading a disk save
+        /// would drop you back down at the terminal you saved at (under the mass) and regenerate the map
+        /// out of sync with everyone else, so disk saves are off in co-op. Physical disks aren't used.
+        /// </summary>
+        internal static bool TerminalsAreReviveStations => Active && Instance != null;
+
+        /// <summary>What the terminal's revive page should say right now.</summary>
+        internal static string TerminalStatus()
+        {
+            int cost = Instance.Cost;
+            int wallet = CL_GameManager.GetRoaches();
+            if (!FirstDeadTeammate(out SteamId target))
+            {
+                return $"REVIVE | EVERYONE IS ALIVE | COST {cost} ROACHES";
+            }
+            return $"REVIVE | {NetSession.NameOf(target).ToUpperInvariant()} IS DOWN | COST {cost} | YOU HAVE {wallet}";
+        }
+
+        /// <summary>
+        /// Revive the first dead teammate next to the local player (who is standing at the terminal),
+        /// paid from the local player's own wallet. Returns the message to show on the terminal.
+        /// </summary>
+        internal static string TerminalRevive()
+        {
+            ENT_Player player = ENT_Player.playerObject;
+            if (player == null || player.dead)
+            {
+                return "You can't revive anyone while you're dead.";
+            }
+            if (!FirstDeadTeammate(out SteamId target))
+            {
+                return "Everyone is alive. Nobody to revive.";
+            }
+            int cost = Instance.Cost;
+            int wallet = CL_GameManager.GetRoaches();
+            if (wallet < cost)
+            {
+                return $"Reviving {NetSession.NameOf(target)} costs {cost} roaches. You have {wallet}.";
+            }
+            // Bring them back just behind the player at the terminal, out of the way of the screen.
+            RequestRevive(target, SpotBehindLocalPlayer(), false);
+            Plugin.Log.LogInfo("Terminal revive requested for " + NetSession.NameOf(target));
+            return $"Reviving {NetSession.NameOf(target)} for {cost} roaches.";
         }
 
         // ---------------------------------------------------------------- Network
@@ -385,13 +478,14 @@ namespace Belay.Revive
         {
             SteamId target = reader.ReadUInt64();
             Vector3 spawn = reader.ReadVector();
+            bool free = reader.ReadBoolean();
             if (NetSession.Instance.IsHost)
             {
-                HostApproveRevive(target, origin, spawn);
+                HostApproveRevive(target, origin, spawn, free);
             }
         }
 
-        private void HostApproveRevive(SteamId target, SteamId reviver, Vector3 sharedSpawn)
+        private void HostApproveRevive(SteamId target, SteamId reviver, Vector3 sharedSpawn, bool free)
         {
             if (!DeadMembers().Contains(target) || target == reviver)
             {
@@ -407,8 +501,9 @@ namespace Belay.Revive
                 w.Write(target.Value);
                 w.Write(reviver.Value);
                 w.WriteVector(sharedSpawn);
+                w.Write(free);
             });
-            ApplyRevive(target, reviver, sharedSpawn);
+            ApplyRevive(target, reviver, sharedSpawn, free);
         }
 
         private void HandleRevived(SteamId origin, System.IO.BinaryReader reader)
@@ -416,23 +511,27 @@ namespace Belay.Revive
             SteamId target = reader.ReadUInt64();
             SteamId reviver = reader.ReadUInt64();
             Vector3 spawn = reader.ReadVector();
+            bool free = reader.ReadBoolean();
             if (origin == NetSession.Instance.HostId)
             {
-                ApplyRevive(target, reviver, spawn);
+                ApplyRevive(target, reviver, spawn, free);
             }
         }
 
         /// <summary>Raised on every machine when someone is revived (target, reviver, spawn in shared space).</summary>
         public static event System.Action<SteamId, SteamId, Vector3> Revived;
 
-        private void ApplyRevive(SteamId target, SteamId reviver, Vector3 sharedSpawn)
+        private void ApplyRevive(SteamId target, SteamId reviver, Vector3 sharedSpawn, bool free)
         {
             Revived?.Invoke(target, reviver, sharedSpawn);
             if (reviver == NetSession.LocalId)
             {
-                // Paid from the reviver's own wallet only.
-                CL_GameManager.AddRoaches(-Cost);
-                RunFlowNotice("Revived " + NetSession.NameOf(target));
+                if (!free)
+                {
+                    // Paid from the reviver's own wallet only.
+                    CL_GameManager.AddRoaches(-Cost);
+                }
+                RunFlowNotice("Revived " + NetSession.NameOf(target) + (free ? " with a disk" : ""));
             }
             if (target != NetSession.LocalId || !WorldSpace.Ready)
             {

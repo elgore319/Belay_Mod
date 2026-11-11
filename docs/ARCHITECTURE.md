@@ -34,6 +34,7 @@ Run/RunFlow         Host's run (gamemode, settings, seed) in lobby data; clients
 World/GooSync       Host-owned death goo, rubberbanded to the lowest climber, streamed at 4 Hz
 World/DoorSync      Door ids, shared opens, host-run close countdown
 Revive/ReviveSystem Spectate on death, revive stations in safeArea levels, host-validated revives, run over when all dead
+Revive/SaveTerminalPatches In a lobby: App_SavePage reformat = paid revive, disk saves/loads off, OS_FloppyReader blocked, Item.Use on a "disk" item = free revive at your position
 Patches/WorldLoaderPatches  Lobby seed into WorldLoader, block IncrementSeed
 UI/BelayMenu        Tabbed IMGUI mod menu (Lobby, Players, Rules, Mods, Settings) + HUD; button on main/pause menu
 UI/ModManager       Lists BepInEx plugins, toggles them by renaming DLLs (applies next launch)
