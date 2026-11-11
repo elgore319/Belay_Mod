@@ -18,8 +18,8 @@ namespace Belay.World
     /// one on-screen choice per shortcut ahead: Shortcut or Normal path. The first choice starts the team
     /// vote, everyone sees the banner, and anyone can vote at their own copy of the terminal (or with the
     /// vote keys). Results, barriers and seeded shortcut generation are unchanged (see ShortcutSync).
-    /// Where no copy fits beside the terminal, the old behaviour stays: sitting at the game terminal
-    /// starts the vote.
+    /// The game's own terminals never start votes. If there's no clear spot beside the terminal, the
+    /// copy goes in the least blocked one.
     /// </summary>
     public class VoteTerminal : MonoBehaviour
     {
@@ -29,8 +29,6 @@ namespace Belay.World
         private const float LabelDistance = 14f;
 
         private static readonly Dictionary<M_Level, VoteTerminalMarker> placed = new Dictionary<M_Level, VoteTerminalMarker>();
-        /// <summary>Levels where a copy didn't fit: they keep the old vote-at-the-terminal behaviour.</summary>
-        private static readonly HashSet<M_Level> noRoom = new HashSet<M_Level>();
         private static OS_DiskData emptyDisk;
         private float nextScan;
         private int runId;
@@ -76,7 +74,6 @@ namespace Belay.World
             {
                 runId = net.CurrentRun.RunId;
                 placed.Clear();
-                noRoom.Clear();
             }
             if (!ShortcutSync.Live || Time.unscaledTime < nextScan || WorldLoader.instance == null)
             {
@@ -103,7 +100,7 @@ namespace Belay.World
             foreach (WorldLoader.LevelInfo info in branch.levelTracker)
             {
                 M_Level level = info?.GetLevel();
-                if (level == null || !level.gameObject.activeInHierarchy || noRoom.Contains(level) || HasFor(level))
+                if (level == null || !level.gameObject.activeInHierarchy|| HasFor(level))
                 {
                     continue; // placing needs the level's colliders, so only levels that are loaded
                 }
@@ -130,54 +127,93 @@ namespace Belay.World
             return root;
         }
 
+        /// <summary>The prop's solid footprint (its non-trigger colliders), or its renderers if it has none.</summary>
         private static Bounds BoundsOf(Transform root)
         {
             bool any = false;
             var b = new Bounds(root.position, Vector3.zero);
-            foreach (Renderer r in root.GetComponentsInChildren<Renderer>())
+            foreach (Collider c in root.GetComponentsInChildren<Collider>())
             {
-                if (!any) { b = r.bounds; any = true; }
-                else b.Encapsulate(r.bounds);
+                if (c.isTrigger || !c.enabled) continue;
+                if (!any) { b = c.bounds; any = true; }
+                else b.Encapsulate(c.bounds);
             }
-            if (!any) b.size = new Vector3(1.5f, 2f, 1f);
+            if (!any)
+            {
+                foreach (Renderer r in root.GetComponentsInChildren<Renderer>())
+                {
+                    if (!any) { b = r.bounds; any = true; }
+                    else b.Encapsulate(r.bounds);
+                }
+            }
+            if (!any || b.size.sqrMagnitude < 0.01f) b = new Bounds(root.position + Vector3.up, new Vector3(1.2f, 2f, 1f));
             return b;
+        }
+
+        private struct Spot
+        {
+            public Vector3 Position;
+            public Quaternion Rotation;
+            public Vector3 Shift; // how far the prop's footprint moves (rotation about the stand spot aside)
+            public string What;
         }
 
         private void Place(M_Level level, OS_Computer_Interface anchor)
         {
             Transform root = PropRoot(anchor, level);
             Bounds bounds = BoundsOf(root);
-            float step = Mathf.Max(Mathf.Abs(Vector3.Dot(bounds.size, root.right.normalized)), 0.8f) + 0.35f;
-            var own = new HashSet<Collider>(root.GetComponentsInChildren<Collider>());
-            foreach (float k in new[] { 1f, -1f, 2f, -2f })
+            Vector3 right = Vector3.ProjectOnPlane(root.right, Vector3.up).normalized;
+            if (right.sqrMagnitude < 0.01f) right = Vector3.right;
+            float width = Mathf.Clamp(Mathf.Abs(Vector3.Dot(bounds.size, right)), 0.8f, 3f);
+            var spots = new List<Spot>();
+            foreach (float k in new[] { 1f, -1f, 1.6f, -1.6f, 2.3f, -2.3f })
             {
-                Vector3 offset = root.right.normalized * step * k;
-                if (!Fits(bounds, offset, own))
-                {
-                    continue;
-                }
-                GameObject copy = Instantiate(root.gameObject, root.position + offset, root.rotation, root.parent);
-                copy.name = "Belay_VoteTerminal";
-                var marker = copy.AddComponent<VoteTerminalMarker>();
-                marker.Level = level;
-                foreach (OS_Computer_Interface t in copy.GetComponentsInChildren<OS_Computer_Interface>(true))
-                {
-                    t.computerID = "";
-                    t.desktopData = EmptyDisk();
-                }
-                placed[level] = marker;
-                Plugin.Log.LogInfo($"Placed a vote terminal beside {root.name} in {level.name}");
-                return;
+                Vector3 shift = right * (width + 0.3f) * k;
+                spots.Add(new Spot { Position = root.position + shift, Rotation = root.rotation, Shift = shift, What = k > 0 ? "right of" : "left of" });
             }
-            noRoom.Add(level);
-            Plugin.Log.LogInfo($"No room for a vote terminal beside {root.name} in {level.name}; votes stay on that terminal");
+            // Back to back with the original, across the spot where you stand to use it.
+            Transform stand = anchor.playerPosition;
+            if (stand != null)
+            {
+                Quaternion turn = Quaternion.AngleAxis(180f, Vector3.up);
+                Vector3 pos = stand.position + turn * (root.position - stand.position);
+                spots.Add(new Spot { Position = pos, Rotation = turn * root.rotation, Shift = pos - root.position, What = "facing" });
+            }
+            var own = new HashSet<Collider>(root.GetComponentsInChildren<Collider>());
+            Spot best = spots[0];
+            int bestHits = int.MaxValue;
+            foreach (Spot spot in spots)
+            {
+                int hits = Blockers(bounds, spot.Shift, own);
+                if (hits < bestHits)
+                {
+                    best = spot;
+                    bestHits = hits;
+                }
+                if (hits == 0)
+                {
+                    break;
+                }
+            }
+            GameObject copy = Instantiate(root.gameObject, best.Position, best.Rotation, root.parent);
+            copy.name = "Belay_VoteTerminal";
+            var marker = copy.AddComponent<VoteTerminalMarker>();
+            marker.Level = level;
+            foreach (OS_Computer_Interface t in copy.GetComponentsInChildren<OS_Computer_Interface>(true))
+            {
+                t.computerID = "";
+                t.desktopData = EmptyDisk();
+            }
+            placed[level] = marker;
+            Plugin.Log.LogInfo($"Placed a vote terminal {best.What} {root.name} in {level.name}" + (bestHits > 0 ? $" (touching {bestHits} things: no clear spot)" : ""));
         }
 
-        /// <summary>True when a copy of the prop shifted by offset hits nothing solid and stands on a floor.</summary>
-        private static bool Fits(Bounds bounds, Vector3 offset, HashSet<Collider> own)
+        /// <summary>How many solid things a copy of the prop moved by shift would overlap, plus one if it has no floor.</summary>
+        private static int Blockers(Bounds bounds, Vector3 shift, HashSet<Collider> own)
         {
-            Vector3 center = bounds.center + offset + Vector3.up * 0.15f;
-            Vector3 half = new Vector3(bounds.extents.x * 0.9f, Mathf.Max(0.1f, bounds.extents.y - 0.2f), bounds.extents.z * 0.9f);
+            int hits = 0;
+            Vector3 center = bounds.center + shift + Vector3.up * 0.15f;
+            Vector3 half = new Vector3(bounds.extents.x * 0.8f, Mathf.Max(0.1f, bounds.extents.y - 0.25f), bounds.extents.z * 0.8f);
             foreach (Collider c in Physics.OverlapBox(center, half, Quaternion.identity, ~0, QueryTriggerInteraction.Ignore))
             {
                 if (c == null || own.Contains(c) || c.attachedRigidbody != null)
@@ -188,10 +224,14 @@ namespace Belay.World
                 {
                     continue;
                 }
-                return false;
+                hits++;
             }
-            Vector3 foot = new Vector3(bounds.center.x, bounds.min.y, bounds.center.z) + offset;
-            return Physics.Raycast(foot + Vector3.up * 0.5f, Vector3.down, 1.2f, ~0, QueryTriggerInteraction.Ignore);
+            Vector3 foot = new Vector3(bounds.center.x, bounds.min.y, bounds.center.z) + shift;
+            if (!Physics.Raycast(foot + Vector3.up * 0.5f, Vector3.down, 1.5f, ~0, QueryTriggerInteraction.Ignore))
+            {
+                hits++;
+            }
+            return hits;
         }
 
         private static OS_DiskData EmptyDisk()

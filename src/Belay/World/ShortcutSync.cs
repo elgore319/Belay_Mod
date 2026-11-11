@@ -129,23 +129,6 @@ namespace Belay.World
             Ask(new List<string> { id }, false);
         }
 
-        /// <summary>The local player sat at a terminal: vote on the shortcuts it covers.</summary>
-        internal void OnTerminal(OS_Manager os)
-        {
-            M_Level level = LevelOf(os);
-            if (level != null && VoteTerminal.HasFor(level))
-            {
-                return; // this stretch has its own vote terminal
-            }
-            List<string> ids = ShortcutsAfter(level, false);
-            if (ids.Count == 0)
-            {
-                return;
-            }
-            Plugin.Log.LogInfo($"Terminal covers {ids.Count} shortcut(s): {string.Join(", ", ids)}");
-            Ask(ids, true);
-        }
-
         /// <summary>A vote cast on a vote terminal: starts the team vote for that shortcut if none is running.</summary>
         internal void CastVote(string id, bool inFavour)
         {
@@ -731,10 +714,7 @@ namespace Belay.World
                 {
                     VoteTerminal.Instance?.OnSatDown(__instance);
                 }
-                else
-                {
-                    ShortcutSync.Instance.OnTerminal(__instance);
-                }
+
             }
             catch (System.Exception e)
             {
