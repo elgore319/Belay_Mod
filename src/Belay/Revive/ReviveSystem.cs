@@ -19,6 +19,10 @@ namespace Belay.Revive
         public const int DefaultCost = 4;
         public const int MaxCost = 50;
         private const float RunOverDelay = 3f;
+        /// <summary>A client ends the run itself if everyone has looked dead this long and the host's word never came.</summary>
+        private const float ClientRunOverDelay = 12f;
+        /// <summary>How long after ending the run we wait to see the game-over screen start before forcing it.</summary>
+        private const float GameOverCheckDelay = 4f;
 
         public static ReviveSystem Instance { get; private set; }
 
@@ -32,6 +36,8 @@ namespace Belay.Revive
         private int spectateIndex;
         private float allDeadSince = -1f;
         private bool runOver;
+        private float gameOverCheckAt = -1f;
+        private bool forcedGameOver;
         /// <summary>Host: targets revived recently, to stop two players paying for the same revive.</summary>
         private readonly Dictionary<SteamId, float> recentRevives = new Dictionary<SteamId, float>();
 
@@ -75,6 +81,8 @@ namespace Belay.Revive
                 Spectating = false;
                 runOver = false;
                 allDeadSince = -1f;
+                gameOverCheckAt = -1f;
+                forcedGameOver = false;
                 return;
             }
             ENT_Player player = ENT_Player.playerObject;
@@ -92,10 +100,8 @@ namespace Belay.Revive
                 Prompt = "You died. A teammate can revive you at a save terminal, or by using a disk.  [" + Plugin.SpectateNextKey.Value + "] next player";
             }
 
-            if (NetSession.Instance.IsHost)
-            {
-                CheckRunOver();
-            }
+            CheckRunOver();
+            CheckGameOverStarted();
         }
 
         private Vector3 spectateEye;
@@ -219,6 +225,25 @@ namespace Belay.Revive
             return alive;
         }
 
+        /// <summary>
+        /// Real teammates (not local test bots) who are alive and still sending. Bots can't revive anyone,
+        /// so a bot left standing doesn't keep the run going.
+        /// </summary>
+        private static int LivingHumans()
+        {
+            int alive = 0;
+            foreach (SteamId id in NetSession.Instance.MemberOrder())
+            {
+                if (!NetSession.Instance.IsLocalBot(id)
+                    && PlayerSync.Instance.Remotes.TryGetValue(id, out RemotePlayer remote) && remote != null
+                    && !remote.Latest.Dead && Time.unscaledTime - remote.LastReceived < 3f)
+                {
+                    alive++;
+                }
+            }
+            return alive;
+        }
+
         private static List<SteamId> DeadMembers()
         {
             var dead = new List<SteamId>();
@@ -256,7 +281,8 @@ namespace Belay.Revive
             {
                 return;
             }
-            bool everyoneDead = ENT_Player.playerObject.dead && LivingRemotes().Count == 0;
+            ENT_Player player = ENT_Player.playerObject;
+            bool everyoneDead = player != null && player.dead && LivingHumans() == 0;
             if (!everyoneDead)
             {
                 allDeadSince = -1f;
@@ -265,11 +291,56 @@ namespace Belay.Revive
             if (allDeadSince < 0f)
             {
                 allDeadSince = Time.unscaledTime;
+                Plugin.Log.LogInfo("Everyone is down" + (LivingRemotes().Count > 0 ? " (only bots left standing)" : "") + ", the run ends soon");
+                return;
             }
-            else if (Time.unscaledTime - allDeadSince > RunOverDelay)
+            float waited = Time.unscaledTime - allDeadSince;
+            if (NetSession.Instance.IsHost)
             {
-                NetSession.Instance.Send(PacketType.RunOver, null);
+                if (waited > RunOverDelay)
+                {
+                    NetSession.Instance.Send(PacketType.RunOver, null);
+                    EndRun();
+                }
+            }
+            else if (waited > ClientRunOverDelay)
+            {
+                // The host should have ended it by now; its message may have been lost.
+                Plugin.Log.LogWarning("Everyone has been down for a while and the host didn't end the run; ending it here");
                 EndRun();
+            }
+        }
+
+        /// <summary>
+        /// Checks that the game-over screen really started after the run ended. If the game's own death
+        /// call returned early (it thought you were already dead, or it went for a disk revive instead),
+        /// the end sequence is started directly.
+        /// </summary>
+        private void CheckGameOverStarted()
+        {
+            if (!runOver || forcedGameOver || gameOverCheckAt < 0f || Time.unscaledTime < gameOverCheckAt)
+            {
+                return;
+            }
+            gameOverCheckAt = -1f;
+            if (CL_GameManager.runHasEnded)
+            {
+                return;
+            }
+            forcedGameOver = true;
+            Plugin.Log.LogWarning("The game-over screen didn't start after the run ended; starting it directly");
+            try
+            {
+                CL_GameManager gMan = CL_GameManager.gMan;
+                var sequence = AccessTools.Method(typeof(CL_GameManager), "EndGameSequence");
+                if (gMan != null && sequence != null)
+                {
+                    gMan.StartCoroutine((System.Collections.IEnumerator)sequence.Invoke(gMan, new object[] { false }));
+                }
+            }
+            catch (System.Exception e)
+            {
+                Plugin.Log.LogWarning("Couldn't start the game-over screen: " + e.Message);
             }
         }
 
@@ -281,10 +352,18 @@ namespace Belay.Revive
             }
             runOver = true;
             Spectating = false;
+            gameOverCheckAt = Time.unscaledTime + GameOverCheckDelay;
+            Plugin.Log.LogInfo("Everyone is dead: ending the run");
             AllowGameOver = true;
             try
             {
+                // Die() does nothing if the game already thinks you're dead, so clear that first.
+                Traverse.Create(typeof(CL_GameManager)).Field("dead").SetValue(false);
                 CL_GameManager.gMan.Die(string.IsNullOrEmpty(lastDeathType) ? "basic" : lastDeathType);
+            }
+            catch (System.Exception e)
+            {
+                Plugin.Log.LogWarning("Ending the run failed: " + e.Message);
             }
             finally
             {
@@ -533,6 +612,25 @@ namespace Belay.Revive
         private static void RunFlowNotice(string text)
         {
             Run.RunFlow.Instance?.ShowNotice(text);
+        }
+    }
+
+    /// <summary>
+    /// When the whole team is dead the run must end, not drop into the game's disk revive, even if a
+    /// disk save is lying around from earlier.
+    /// </summary>
+    [HarmonyPatch(typeof(CL_SaveManager), nameof(CL_SaveManager.GetMostRecentSaveStateByType))]
+    internal static class NoDiskReviveAtGameOverPatch
+    {
+        [HarmonyPrefix]
+        private static bool Prefix(CL_SaveManager.SaveState.SaveType type, ref CL_SaveManager.SaveState __result)
+        {
+            if (ReviveSystem.AllowGameOver && type == CL_SaveManager.SaveState.SaveType.disk)
+            {
+                __result = null;
+                return false;
+            }
+            return true;
         }
     }
 
