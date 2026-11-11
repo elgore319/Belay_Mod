@@ -29,6 +29,8 @@ namespace Belay.World
         public static ShortcutSync Instance { get; private set; }
 
         private const float VoteSeconds = 20f;
+        /// <summary>Longer, so teammates have time to walk over to the vote terminal.</summary>
+        private const float VoteTerminalSeconds = 40f;
 
         internal static bool Applying;
 
@@ -46,6 +48,7 @@ namespace Belay.World
             public SteamId Starter;
             public string Id;
             public bool AtTerminal;
+            public bool AtVoteTerminal;
             public int Index, Total;
         }
 
@@ -54,6 +57,8 @@ namespace Belay.World
         private SteamId voteStarter;
         private Pending voteInfo;
         private readonly List<Pending> queue = new List<Pending>();
+        /// <summary>Votes cast on a vote terminal for a shortcut whose team vote hasn't started yet.</summary>
+        private readonly Dictionary<string, Dictionary<ulong, bool>> earlyVotes = new Dictionary<string, Dictionary<ulong, bool>>();
         /// <summary>Someone tried to open these while their vote was still running or queued.</summary>
         private readonly HashSet<string> wantsOpen = new HashSet<string>();
         private readonly HashSet<ulong> yes = new HashSet<ulong>();
@@ -127,13 +132,46 @@ namespace Belay.World
         /// <summary>The local player sat at a terminal: vote on the shortcuts it covers.</summary>
         internal void OnTerminal(OS_Manager os)
         {
-            List<string> ids = ShortcutsAfter(os);
+            M_Level level = LevelOf(os);
+            if (level != null && VoteTerminal.HasFor(level))
+            {
+                return; // this stretch has its own vote terminal
+            }
+            List<string> ids = ShortcutsAfter(level, false);
             if (ids.Count == 0)
             {
                 return;
             }
             Plugin.Log.LogInfo($"Terminal covers {ids.Count} shortcut(s): {string.Join(", ", ids)}");
             Ask(ids, true);
+        }
+
+        /// <summary>A vote cast on a vote terminal: starts the team vote for that shortcut if none is running.</summary>
+        internal void CastVote(string id, bool inFavour)
+        {
+            if (shownId == id)
+            {
+                myVoteSent = true;
+            }
+            NetSession net = NetSession.Instance;
+            if (net.IsHost)
+            {
+                HostCount(NetSession.LocalId, id, inFavour);
+            }
+            else
+            {
+                net.Send(PacketType.ShortcutVote, w =>
+                {
+                    w.Write(id);
+                    w.Write(inFavour);
+                });
+            }
+        }
+
+        internal static bool IsDecided(string id, out bool shortcut)
+        {
+            shortcut = Approved.Contains(id);
+            return shortcut || Opened.Contains(id);
         }
 
         private void Ask(List<string> ids, bool atTerminal)
@@ -154,24 +192,14 @@ namespace Belay.World
             }
         }
 
-        /// <summary>
-        /// The shortcuts a terminal decides: every one from the terminal's level up to (not including)
-        /// the next level with a terminal of its own, along the same branch of the map.
-        /// </summary>
-        private static List<string> ShortcutsAfter(OS_Manager os)
+        internal static M_Level LevelOf(OS_Manager os)
         {
-            var ids = new List<string>();
-            WorldLoader loader = WorldLoader.instance;
-            if (loader == null)
-            {
-                return ids;
-            }
             M_Level level = null;
-            if (os.worldInterface != null)
+            if (os != null && os.worldInterface != null)
             {
                 level = os.worldInterface.GetComponentInParent<M_Level>(true);
             }
-            if (level == null)
+            if (level == null && os != null)
             {
                 level = os.GetComponentInParent<M_Level>(true);
             }
@@ -179,7 +207,18 @@ namespace Belay.World
             {
                 level = WorldLoader.GetClosestLevelToPosition(ENT_Player.playerObject.transform.position)?.GetLevel();
             }
-            if (level == null)
+            return level;
+        }
+
+        /// <summary>
+        /// The shortcuts a terminal in this level decides: every one from this level up to (not including)
+        /// the next level with a terminal of its own, along the same branch of the map.
+        /// </summary>
+        internal static List<string> ShortcutsAfter(M_Level level, bool includeDecided)
+        {
+            var ids = new List<string>();
+            WorldLoader loader = WorldLoader.instance;
+            if (loader == null || level == null)
             {
                 return ids;
             }
@@ -200,14 +239,14 @@ namespace Belay.World
                 {
                     continue;
                 }
-                if (i > start && l.GetComponentsInChildren<OS_Computer_Interface>(true).Length > 0)
+                if (i > start && VoteTerminal.GameTerminalIn(l) != null)
                 {
                     break; // the next terminal votes on its own shortcuts
                 }
                 foreach (UT_BranchGenerator g in l.GetComponentsInChildren<UT_BranchGenerator>(true))
                 {
                     string id = ButtonSync.ObjectId(g);
-                    if (!Opened.Contains(id) && !Approved.Contains(id) && !ids.Contains(id))
+                    if ((includeDecided || !IsDecided(id, out _)) && !ids.Contains(id))
                     {
                         ids.Add(id);
                     }
@@ -282,7 +321,12 @@ namespace Belay.World
             {
                 yes.Add(p.Starter.Value);
             }
-            voteEnds = Time.unscaledTime + VoteSeconds;
+            if (earlyVotes.TryGetValue(p.Id, out var early))
+            {
+                foreach (var v in early) (v.Value ? yes : no).Add(v.Key);
+                earlyVotes.Remove(p.Id);
+            }
+            voteEnds = Time.unscaledTime + (p.AtVoteTerminal ? VoteTerminalSeconds : VoteSeconds);
             nextStateSend = 0f;
             HostCheck();
         }
@@ -293,6 +337,10 @@ namespace Belay.World
             if (!p.AtTerminal)
             {
                 return $"{who} found a shortcut. Which way does the team go?";
+            }
+            if (p.AtVoteTerminal)
+            {
+                return $"{who} started a shortcut vote. Vote at the VOTE terminal: shortcut or normal path?";
             }
             string which = p.Total > 1 ? $"Shortcut {p.Index} of {p.Total} ahead" : "There's a shortcut ahead";
             return $"{who} is at a terminal. {which}: which way does the team go?";
@@ -311,8 +359,24 @@ namespace Belay.World
 
         private void HostCount(SteamId voter, string id, bool inFavour)
         {
-            if (!NetSession.Instance.IsHost || voteId != id)
+            if (!NetSession.Instance.IsHost || IsDecided(id, out _))
             {
+                return;
+            }
+            if (voteId != id)
+            {
+                // A vote from a vote terminal: hold it until this shortcut's team vote starts, and start
+                // one if nobody has yet.
+                if (!earlyVotes.TryGetValue(id, out var early))
+                {
+                    earlyVotes[id] = early = new Dictionary<ulong, bool>();
+                }
+                early[voter.Value] = inFavour;
+                if (!Waiting(id))
+                {
+                    queue.Add(new Pending { Starter = voter, Id = id, AtTerminal = true, AtVoteTerminal = true, Index = 1, Total = 1 });
+                }
+                HostNext();
                 return;
             }
             yes.Remove(voter.Value);
@@ -565,6 +629,7 @@ namespace Belay.World
                 Approved.Clear();
                 wantsOpen.Clear();
                 queue.Clear();
+                earlyVotes.Clear();
                 showVote = false;
                 voteId = null;
             }
@@ -662,7 +727,14 @@ namespace Belay.World
             }
             try
             {
-                ShortcutSync.Instance.OnTerminal(__instance);
+                if (VoteTerminal.Is(__instance))
+                {
+                    VoteTerminal.Instance?.OnSatDown(__instance);
+                }
+                else
+                {
+                    ShortcutSync.Instance.OnTerminal(__instance);
+                }
             }
             catch (System.Exception e)
             {

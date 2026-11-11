@@ -42,9 +42,9 @@ namespace Belay.World
         internal static bool Shareable(Component owner, params UnityEngine.Events.UnityEventBase[] events)
         {
             M_Level level = owner != null ? owner.GetComponentInParent<M_Level>() : null;
-            if (level == null)
+            if (level == null || owner.GetComponentInParent<VoteTerminalMarker>() != null)
             {
-                return false;
+                return false; // Belay's vote terminals are each player's own
             }
             // Personal machines (upgrade consoles, shops, vending) are recognised by their objects' names too.
             for (Transform t = owner.transform; t != null && t != level.transform; t = t.parent)
