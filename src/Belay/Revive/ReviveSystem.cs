@@ -107,34 +107,111 @@ namespace Belay.Revive
             }
         }
 
+        private Vector3 spectateEye;
+        private Quaternion spectateLook;
+        private bool spectateEyeValid;
+        private float nextLevelSync;
+
+        private void OnEnable()
+        {
+            Camera.onPreCull += PlaceSpectateCamera;
+            Camera.onPostRender += RestoreSpectateCamera;
+        }
+
+        private void OnDisable()
+        {
+            Camera.onPreCull -= PlaceSpectateCamera;
+            Camera.onPostRender -= RestoreSpectateCamera;
+        }
+
+        private Camera movedCamera;
+        private Vector3 movedLocalPos;
+        private Quaternion movedLocalRot;
+
+        /// <summary>Put the camera back where the game had it, so nothing else sees our move.</summary>
+        private void RestoreSpectateCamera(Camera camera)
+        {
+            if (camera != null && camera == movedCamera)
+            {
+                camera.transform.localPosition = movedLocalPos;
+                camera.transform.localRotation = movedLocalRot;
+                movedCamera = null;
+            }
+        }
+
+        private RemotePlayer SpectateTarget()
+        {
+            List<RemotePlayer> alive = LivingRemotes();
+            return alive.Count == 0 ? null : alive[Mathf.Abs(spectateIndex) % alive.Count];
+        }
+
         private void LateUpdate()
         {
             if (!Active || !Spectating)
             {
+                spectateEyeValid = false;
                 return;
             }
-            List<RemotePlayer> alive = LivingRemotes();
-            if (alive.Count == 0)
+            RemotePlayer target = SpectateTarget();
+            if (target == null)
             {
                 return;
             }
-            RemotePlayer target = alive[Mathf.Abs(spectateIndex) % alive.Count];
-            // The dead player's controller is disabled, so we can carry the camera along with the teammate.
-            // This also keeps the levels around them loaded.
+            // The dead player's controller is disabled, so we carry the (invisible) body along with the
+            // teammate. This keeps the levels around them loaded.
             ENT_Player player = ENT_Player.playerObject;
             Quaternion facing = Quaternion.Euler(0f, target.Latest.Yaw, 0f);
             Vector3 eye = target.LocalPosition + facing * new Vector3(0f, 1.5f, -3f);
             player.transform.position = eye;
             player.transform.rotation = facing;
-            // The game only moves its camera rig in FixedUpdate while the player is alive, so a dead
-            // player's camera stays where they died. Snap the rig to the player and tilt it down a little
-            // toward the teammate (mouse look is off while dead, and comes back on revive).
             player.ResetCameraInterpolation();
-            if (player.camTransform != null)
+            if (Time.unscaledTime >= nextLevelSync)
             {
-                player.camTransform.localRotation = Quaternion.Euler(15f, 0f, 0f);
+                nextLevelSync = Time.unscaledTime + 1f;
+                EnsureLevelAt(target.LocalPosition);
+            }
+
+            // Smooth the view every rendered frame, independent of network and physics rates.
+            float dt = Mathf.Max(Time.unscaledDeltaTime, 0.0001f);
+            Quaternion look = facing * Quaternion.Euler(15f, 0f, 0f);
+            if (!spectateEyeValid || (spectateEye - eye).sqrMagnitude > 400f)
+            {
+                spectateEye = eye;
+                spectateLook = look;
+                spectateEyeValid = true;
+            }
+            else
+            {
+                float t = 1f - Mathf.Exp(-12f * dt);
+                spectateEye = Vector3.Lerp(spectateEye, eye, t);
+                spectateLook = Quaternion.Slerp(spectateLook, look, 1f - Mathf.Exp(-8f * dt));
             }
             Prompt = "Spectating " + target.DisplayName + ".  [" + Plugin.SpectateNextKey.Value + "] next player";
+        }
+
+        /// <summary>
+        /// The game moves its camera rig only on physics steps while you're alive, so following a
+        /// teammate through it looked choppy. While spectating, the camera is placed right before it
+        /// renders instead, every frame.
+        /// </summary>
+        private void PlaceSpectateCamera(Camera camera)
+        {
+            if (!spectateEyeValid || !Spectating || !Active)
+            {
+                return;
+            }
+            ENT_Player player = ENT_Player.playerObject;
+            if (player == null || camera == null || (camera != player.cam && camera != Camera.main))
+            {
+                return;
+            }
+            if (movedCamera == null)
+            {
+                movedCamera = camera;
+                movedLocalPos = camera.transform.localPosition;
+                movedLocalRot = camera.transform.localRotation;
+            }
+            camera.transform.SetPositionAndRotation(spectateEye, spectateLook);
         }
 
         private static List<RemotePlayer> LivingRemotes()
@@ -365,10 +442,68 @@ namespace Belay.Revive
             Spectating = false;
             player.Revive();
             player.GetTagger()?.RemoveTag("Dead");
-            player.Teleport(WorldSpace.ToLocal(sharedSpawn));
+            Vector3 spot = WorldSpace.ToLocal(sharedSpawn);
+            EnsureLevelAt(spot);
+            player.Teleport(spot);
             player.ResetFallingHeight();
             player.AddIgnoreFallDamageTime(3f);
             RunFlowNotice(NetSession.NameOf(reviver) + " revived you");
+        }
+
+        /// <summary>
+        /// Make the level at this spot the active one (switching map branch if needed) so its terrain
+        /// is loaded before we put someone there. While dead, the game stopped tracking where you are,
+        /// so a revive far above could drop you into a level that was never switched on.
+        /// </summary>
+        internal static void EnsureLevelAt(Vector3 worldPos)
+        {
+            M_Level best = null;
+            float bestDist = float.MaxValue;
+            foreach (M_Level level in FindObjectsByType<M_Level>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (level == null) continue;
+                Vector3 local = level.transform.worldToLocalMatrix.MultiplyPoint(worldPos);
+                Bounds b = level.GetLocalBounds();
+                b.Expand(4f);
+                if (!b.Contains(local)) continue;
+                float d = (b.center - local).sqrMagnitude;
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    best = level;
+                }
+            }
+            if (best == null)
+            {
+                Plugin.Log.LogWarning("No level found at the revive spot");
+                return;
+            }
+            try
+            {
+                if (!best.gameObject.activeSelf)
+                {
+                    best.gameObject.SetActive(true);
+                }
+                WorldLoader loader = WorldLoader.instance;
+                if (loader != null)
+                {
+                    // ChangeBranch hides the old branch's other levels, so only switch when it differs.
+                    var branch = loader.GetBranchOfLevel(best);
+                    if (branch != null && branch != loader.GetCurrentBranch())
+                    {
+                        loader.ChangeBranch(branch);
+                        Plugin.Log.LogInfo("Switched map branch to follow " + best.name);
+                    }
+                    if (loader.GetCurrentLevel() == null || loader.GetCurrentLevel().GetLevel() != best)
+                    {
+                        best.SetAsCurrentLevel();
+                    }
+                }
+            }
+            catch (System.Exception e)
+            {
+                Plugin.Log.LogWarning("Couldn't load the level at the revive spot: " + e.Message);
+            }
         }
 
         private static void RunFlowNotice(string text)

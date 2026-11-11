@@ -24,7 +24,7 @@ namespace Belay.Net
     public class NetSession : MonoBehaviour
     {
         public const int MaxPlayers = 8;
-        public const string ProtocolVersion = "belay-7";
+        public const string ProtocolVersion = "belay-8";
 
         // Lobby data keys
         public const string KeyTag = "belay";
@@ -33,6 +33,7 @@ namespace Belay.Net
         public const string KeySeed = "seed";
         public const string KeyRopeLength = "rope_len";
         public const string KeyTether = "tether";
+        public const string KeyRopePull = "rope_pull";
         public const string KeyRun = "belay_run";
         public const string KeyDoorDelay = "belay_door_delay";
         public const string KeyReviveCost = "belay_revive_cost";
@@ -126,7 +127,8 @@ namespace Belay.Net
             lobby.SetData(KeyVersion, ProtocolVersion);
             lobby.SetData(KeyName, string.IsNullOrEmpty(lobbyName) ? SteamClient.Name + "'s climb" : lobbyName);
             lobby.SetData(KeyRopeLength, Plugin.DefaultRopeLength.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            lobby.SetData(KeyTether, "1");
+            lobby.SetData(KeyTether, Plugin.RopeOnByDefault.Value ? "1" : "0");
+            lobby.SetData(KeyRopePull, "1");
             lobby.SetData(KeyDoorDelay, "15");
             lobby.SetData(KeyReviveCost, "10");
             RerollSeed(lobby);
@@ -377,7 +379,7 @@ namespace Belay.Net
         }
 
         /// <summary>Packets a client sends that the host passes on to every other client.</summary>
-        private static readonly HashSet<PacketType> RelayedByHost = new HashSet<PacketType> { PacketType.DoorOpen, PacketType.ButtonPress, PacketType.HoldInteract, PacketType.LeverAngle, PacketType.HandTouch, PacketType.ItemPickup, PacketType.ItemDrop };
+        private static readonly HashSet<PacketType> RelayedByHost = new HashSet<PacketType> { PacketType.DoorOpen, PacketType.ButtonPress, PacketType.HoldInteract, PacketType.LeverAngle, PacketType.HandTouch, PacketType.ItemPickup, PacketType.ItemDrop, PacketType.RopePull, PacketType.ZoneEntered };
 
         private readonly Dictionary<PacketType, Action<SteamId, BinaryReader>> handlers =
             new Dictionary<PacketType, Action<SteamId, BinaryReader>>();

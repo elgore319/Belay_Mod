@@ -71,12 +71,59 @@ namespace Belay.World
             return true;
         }
 
+        /// <summary>
+        /// Listeners that act on whoever pressed: sitting down at a terminal (OS_Manager.Activate pulls
+        /// the player to the screen and takes the camera), camera takeovers, teleports, cursor and UI.
+        /// A teammate's press still does everything else, but these are left out on other PCs.
+        /// </summary>
+        internal static bool IsPresserOnly(string name)
+        {
+            string n = name.ToLowerInvariant();
+            return n.StartsWith("os_") || n.StartsWith("app_") || n.Contains("computer") || n.Contains("terminal")
+                || n.Contains("camera") || n.Contains("takeover") || n.Contains("teleport") || n.Contains("cursor")
+                || n.Contains("player") || n.StartsWith("ui_") || n.Contains("uimanager") || n.Contains("dropHang".ToLowerInvariant());
+        }
+
+        /// <summary>Run a teammate's press with the presser-only listeners switched off for the moment.</summary>
+        internal static void RunShared(System.Action press, params UnityEngine.Events.UnityEventBase[] events)
+        {
+            var muted = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<UnityEngine.Events.UnityEventBase, int>>();
+            var states = new System.Collections.Generic.List<UnityEngine.Events.UnityEventCallState>();
+            foreach (var ev in events)
+            {
+                if (ev == null) continue;
+                for (int i = 0; i < ev.GetPersistentEventCount(); i++)
+                {
+                    Object target = ev.GetPersistentTarget(i);
+                    string type = target != null ? target.GetType().Name : "";
+                    string method = ev.GetPersistentMethodName(i) ?? "";
+                    if (IsPresserOnly(type) || IsPresserOnly(method))
+                    {
+                        muted.Add(new System.Collections.Generic.KeyValuePair<UnityEngine.Events.UnityEventBase, int>(ev, i));
+                        states.Add(ev.GetPersistentListenerState(i));
+                        ev.SetPersistentListenerState(i, UnityEngine.Events.UnityEventCallState.Off);
+                    }
+                }
+            }
+            try
+            {
+                press();
+            }
+            finally
+            {
+                for (int k = 0; k < muted.Count; k++)
+                {
+                    muted[k].Key.SetPersistentListenerState(muted[k].Value, states[k]);
+                }
+            }
+        }
+
         private static bool IsPersonal(string name)
         {
             string n = name.ToLowerInvariant();
             return n.Contains("roach") || n.Contains("trader") || n.Contains("shop") || n.Contains("vend")
                 || n.Contains("buy") || n.Contains("purchase") || n.Contains("currency") || n.Contains("inventory")
-                || n.Contains("ent_player") || n.Contains("perk") || n.Contains("cosmetic") || n.Contains("upgrade")
+                || n.Contains("perk") || n.Contains("cosmetic") || n.Contains("upgrade")
                 || n.Contains("_atm") || n.Contains("barter") || n.Contains("locker");
         }
 
@@ -100,7 +147,7 @@ namespace Belay.World
                 {
                     var presses = Traverse.Create(button).Field("presses");
                     int before = presses.GetValue<int>();
-                    button.Interact();
+                    RunShared(() => button.Interact(), button.activeEvent, (button as CL_ToggleButton)?.onEvent, (button as CL_ToggleButton)?.offEvent);
                     if (presses.GetValue<int>() == before)
                     {
                         // Our copy wasn't ready (still inactive, cooling down, or switched on by
@@ -108,7 +155,7 @@ namespace Belay.World
                         Plugin.Log.LogInfo("Forcing teammate's press on a button that wasn't ready here: " + id);
                         presses.SetValue(before + 1);
                         button.hasBeenPressed = true;
-                        button.activeEvent?.Invoke();
+                        RunShared(() => button.activeEvent?.Invoke(), button.activeEvent);
                         AudioManager.PlaySound(button.pressSound, button.transform.position);
                     }
                 }

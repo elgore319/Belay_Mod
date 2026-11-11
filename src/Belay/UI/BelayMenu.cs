@@ -171,6 +171,10 @@ namespace Belay.UI
             {
                 GUI.Label(new Rect(Screen.width / 2f - 150f, 40f, 300f, 30f), $"DOOR CLOSING IN {Mathf.CeilToInt(doorSeconds.Value)}");
             }
+            if (Tether.Instance != null && !string.IsNullOrEmpty(Tether.Instance.PullStatus))
+            {
+                text += "   " + Tether.Instance.PullStatus;
+            }
             if (catchFlash > 0f)
             {
                 text += "   CAUGHT!";
@@ -351,6 +355,12 @@ namespace Belay.UI
                 {
                     net.SetLobbyData(NetSession.KeyTether, newTether ? "1" : "0");
                 }
+                bool pull = net.GetLobbyData(NetSession.KeyRopePull) != "0";
+                bool newPull = GUILayout.Toggle(pull, "Pull teammates up (hold " + Plugin.RopePullKey.Value + " while gripping)");
+                if (newPull != pull)
+                {
+                    net.SetLobbyData(NetSession.KeyRopePull, newPull ? "1" : "0");
+                }
                 GUILayout.Label($"Rope length: {length:0} m");
                 float newLength = Mathf.Round(GUILayout.HorizontalSlider(length, 4f, 40f));
                 if (!Mathf.Approximately(newLength, length))
@@ -429,6 +439,7 @@ namespace Belay.UI
             DrawKeyBinding("Open Belay menu", Plugin.MenuKey);
             DrawKeyBinding("Revive teammate", Plugin.ReviveKey);
             DrawKeyBinding("Next spectated player", Plugin.SpectateNextKey);
+            DrawKeyBinding("Pull teammate up (rope)", Plugin.RopePullKey);
             DrawKeyBinding("Vote yes (shortcut)", Plugin.VoteYesKey);
             DrawKeyBinding("Vote no (shortcut)", Plugin.VoteNoKey);
             GUILayout.Space(6);

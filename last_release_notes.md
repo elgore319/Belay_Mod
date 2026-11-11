@@ -1,12 +1,14 @@
-Shortcut votes. Your game updates to this automatically on the next launch (from 0.5.2 on), then asks you to restart.
-
-## New
-- **Shortcuts are a team vote.** Opening a shortcut no longer opens it just for you. Everyone sees "<name> wants to take a shortcut" and votes with **F1 (Yes)** or **F2 (No)** (change the keys in Belay > Settings). The opener counts as Yes. The vote ends when everyone has voted or after 20 seconds, and it passes with more Yes than No votes (anyone who doesn't vote doesn't count against it).
-  - **Passed:** the shortcut opens for everyone at once and builds the same map on every PC. A red barrier blocks the normal path ahead.
-  - **Failed:** the shortcut stays shut for the rest of the run and a red barrier blocks it. Carry on along the normal path.
+Fixes from the latest co-op test. Your game updates to this automatically on the next launch, then asks you to restart.
 
 ## Fixed
-- Taking a shortcut split the team onto different maps and could softlock you.
+- **Using a terminal yanked everyone to it.** Teammates still get what the terminal does, but only the player using it sits down at the screen.
+- **Falling through the map after a revive.** The level where you're revived (and the one you're spectating) is switched on first, including after a shortcut.
+- **Choppy spectating.** The spectate camera now moves smoothly every frame instead of at physics/network rate.
+
+## New
+- **Room sequences are shared and wait for the team.** In interludes and breakrooms, walk-in triggers (like the habitation elevator ride) wait until every living teammate is in the room, then start for everyone at once.
+- **Pull teammates up.** With the rope on, grip a wall and hold **V** to haul up the teammate roped below you (they rise toward you once they let go). The host can switch this off in Rules; the key is in Settings.
+- **Rope is off by default** for new lobbies. The host can turn it on in Rules (or set RopeOnByDefault in the config).
 
 ## Still on 0.5.0 or 0.5.1?
-Download **Belay-0.5.4-installer.zip** below, extract it and double-click **Install Belay.bat** (it replaces your old Belay). Everyone in a lobby needs the same Belay version.
+Download **Belay-0.5.5-installer.zip** below, extract it and double-click **Install Belay.bat**. Everyone in a lobby needs the same Belay version.
