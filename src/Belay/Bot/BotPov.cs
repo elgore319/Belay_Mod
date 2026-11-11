@@ -49,6 +49,7 @@ namespace Belay.Bot
         private RenderTexture texture;
         private RemotePlayer youStandIn;
         private Rect window = new Rect(20, 20, 480, 300);
+        private bool placed;
         private bool resizing;
         private Vector2 resizeStart;
         private Vector2 sizeStart;
@@ -324,6 +325,13 @@ namespace Belay.Bot
             if (!Visible || Watched == null)
             {
                 return;
+            }
+            if (!placed)
+            {
+                // Start in the top-right corner, clear of the Belay menu (top left).
+                window.x = Screen.width - window.width - 20f;
+                window.y = 20f;
+                placed = true;
             }
             window.width = Mathf.Clamp(window.width, 200f, Screen.width);
             window.height = Mathf.Clamp(window.height, 140f, Screen.height);
