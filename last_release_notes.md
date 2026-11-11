@@ -1,6 +1,8 @@
-## Belay 0.5.14
+## Belay 0.5.15
 
-**Fix: getting tabbed out to another monitor while playing.**
+**Diagnostics for getting tabbed out mid-run.**
 
-- Closing the Belay menu after opening it from the pause menu left the mouse cursor unlocked for the rest of the run. You can't see it, but it drifts, and on a two-monitor setup the next click can land on the other screen and pull the game out of focus.
-- Belay now locks the cursor again whenever you're playing. While the menu is open in a run, the cursor is kept inside the game window.
+- Belay now writes a line to `BepInEx\LogOutput.log` whenever the game loses or regains focus, or the mouse cursor's lock changes.
+- Each line lists the keys pressed in the 2 seconds before it.
+- On a lost-focus line it also names the window that took focus.
+- Nothing about gameplay changes.
