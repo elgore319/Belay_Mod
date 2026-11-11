@@ -47,6 +47,8 @@ namespace Belay.World
         private float shownEnds;
         private bool myVoteSent;
         private int runId;
+        private string myRequestId;
+        private Vector3 myRequestPos;
 
         private void Awake()
         {
@@ -86,6 +88,10 @@ namespace Belay.World
                 return;
             }
             Plugin.Log.LogInfo("Asking the team to take a shortcut: " + id);
+            // Some shortcuts start when you walk into them. If the team picks the normal path, you're
+            // put back where you were when you asked, on the right side of the barrier.
+            myRequestId = id;
+            myRequestPos = WorldSpace.ToShared(ENT_Player.playerObject.transform.position);
             NetSession net = NetSession.Instance;
             if (net.IsHost)
             {
@@ -227,7 +233,12 @@ namespace Belay.World
                 {
                     PlaceBarrier(g.startTransform, g.currentLevel, "shortcut");
                 }
-                Run.RunFlow.Instance?.ShowNotice("The team voted not to take the shortcut. It's blocked off: carry on along the normal path.", 6f);
+                if (myRequestId == id && ENT_Player.playerObject != null && !ENT_Player.playerObject.dead)
+                {
+                    ENT_Player.playerObject.Teleport(WorldSpace.ToLocal(myRequestPos));
+                }
+                myRequestId = null;
+                Run.RunFlow.Instance?.ShowNotice("The team picked the normal path. The shortcut is blocked off: head back and carry on the normal way.", 6f);
                 return;
             }
             Open(id, starter);
@@ -336,7 +347,7 @@ namespace Belay.World
                     w.Write(inFavour);
                 });
             }
-            Run.RunFlow.Instance?.ShowNotice(inFavour ? "You voted to take the shortcut." : "You voted against the shortcut.", 3f);
+            Run.RunFlow.Instance?.ShowNotice(inFavour ? "You voted for the shortcut." : "You voted for the normal path.", 3f);
         }
 
         private void Update()
@@ -377,11 +388,11 @@ namespace Belay.World
                 return;
             }
             float left = Mathf.Max(0f, shownEnds - Time.unscaledTime);
-            string line1 = $"{shownStarter} wants to take a shortcut";
+            string line1 = $"{shownStarter} found a shortcut. Which way does the team go?";
             string line2 = myVoteSent
-                ? $"Yes {shownYes}   No {shownNo}   of {shownVoters}   ({Mathf.CeilToInt(left)}s)"
-                : $"[{Plugin.VoteYesKey.Value}] Yes   [{Plugin.VoteNoKey.Value}] No      Yes {shownYes}   No {shownNo}   of {shownVoters}   ({Mathf.CeilToInt(left)}s)";
-            var rect = new Rect(Screen.width / 2f - 240f, 110f, 480f, 58f);
+                ? $"Shortcut {shownYes}   Normal {shownNo}   of {shownVoters}   ({Mathf.CeilToInt(left)}s)"
+                : $"[{Plugin.VoteYesKey.Value}] Shortcut   [{Plugin.VoteNoKey.Value}] Normal path      Shortcut {shownYes}   Normal {shownNo}   of {shownVoters}   ({Mathf.CeilToInt(left)}s)";
+            var rect = new Rect(Screen.width / 2f - 330f, 110f, 660f, 58f);
             GUI.Box(rect, "");
             var style = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 16 };
             GUI.Label(new Rect(rect.x, rect.y + 4f, rect.width, 24f), line1, style);
