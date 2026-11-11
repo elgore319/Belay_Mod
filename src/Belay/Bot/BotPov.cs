@@ -6,7 +6,7 @@ namespace Belay.Bot
 {
     /// <summary>
     /// The test bot's point of view: a second camera at the bot's head that renders into a texture shown
-    /// in a movable, resizable window, or fullscreen on a second monitor. A stand-in body for you is drawn
+    /// in a movable, resizable window. A stand-in body for you is drawn
     /// only in this camera (your own game shows no body for you), and the bot's own body is hidden from it.
     /// </summary>
     public class BotPov : MonoBehaviour
@@ -42,7 +42,6 @@ namespace Belay.Bot
 
         public BotPlayer Watched { get; private set; }
         public bool Visible { get; private set; }
-        public bool OnSecondMonitor { get; private set; }
 
         private int quality = 1;
         private Camera cam;
@@ -57,7 +56,6 @@ namespace Belay.Bot
         private float yaw;
         private BotPlayer aimedAt;
 
-        public static bool SecondMonitorAvailable => Display.displays.Length > 1;
 
         public int Quality
         {
@@ -95,18 +93,6 @@ namespace Belay.Bot
             }
         }
 
-        /// <summary>Unity can turn a second monitor on but never off again, so this lasts until restart.</summary>
-        public void UseSecondMonitor()
-        {
-            if (!SecondMonitorAvailable || OnSecondMonitor)
-            {
-                return;
-            }
-            Display.displays[1].Activate();
-            OnSecondMonitor = true;
-            Visible = true;
-        }
-
         private void Awake()
         {
             window.x = Mathf.Max(20f, Screen.width - 500f);
@@ -140,7 +126,6 @@ namespace Belay.Bot
 
         private void LateUpdate()
         {
-            KeepCursorOnMainWindow();
             if (!Active)
             {
                 if (cam != null)
@@ -174,20 +159,6 @@ namespace Belay.Bot
             UpdateStandIn();
         }
 
-        /// <summary>
-        /// With the POV on monitor 2, Unity opens a second game window there. Any time the cursor is free
-        /// (menus, inventory, a frame where the game unlocks it), it can slide onto that window, and a click
-        /// there (climbing is all clicks) moves focus to it, which feels like being tabbed out. While that
-        /// window exists, a free cursor is kept inside the main window instead. Alt-Tab still works.
-        /// </summary>
-        private void KeepCursorOnMainWindow()
-        {
-            if (OnSecondMonitor && Application.isFocused && Cursor.lockState == CursorLockMode.None)
-            {
-                Cursor.lockState = CursorLockMode.Confined;
-            }
-        }
-
         private void EnsureCamera()
         {
             Camera main = ENT_Player.playerObject != null ? ENT_Player.playerObject.cam : null;
@@ -218,7 +189,7 @@ namespace Belay.Bot
                 }
                 ApplyTarget();
             }
-            if (!OnSecondMonitor && texture == null)
+            if (texture == null)
             {
                 ApplyTarget();
             }
@@ -226,14 +197,6 @@ namespace Belay.Bot
 
         private void ApplyTarget()
         {
-            if (OnSecondMonitor)
-            {
-                ReleaseTexture();
-                cam.targetTexture = null;
-                cam.targetDisplay = 1;
-                cam.rect = new Rect(0f, 0f, 1f, 1f);
-                return;
-            }
             if (texture == null)
             {
                 Vector2Int size = Resolutions[quality];
@@ -358,7 +321,7 @@ namespace Belay.Bot
 
         private void OnGUI()
         {
-            if (!Visible || OnSecondMonitor || Watched == null)
+            if (!Visible || Watched == null)
             {
                 return;
             }
