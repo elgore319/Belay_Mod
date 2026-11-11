@@ -111,7 +111,7 @@ namespace Belay.Players
             HandSkins.PublishTick();
             avatar.Pose(transform.position, Latest.Yaw, Latest.Pitch, leftHand, rightHand,
                 Latest.LeftHanging, Latest.RightHanging, velocity, Latest.InventoryOpen, dt,
-                HandSkins.SkinOf(SteamId, 0), HandSkins.SkinOf(SteamId, 1));
+                HandSkins.SkinOf(SteamId, 0), HandSkins.SkinOf(SteamId, 1), Latest.LeftItem, Latest.RightItem);
 
             UpdateNameTag();
         }
