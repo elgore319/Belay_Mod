@@ -33,6 +33,10 @@ namespace Belay.Net
         Knockback = 54,
         PropState = 55,
         PropKill = 56,
+        ObjectPlaced = 60,
+        ObjectHammered = 61,
+        ObjectBroken = 62,
+        ItemSettled = 63,
     }
 
     public static class Channels
