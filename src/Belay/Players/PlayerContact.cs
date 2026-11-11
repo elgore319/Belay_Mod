@@ -12,7 +12,7 @@ namespace Belay.Players
     ///    If you're standing, or gripping the wall with your other hand, you lift them instead: they're
     ///    carried to the spot in front of your face, and letting go while swinging your view throws them.
     ///    The carried player jumps to wriggle free.
-    ///  - Punch a teammate (PunchKey) or hit them with a hammer: they get knocked back, never hurt.
+    ///  - Hit a teammate with a hammer: the hit connects and knocks them back, but never hurts.
     /// Each PC still only moves its own player; the grip and the carry point ride along in PlayerState.
     /// </summary>
     public class PlayerContact : MonoBehaviour
@@ -21,9 +21,6 @@ namespace Belay.Players
         private const float VelToMetersPerSecond = 175f;
         private const float ForceToVel = 0.1f;
 
-        private const float PunchRange = 2.2f;
-        private const float PunchCooldown = 0.45f;
-        private const float PunchStrength = 7f;
         private const float CarryDistance = 1.05f;
         private const float CarryStiffness = 9f;
         private const float CarryMaxSpeed = 14f;
@@ -69,9 +66,6 @@ namespace Belay.Players
             }
         }
 
-        private float punchCooldown;
-        private float punchShowUntil;
-        private int punchHand;
         private readonly Dictionary<SteamId, float> escapedUntil = new Dictionary<SteamId, float>();
         private SteamId carriedBy;
 
@@ -92,7 +86,7 @@ namespace Belay.Players
 
         // ---------------------------------------------------------------- Outgoing state
 
-        /// <summary>Adds the grip/carry fields (and a punching arm) to the state we send.</summary>
+        /// <summary>Adds the grip/carry fields to the state we send.</summary>
         public void FillLocal(ref PlayerState state)
         {
             ENT_Player player = ENT_Player.playerObject;
@@ -100,14 +94,6 @@ namespace Belay.Players
             {
                 return;
             }
-            if (Time.unscaledTime < punchShowUntil && player.cam != null)
-            {
-                // Throw the arm out so teammates see the punch.
-                Transform cam = player.cam.transform;
-                Vector3 fist = WorldSpace.ToShared(cam.position + cam.forward * 0.85f + cam.right * (punchHand == 0 ? -0.15f : 0.15f) - cam.up * 0.1f);
-                if (punchHand == 0) state.LeftHand = fist; else state.RightHand = fist;
-            }
-
             RemoteBody held = null;
             Vector3 gripPoint = Vector3.zero;
             bool otherHandOnWall = false;
@@ -142,14 +128,10 @@ namespace Belay.Players
             state.Anchored = otherHandOnWall || player.IsGrounded(true);
         }
 
-        // ---------------------------------------------------------------- Punching
+        // ---------------------------------------------------------------- Knockback
 
         private void Update()
         {
-            if (punchCooldown > 0f)
-            {
-                punchCooldown -= Time.unscaledDeltaTime;
-            }
             if (carriedBy.Value != 0 && Live && InputManager.GetButton("Jump").Down)
             {
                 // Wriggle free.
@@ -158,33 +140,6 @@ namespace Belay.Players
                 Plugin.Log.LogInfo("Wriggled free of " + NetSession.NameOf(carriedBy));
                 carriedBy = default;
             }
-            if (!Live || !Input.GetKeyDown(Plugin.PunchKey.Value) || punchCooldown > 0f)
-            {
-                return;
-            }
-            ENT_Player player = ENT_Player.playerObject;
-            if (player.dead || player.cam == null || UI.BelayMenu.CapturingInput || Inventory.IsShowingInventory())
-            {
-                return;
-            }
-            punchCooldown = PunchCooldown;
-            punchShowUntil = Time.unscaledTime + 0.18f;
-            punchHand = player.hands[1].IsFree() || !player.hands[0].IsFree() ? 1 : 0;
-            player.hands[punchHand].ShakeHand(0.3f);
-
-            Transform cam = player.cam.transform;
-            if (!Physics.SphereCast(cam.position, 0.25f, cam.forward, out RaycastHit hit, PunchRange, 1 << BodyLayer, QueryTriggerInteraction.Ignore))
-            {
-                return;
-            }
-            RemoteBody body = RemoteBody.Of(hit.collider);
-            if (body == null || body.Owner == null)
-            {
-                return;
-            }
-            Vector3 dir = (cam.forward + Vector3.up * 0.25f).normalized;
-            SendKnockback(body.Owner, dir, PunchStrength, "punch");
-            CL_CameraControl.Shake(0.02f);
         }
 
         /// <summary>Knock a teammate back. They move on their own PC; nobody takes damage.</summary>

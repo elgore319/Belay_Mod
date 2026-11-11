@@ -27,7 +27,7 @@ Players/WorldSpace  Local <-> shared coordinate conversion (floating origin)
 Players/PlayerSync  20 Hz local state broadcast, RemotePlayer lifecycle
 Players/RemotePlayer Puppet body/hands/name tag with smoothing
 Players/RemoteBody  Solid teammate capsule: CL_Handhold (grip/climb a teammate) + Damageable (hits -> knockback)
-Players/PlayerContact Punch key, knockback packets, carrying (grip fields ride in PlayerState)
+Players/PlayerContact Hammer-hit knockback packets, carrying (grip fields ride in PlayerState)
 World/PropSync      CL_Prop sync: level-path ids, owner streams state (holder > nearest pusher), breaks shared
 Rope/Tether         Chain rope in join order: spring pull + fall catch when partner grips
 Run/RunFlow         Host's run (gamemode, settings, seed) in lobby data; clients follow; late-join catch-up
