@@ -24,6 +24,8 @@ namespace Belay.World
         private readonly Dictionary<Item_Object, string> idOf = new Dictionary<Item_Object, string>();
         /// <summary>Copies we made of teammates' drops: they appear even if the game's spawn rules would hide them.</summary>
         internal readonly HashSet<Item_Object> RemoteCopies = new HashSet<Item_Object>();
+        /// <summary>Our own drops still flying or rolling: once they stop, teammates' copies snap to the same spot.</summary>
+        private readonly List<(string id, Item_Object obj, float time)> settling = new List<(string, Item_Object, float)>();
         private int dropCounter;
         private int runId;
 
@@ -38,6 +40,7 @@ namespace Belay.World
         {
             NetSession.Instance.On(PacketType.ItemPickup, (origin, r) => ApplyPickup(r.ReadString()));
             NetSession.Instance.On(PacketType.ItemDrop, HandleDrop);
+            NetSession.Instance.On(PacketType.ItemSettled, HandleSettled);
         }
 
         internal static bool Live => Instance != null && NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready && !Applying;
@@ -51,6 +54,70 @@ namespace Belay.World
                 byId.Clear();
                 idOf.Clear();
                 RemoteCopies.Clear();
+                settling.Clear();
+            }
+            UpdateSettling();
+        }
+
+        private void UpdateSettling()
+        {
+            for (int i = settling.Count - 1; i >= 0; i--)
+            {
+                var (id, obj, time) = settling[i];
+                if (obj == null || !idOf.TryGetValue(obj, out string current) || current != id || !obj.gameObject.activeInHierarchy)
+                {
+                    settling.RemoveAt(i);
+                    continue;
+                }
+                float age = Time.time - time;
+                if (age < 0.4f)
+                {
+                    continue;
+                }
+                Rigidbody rb = obj.GetComponent<Rigidbody>();
+                bool resting = rb == null || rb.isKinematic || rb.IsSleeping() || rb.linearVelocity.sqrMagnitude < 0.01f;
+                if (!resting && age < 6f)
+                {
+                    continue;
+                }
+                settling.RemoveAt(i);
+                if (!Live)
+                {
+                    continue;
+                }
+                Vector3 pos = WorldSpace.ToShared(obj.transform.position);
+                Quaternion rot = obj.transform.rotation;
+                NetSession.Instance.Send(PacketType.ItemSettled, w =>
+                {
+                    w.Write(id);
+                    w.WriteVector(pos);
+                    w.Write(rot.x); w.Write(rot.y); w.Write(rot.z); w.Write(rot.w);
+                });
+            }
+        }
+
+        private void HandleSettled(SteamId origin, System.IO.BinaryReader r)
+        {
+            string id = r.ReadString();
+            Vector3 pos = WorldSpace.ToLocal(r.ReadVector());
+            var rot = new Quaternion(r.ReadSingle(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+            if (!WorldSpace.Ready || !byId.TryGetValue(id, out Item_Object obj) || obj == null)
+            {
+                return;
+            }
+            if (obj.itemData != null && obj.itemData.inventory != null)
+            {
+                return;
+            }
+            // Our copy rolled somewhere slightly different: put it where the dropper sees it.
+            obj.transform.SetPositionAndRotation(pos, rot);
+            Rigidbody rb = obj.GetComponent<Rigidbody>();
+            if (rb != null && !rb.isKinematic)
+            {
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+                rb.position = pos;
+                rb.rotation = rot;
             }
         }
 
@@ -158,6 +225,7 @@ namespace Belay.World
                     vel = Camera.main.transform.forward * (item.dropVel + 2f);
                 }
             }
+            settling.Add((id, obj, Time.time));
             Plugin.Log.LogInfo($"Dropped {item.prefabName} ({id})");
             NetSession.Instance.Send(PacketType.ItemDrop, w =>
             {
