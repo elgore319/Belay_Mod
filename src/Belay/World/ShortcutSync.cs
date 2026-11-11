@@ -13,12 +13,16 @@ namespace Belay.World
     /// close the normal path ahead. That used to happen only on the PC of whoever opened it, with an
     /// unseeded pick of which branch to build, so the team ended up on different maps.
     ///
-    /// In a lobby, opening a shortcut now starts a team vote (run by the host). Everyone sees who
-    /// wants to take it and votes Yes or No. When the vote passes, the shortcut opens on every PC at
-    /// once and builds the same branch (seeded from the lobby). When it fails, nothing opens and the
-    /// team carries on along the normal path.
-    /// Rules: the opener counts as Yes. The vote ends when everyone has voted or after VoteSeconds.
-    /// It passes with more Yes than No; anyone who doesn't vote doesn't count against it.
+    /// In a lobby, the team decides each shortcut by vote (run by the host), at a terminal:
+    ///  - When someone sits at a terminal, every undecided shortcut between that terminal and the next
+    ///    one gets a vote, one after another. A shortcut with no terminal of its own is voted on at the
+    ///    last terminal before it, so one terminal can carry several votes.
+    ///  - Picking the shortcut marks it as approved: when anyone opens it, it opens on every PC at once
+    ///    and builds the same branch (seeded from the lobby). Picking the normal path blocks it off.
+    ///  - A shortcut nobody voted on yet (no terminal before it, or nobody sat down) still asks the team
+    ///    when someone tries to open it, as before.
+    /// Rules: whoever asked counts as a vote for the shortcut. A vote ends when everyone has voted or
+    /// after VoteSeconds, and the shortcut wins with more votes than the normal path.
     /// </summary>
     public class ShortcutSync : MonoBehaviour
     {
@@ -28,12 +32,30 @@ namespace Belay.World
 
         internal static bool Applying;
 
-        /// <summary>Generators that have opened (or are opening) this run.</summary>
+        /// <summary>Generators that have opened (or are opening) this run, or were voted down.</summary>
         internal static readonly HashSet<string> Opened = new HashSet<string>();
+        /// <summary>Shortcuts the team voted to take at a terminal, not opened yet.</summary>
+        internal static readonly HashSet<string> Approved = new HashSet<string>();
 
-        // Host: the running vote.
+        private const int TerminalLookAhead = 12;
+
+        internal enum Outcome : byte { Normal = 0, Open = 1, Approved = 2 }
+
+        private struct Pending
+        {
+            public SteamId Starter;
+            public string Id;
+            public bool AtTerminal;
+            public int Index, Total;
+        }
+
+        // Host: the running vote and the ones waiting behind it.
         private string voteId;
         private SteamId voteStarter;
+        private Pending voteInfo;
+        private readonly List<Pending> queue = new List<Pending>();
+        /// <summary>Someone tried to open these while their vote was still running or queued.</summary>
+        private readonly HashSet<string> wantsOpen = new HashSet<string>();
         private readonly HashSet<ulong> yes = new HashSet<ulong>();
         private readonly HashSet<ulong> no = new HashSet<ulong>();
         private float voteEnds;
@@ -42,7 +64,7 @@ namespace Belay.World
         // Everyone: what to draw.
         private bool showVote;
         private string shownId;
-        private string shownStarter;
+        private string shownTitle;
         private int shownYes, shownNo, shownVoters;
         private float shownEnds;
         private bool myVoteSent;
@@ -58,7 +80,14 @@ namespace Belay.World
         private void Start()
         {
             NetSession net = NetSession.Instance;
-            net.On(PacketType.ShortcutVoteRequest, (origin, r) => HostStartVote(origin, r.ReadString()));
+            net.On(PacketType.ShortcutVoteRequest, (origin, r) =>
+            {
+                bool atTerminal = r.ReadBoolean();
+                int count = r.ReadInt32();
+                var ids = new List<string>();
+                for (int i = 0; i < count && i < 64; i++) ids.Add(r.ReadString());
+                HostRequest(origin, ids, atTerminal);
+            });
             net.On(PacketType.ShortcutVote, (origin, r) => HostCount(origin, r.ReadString(), r.ReadBoolean()));
             net.On(PacketType.ShortcutVoteState, (origin, r) =>
             {
@@ -69,9 +98,9 @@ namespace Belay.World
             {
                 if (origin != NetSession.Instance.HostId) return;
                 string id = r.ReadString();
-                bool passed = r.ReadBoolean();
+                var outcome = (Outcome)r.ReadByte();
                 string starter = r.ReadString();
-                Finish(id, passed, starter);
+                Finish(id, outcome, starter);
             });
         }
 
@@ -87,20 +116,104 @@ namespace Belay.World
             {
                 return;
             }
-            Plugin.Log.LogInfo("Asking the team to take a shortcut: " + id);
+            Plugin.Log.LogInfo((Approved.Contains(id) ? "Opening a shortcut the team picked: " : "Asking the team to take a shortcut: ") + id);
             // Some shortcuts start when you walk into them. If the team picks the normal path, you're
             // put back where you were when you asked, on the right side of the barrier.
             myRequestId = id;
             myRequestPos = WorldSpace.ToShared(ENT_Player.playerObject.transform.position);
+            Ask(new List<string> { id }, false);
+        }
+
+        /// <summary>The local player sat at a terminal: vote on the shortcuts it covers.</summary>
+        internal void OnTerminal(OS_Manager os)
+        {
+            List<string> ids = ShortcutsAfter(os);
+            if (ids.Count == 0)
+            {
+                return;
+            }
+            Plugin.Log.LogInfo($"Terminal covers {ids.Count} shortcut(s): {string.Join(", ", ids)}");
+            Ask(ids, true);
+        }
+
+        private void Ask(List<string> ids, bool atTerminal)
+        {
             NetSession net = NetSession.Instance;
             if (net.IsHost)
             {
-                HostStartVote(NetSession.LocalId, id);
+                HostRequest(NetSession.LocalId, ids, atTerminal);
             }
             else
             {
-                net.Send(PacketType.ShortcutVoteRequest, w => w.Write(id));
+                net.Send(PacketType.ShortcutVoteRequest, w =>
+                {
+                    w.Write(atTerminal);
+                    w.Write(ids.Count);
+                    foreach (string id in ids) w.Write(id);
+                });
             }
+        }
+
+        /// <summary>
+        /// The shortcuts a terminal decides: every one from the terminal's level up to (not including)
+        /// the next level with a terminal of its own, along the same branch of the map.
+        /// </summary>
+        private static List<string> ShortcutsAfter(OS_Manager os)
+        {
+            var ids = new List<string>();
+            WorldLoader loader = WorldLoader.instance;
+            if (loader == null)
+            {
+                return ids;
+            }
+            M_Level level = null;
+            if (os.worldInterface != null)
+            {
+                level = os.worldInterface.GetComponentInParent<M_Level>(true);
+            }
+            if (level == null)
+            {
+                level = os.GetComponentInParent<M_Level>(true);
+            }
+            if (level == null && ENT_Player.playerObject != null)
+            {
+                level = WorldLoader.GetClosestLevelToPosition(ENT_Player.playerObject.transform.position)?.GetLevel();
+            }
+            if (level == null)
+            {
+                return ids;
+            }
+            WorldLoader.BranchInfo branch = loader.GetBranchOfLevel(level) ?? loader.GetCurrentBranch();
+            if (branch == null || branch.levelTracker == null)
+            {
+                return ids;
+            }
+            int start = branch.levelTracker.FindIndex(l => l != null && l.GetLevel() == level);
+            if (start < 0)
+            {
+                return ids;
+            }
+            for (int i = start; i < branch.levelTracker.Count && i < start + TerminalLookAhead; i++)
+            {
+                M_Level l = branch.levelTracker[i]?.GetLevel();
+                if (l == null)
+                {
+                    continue;
+                }
+                if (i > start && l.GetComponentsInChildren<OS_Computer_Interface>(true).Length > 0)
+                {
+                    break; // the next terminal votes on its own shortcuts
+                }
+                foreach (UT_BranchGenerator g in l.GetComponentsInChildren<UT_BranchGenerator>(true))
+                {
+                    string id = ButtonSync.ObjectId(g);
+                    if (!Opened.Contains(id) && !Approved.Contains(id) && !ids.Contains(id))
+                    {
+                        ids.Add(id);
+                    }
+                }
+            }
+            return ids;
         }
 
         private List<SteamId> Voters()
@@ -108,28 +221,92 @@ namespace Belay.World
             return NetSession.Instance.MemberIds();
         }
 
-        private void HostStartVote(SteamId starter, string id)
+        private bool Waiting(string id)
         {
-            if (!NetSession.Instance.IsHost || Opened.Contains(id))
+            return voteId == id || queue.Any(p => p.Id == id);
+        }
+
+        private void HostRequest(SteamId starter, List<string> ids, bool atTerminal)
+        {
+            if (!NetSession.Instance.IsHost)
             {
                 return;
             }
-            if (voteId != null)
+            var fresh = new List<string>();
+            foreach (string id in ids)
             {
-                if (voteId != id)
+                if (Opened.Contains(id))
                 {
-                    Plugin.Log.LogInfo("Ignoring a second shortcut vote while one is running: " + id);
+                    continue;
                 }
+                if (!atTerminal)
+                {
+                    if (Approved.Contains(id))
+                    {
+                        HostSend(id, Outcome.Open, NetSession.NameOf(starter));
+                        continue;
+                    }
+                    if (Waiting(id))
+                    {
+                        wantsOpen.Add(id); // open it as soon as its vote picks the shortcut
+                        continue;
+                    }
+                }
+                else if (Approved.Contains(id) || Waiting(id))
+                {
+                    continue;
+                }
+                fresh.Add(id);
+            }
+            for (int i = 0; i < fresh.Count; i++)
+            {
+                queue.Add(new Pending { Starter = starter, Id = fresh[i], AtTerminal = atTerminal, Index = i + 1, Total = fresh.Count });
+            }
+            HostNext();
+        }
+
+        private void HostNext()
+        {
+            if (voteId != null || queue.Count == 0)
+            {
                 return;
             }
-            voteId = id;
-            voteStarter = starter;
+            Pending p = queue[0];
+            queue.RemoveAt(0);
+            voteInfo = p;
+            voteId = p.Id;
+            voteStarter = p.Starter;
             yes.Clear();
             no.Clear();
-            yes.Add(starter.Value);
+            if (!p.AtTerminal)
+            {
+                yes.Add(p.Starter.Value);
+            }
             voteEnds = Time.unscaledTime + VoteSeconds;
             nextStateSend = 0f;
             HostCheck();
+        }
+
+        private string Title(Pending p)
+        {
+            string who = NetSession.NameOf(p.Starter);
+            if (!p.AtTerminal)
+            {
+                return $"{who} found a shortcut. Which way does the team go?";
+            }
+            string which = p.Total > 1 ? $"Shortcut {p.Index} of {p.Total} ahead" : "There's a shortcut ahead";
+            return $"{who} is at a terminal. {which}: which way does the team go?";
+        }
+
+        private void HostSend(string id, Outcome outcome, string starter)
+        {
+            NetSession.Instance.Send(PacketType.ShortcutResult, w =>
+            {
+                w.Write(id);
+                w.Write((byte)outcome);
+                w.Write(starter);
+            });
+            Finish(id, outcome, starter);
         }
 
         private void HostCount(SteamId voter, string id, bool inFavour)
@@ -160,20 +337,20 @@ namespace Belay.World
                 {
                     nextStateSend = Time.unscaledTime + 1f;
                     float left = voteEnds - Time.unscaledTime;
-                    string starterName = NetSession.NameOf(voteStarter);
+                    string title = Title(voteInfo);
                     int y = voters.Count(v => yes.Contains(v.Value));
                     int n = voters.Count(v => no.Contains(v.Value));
                     string id = voteId;
                     NetSession.Instance.Send(PacketType.ShortcutVoteState, w =>
                     {
                         w.Write(id);
-                        w.Write(starterName);
+                        w.Write(title);
                         w.Write(y);
                         w.Write(n);
                         w.Write(voters.Count);
                         w.Write(left);
                     });
-                    ShowState(id, starterName, y, n, voters.Count, left);
+                    ShowState(id, title, y, n, voters.Count, left);
                 }
                 return;
             }
@@ -182,15 +359,15 @@ namespace Belay.World
             bool passed = yesCount > noCount;
             string finished = voteId;
             string starter = NetSession.NameOf(voteStarter);
+            bool atTerminal = voteInfo.AtTerminal;
             voteId = null;
             Plugin.Log.LogInfo($"Shortcut vote {(passed ? "passed" : "failed")} ({yesCount} yes, {noCount} no): {finished}");
-            NetSession.Instance.Send(PacketType.ShortcutResult, w =>
-            {
-                w.Write(finished);
-                w.Write(passed);
-                w.Write(starter);
-            });
-            Finish(finished, passed, starter);
+            Outcome outcome = !passed ? Outcome.Normal
+                : (atTerminal && !wantsOpen.Contains(finished)) ? Outcome.Approved
+                : Outcome.Open;
+            wantsOpen.Remove(finished);
+            HostSend(finished, outcome, starter);
+            HostNext();
         }
 
         // ---------------------------------------------------------------- Everyone
@@ -198,15 +375,15 @@ namespace Belay.World
         private void ReadState(System.IO.BinaryReader r)
         {
             string id = r.ReadString();
-            string starter = r.ReadString();
+            string title = r.ReadString();
             int y = r.ReadInt32();
             int n = r.ReadInt32();
             int voters = r.ReadInt32();
             float left = r.ReadSingle();
-            ShowState(id, starter, y, n, voters, left);
+            ShowState(id, title, y, n, voters, left);
         }
 
-        private void ShowState(string id, string starter, int y, int n, int voters, float left)
+        private void ShowState(string id, string title, int y, int n, int voters, float left)
         {
             if (!showVote || shownId != id)
             {
@@ -214,18 +391,27 @@ namespace Belay.World
             }
             showVote = true;
             shownId = id;
-            shownStarter = starter;
+            shownTitle = title;
             shownYes = y;
             shownNo = n;
             shownVoters = voters;
             shownEnds = Time.unscaledTime + left;
         }
 
-        private void Finish(string id, bool passed, string starter)
+        private void Finish(string id, Outcome outcome, string starter)
         {
-            showVote = false;
-            shownId = null;
-            if (!passed)
+            if (shownId == id)
+            {
+                showVote = false;
+                shownId = null;
+            }
+            if (outcome == Outcome.Approved)
+            {
+                Approved.Add(id);
+                Run.RunFlow.Instance?.ShowNotice("The team picked the shortcut. It opens for everyone when someone reaches it.", 6f);
+                return;
+            }
+            if (outcome == Outcome.Normal)
             {
                 Opened.Add(id); // the vote is over: this shortcut stays shut for the run
                 UT_BranchGenerator g = FindGenerator(id);
@@ -233,6 +419,7 @@ namespace Belay.World
                 {
                     PlaceBarrier(g.startTransform, g.currentLevel, "shortcut");
                 }
+                Approved.Remove(id);
                 if (myRequestId == id && ENT_Player.playerObject != null && !ENT_Player.playerObject.dead)
                 {
                     ENT_Player.playerObject.Teleport(WorldSpace.ToLocal(myRequestPos));
@@ -299,6 +486,7 @@ namespace Belay.World
             if (g != null)
             {
                 Opened.Add(id);
+                Approved.Remove(id);
                 // Block the normal way on, so nobody climbs into the part of the map the shortcut replaces.
                 M_Level from = g.currentLevel;
                 if (from != null && from.GetLevelExit() != null)
@@ -320,7 +508,7 @@ namespace Belay.World
                     Applying = false;
                 }
                 Plugin.Log.LogInfo("Shortcut opened for the team: " + id);
-                Run.RunFlow.Instance?.ShowNotice($"Shortcut opened ({starter}'s vote passed). The normal path ahead is closed: follow it.", 8f);
+                Run.RunFlow.Instance?.ShowNotice($"Shortcut opened by {starter}. The normal path ahead is closed: follow it.", 8f);
                 return;
             }
             Plugin.Log.LogWarning("The team opened a shortcut that isn't loaded here: " + id);
@@ -357,12 +545,16 @@ namespace Belay.World
             {
                 showVote = false;
                 voteId = null;
+                queue.Clear();
                 return;
             }
             if (runId != net.CurrentRun.RunId)
             {
                 runId = net.CurrentRun.RunId;
                 Opened.Clear();
+                Approved.Clear();
+                wantsOpen.Clear();
+                queue.Clear();
                 showVote = false;
                 voteId = null;
             }
@@ -388,11 +580,11 @@ namespace Belay.World
                 return;
             }
             float left = Mathf.Max(0f, shownEnds - Time.unscaledTime);
-            string line1 = $"{shownStarter} found a shortcut. Which way does the team go?";
+            string line1 = shownTitle;
             string line2 = myVoteSent
                 ? $"Shortcut {shownYes}   Normal {shownNo}   of {shownVoters}   ({Mathf.CeilToInt(left)}s)"
                 : $"[{Plugin.VoteYesKey.Value}] Shortcut   [{Plugin.VoteNoKey.Value}] Normal path      Shortcut {shownYes}   Normal {shownNo}   of {shownVoters}   ({Mathf.CeilToInt(left)}s)";
-            var rect = new Rect(Screen.width / 2f - 330f, 110f, 660f, 58f);
+            var rect = new Rect(Screen.width / 2f - 360f, 110f, 720f, 58f);
             GUI.Box(rect, "");
             var style = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 16 };
             GUI.Label(new Rect(rect.x, rect.y + 4f, rect.width, 24f), line1, style);
@@ -434,6 +626,27 @@ namespace Belay.World
             }
             ShortcutSync.Instance.RequestVote(__instance);
             return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(OS_Manager), nameof(OS_Manager.Activate))]
+    internal static class ShortcutTerminalPatch
+    {
+        [HarmonyPostfix]
+        private static void Postfix(OS_Manager __instance)
+        {
+            if (!ShortcutSync.Live || ShortcutSync.Instance == null || WorldLoader.instance == null || ENT_Player.playerObject == null)
+            {
+                return;
+            }
+            try
+            {
+                ShortcutSync.Instance.OnTerminal(__instance);
+            }
+            catch (System.Exception e)
+            {
+                Plugin.Log.LogWarning("Couldn't check this terminal's shortcuts: " + e.Message);
+            }
         }
     }
 }
