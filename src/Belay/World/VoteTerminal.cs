@@ -14,7 +14,7 @@ namespace Belay.World
     /// <summary>
     /// A terminal used only for shortcut votes. Wherever a level has a game terminal and there are
     /// shortcuts between it and the next terminal, Belay places a copy of that terminal beside it, with
-    /// an empty desktop and a "VOTE" sign. Sitting down at it (the game's normal terminal controls) shows
+    /// an empty desktop and an amber tint and glow. Sitting down at it (the game's normal terminal controls) shows
     /// one on-screen choice per shortcut ahead: Shortcut or Normal path. The first choice starts the team
     /// vote, everyone sees the banner, and anyone can vote at their own copy of the terminal (or with the
     /// vote keys). Results, barriers and seeded shortcut generation are unchanged (see ShortcutSync).
@@ -26,7 +26,6 @@ namespace Belay.World
         public static VoteTerminal Instance { get; private set; }
 
         private const float ScanInterval = 2f;
-        private const float LabelDistance = 14f;
 
         private static readonly Dictionary<M_Level, VoteTerminalMarker> placed = new Dictionary<M_Level, VoteTerminalMarker>();
         private static OS_DiskData emptyDisk;
@@ -174,6 +173,14 @@ namespace Belay.World
                 }
             }
             if (right.sqrMagnitude < 0.01f) right = Vector3.right;
+            // Slide along the prop's own side axis, so the copy stays flush with the wall like the original.
+            Vector3 sideA = Vector3.ProjectOnPlane(root.right, Vector3.up).normalized;
+            Vector3 sideB = Vector3.ProjectOnPlane(root.forward, Vector3.up).normalized;
+            Vector3 side = Mathf.Abs(Vector3.Dot(sideA, right)) >= Mathf.Abs(Vector3.Dot(sideB, right)) ? sideA : sideB;
+            if (side.sqrMagnitude > 0.01f)
+            {
+                right = Vector3.Dot(side, right) >= 0f ? side : -side;
+            }
             float width = Mathf.Clamp(Mathf.Abs(bounds.size.x * right.x) + Mathf.Abs(bounds.size.z * right.z), 0.8f, 3f);
             var spots = new List<Spot>();
             foreach (float k in new[] { 1f, 1.3f, 1.6f, -1f, -1.3f, -1.6f, 2.2f, -2.2f })
@@ -199,6 +206,7 @@ namespace Belay.World
             }
             GameObject copy = Instantiate(root.gameObject, best.Position, best.Rotation, root.parent);
             copy.name = "Belay_VoteTerminal";
+            MakeStandOut(copy, bounds, best.Shift);
             var marker = copy.AddComponent<VoteTerminalMarker>();
             marker.Level = level;
             foreach (OS_Computer_Interface t in copy.GetComponentsInChildren<OS_Computer_Interface>(true))
@@ -339,35 +347,42 @@ namespace Belay.World
             }
         }
 
-        // ---------------------------------------------------------------- Sign
+        // ---------------------------------------------------------------- Look
 
-        private void OnGUI()
+        private static readonly Color Amber = new Color(1f, 0.62f, 0.2f);
+
+        /// <summary>Amber-tinted body and a warm glow, so the vote terminal reads as different from the game's.</summary>
+        private static void MakeStandOut(GameObject copy, Bounds bounds, Vector3 shift)
         {
-            ENT_Player player = ENT_Player.playerObject;
-            Camera cam = Camera.main;
-            if (player == null || cam == null || OS_Manager.inUse || placed.Count == 0)
+            try
             {
-                return;
+                foreach (Renderer r in copy.GetComponentsInChildren<Renderer>(true))
+                {
+                    foreach (Material m in r.materials)
+                    {
+                        if (m == null) continue;
+                        if (m.HasProperty("_Color")) m.color = Color.Lerp(m.color, m.color * Amber * 1.4f, 0.75f);
+                        if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", Color.Lerp(m.GetColor("_BaseColor"), Amber, 0.5f));
+                        if (m.HasProperty("_EmissionColor"))
+                        {
+                            m.EnableKeyword("_EMISSION");
+                            m.SetColor("_EmissionColor", Amber * 0.25f);
+                        }
+                    }
+                }
+                var glow = new GameObject("Belay_VoteGlow");
+                glow.transform.SetParent(copy.transform, false);
+                glow.transform.position = bounds.center + shift + Vector3.up * (bounds.extents.y + 0.3f);
+                Light light = glow.AddComponent<Light>();
+                light.type = LightType.Point;
+                light.color = Amber;
+                light.range = 3.5f;
+                light.intensity = 1.6f;
+                light.shadows = LightShadows.None;
             }
-            var style = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 18, fontStyle = FontStyle.Bold };
-            style.normal.textColor = new Color(1f, 0.85f, 0.3f);
-            foreach (VoteTerminalMarker m in placed.Values)
+            catch (System.Exception e)
             {
-                if (m == null || !m.gameObject.activeInHierarchy)
-                {
-                    continue;
-                }
-                Vector3 top = m.transform.position + Vector3.up * 2.2f;
-                if (Vector3.Distance(player.transform.position, top) > LabelDistance)
-                {
-                    continue;
-                }
-                Vector3 sp = cam.WorldToScreenPoint(top);
-                if (sp.z <= 0f)
-                {
-                    continue;
-                }
-                GUI.Label(new Rect(sp.x - 120f, Screen.height - sp.y - 15f, 240f, 30f), "SHORTCUT VOTE", style);
+                Plugin.Log.LogWarning("Couldn't tint the vote terminal: " + e.Message);
             }
         }
     }
