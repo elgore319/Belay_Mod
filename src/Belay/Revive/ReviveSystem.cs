@@ -16,7 +16,7 @@ namespace Belay.Revive
     /// </summary>
     public class ReviveSystem : MonoBehaviour
     {
-        public const int DefaultCost = 10;
+        public const int DefaultCost = 4;
         public const int MaxCost = 50;
         private const float RunOverDelay = 3f;
 
