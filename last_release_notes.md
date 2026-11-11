@@ -1,9 +1,13 @@
-## Belay 0.5.18
+## Belay 0.5.19
 
-**Fixes a crash when opening the save terminal's revive page in co-op.**
+**New Dev tab in the Belay menu (F7) for teleporting around the map while testing.**
 
-- In 0.5.17, opening the disk page on a save terminal with no disk inserted crashed the game. It now opens the revive page normally.
-- In co-op, the page's "biological backup" and "reformat" wording now says revive instead.
-- Everything else from 0.5.17 is the same. The terminal revives a dead teammate next to you for roaches, and a held disk revives one where you stand for free.
+- **Next level** jumps to the next level up, generating it first if needed.
+- **Where I'm looking** teleports you to the surface your camera is pointing at (up to 500 m).
+- **Save this spot / Back to saved spot** lets you mark a place and return to it.
+- **Teammates** lists everyone in the lobby with a Go button to jump to them.
+- **Levels on this path** lists every loaded level, highest first, with a Go button for each.
+- Teleports skip fall damage, and by default push the mass 20 m below you so it doesn't catch you when you jump up.
+- Teleports only move you. No new keys were added; the tab lives in the existing menu.
 
-Everyone in the lobby needs 0.5.17 or newer (same network protocol as 0.5.17).
+No network changes, so 0.5.19 plays with 0.5.18.
