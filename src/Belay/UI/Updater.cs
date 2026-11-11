@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.IO;
+using System.Text.RegularExpressions;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -24,11 +25,9 @@ namespace Belay.UI
 
         private string downloadUrl;
 
-#pragma warning disable 0649 // filled in by JsonUtility
-        [Serializable] private class Asset { public string name; public string browser_download_url; }
-        [Serializable] private class Release { public string tag_name; public bool draft; public Asset[] assets; }
-        [Serializable] private class ReleaseList { public Release[] items; }
-#pragma warning restore 0649
+        private static readonly Regex DllUrl = new Regex(
+            "\"browser_download_url\"\\s*:\\s*\"(https://github\\.com/[^\"]*?/releases/download/([^/\"]+)/Belay\\.dll)\"",
+            RegexOptions.IgnoreCase);
 
         private static string PluginPath => typeof(Plugin).Assembly.Location;
 
@@ -75,11 +74,13 @@ namespace Belay.UI
             State = UpdateState.Checking;
             Message = "Checking for updates...";
 
-            string url = "https://api.github.com/repos/" + Plugin.UpdateRepo.Value.Trim() + "/releases?per_page=10";
+            // The query string defeats any cached copy of an older release list.
+            string url = "https://api.github.com/repos/" + Plugin.UpdateRepo.Value.Trim() + "/releases?per_page=20&t=" + DateTime.UtcNow.Ticks;
             using (var req = UnityWebRequest.Get(url))
             {
                 req.SetRequestHeader("User-Agent", "Belay-Updater");
                 req.SetRequestHeader("Accept", "application/vnd.github+json");
+                req.SetRequestHeader("Cache-Control", "no-cache");
                 req.timeout = 15;
                 yield return req.SendWebRequest();
 
@@ -91,26 +92,30 @@ namespace Belay.UI
                     yield break;
                 }
 
-                Release best = null;
+                string body = req.downloadHandler.text ?? "";
                 Version bestVer = null;
-                try
+                string bestUrl = null;
+                int seen = 0;
+                // Every published release's Belay.dll URL has its tag in it:
+                //   https://github.com/<owner>/<repo>/releases/download/<tag>/Belay.dll
+                // Reading those directly avoids depending on JsonUtility with GitHub's large release
+                // objects, and draft releases (untagged URLs) never parse as a version.
+                foreach (Match m in DllUrl.Matches(body))
                 {
-                    var list = JsonUtility.FromJson<ReleaseList>("{\"items\":" + req.downloadHandler.text + "}");
-                    foreach (var r in list.items ?? new Release[0])
-                    {
-                        if (r == null || r.draft || !TryParse(r.tag_name, out var v)) continue;
-                        if (FindDll(r) == null) continue;
-                        if (bestVer == null || v > bestVer) { best = r; bestVer = v; }
-                    }
+                    seen++;
+                    string assetUrl = m.Groups[1].Value.Replace("\\/", "/");
+                    if (!TryParse(Uri.UnescapeDataString(m.Groups[2].Value), out var v)) continue;
+                    if (bestVer == null || v > bestVer) { bestVer = v; bestUrl = assetUrl; }
                 }
-                catch (Exception e)
+                Plugin.Log.LogInfo($"Update check: {seen} release DLLs listed, newest {(bestVer != null ? bestVer.ToString() : "none")}, you have {Plugin.Version}");
+                if (seen == 0 && body.IndexOf("tag_name", StringComparison.Ordinal) < 0)
                 {
-                    Fail("Update check failed: couldn't read the release list (" + e.Message + ")");
+                    Fail("Update check failed: GitHub sent an unexpected reply");
                     yield break;
                 }
 
                 TryParse(Plugin.Version, out var current);
-                if (best == null || current == null || bestVer <= current)
+                if (bestVer == null || current == null || bestVer <= current)
                 {
                     State = UpdateState.UpToDate;
                     Message = "Belay " + Plugin.Version + " is up to date.";
@@ -118,7 +123,7 @@ namespace Belay.UI
                 }
 
                 LatestVersion = bestVer.ToString();
-                downloadUrl = FindDll(best).browser_download_url;
+                downloadUrl = bestUrl;
                 State = UpdateState.Available;
                 Message = "Belay " + LatestVersion + " is available (you have " + Plugin.Version + ").";
                 Plugin.Log.LogInfo(Message);
@@ -197,16 +202,6 @@ namespace Belay.UI
             State = UpdateState.Failed;
             Message = message;
             Plugin.Log.LogWarning(message);
-        }
-
-        private static Asset FindDll(Release r)
-        {
-            if (r.assets == null) return null;
-            foreach (var a in r.assets)
-            {
-                if (a != null && string.Equals(a.name, "Belay.dll", StringComparison.OrdinalIgnoreCase)) return a;
-            }
-            return null;
         }
 
         private static bool TryParse(string tag, out Version v)

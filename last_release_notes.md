@@ -1,24 +1,13 @@
-Fixes from the first playtest. Your game updates to this automatically on the next launch, then asks you to restart.
+Fixes the auto-updater. Some players on 0.5.0 were told "up to date" even though 0.5.1 was out.
 
 ## Fixed
-- **Instant deaths at the interlude.** When one player reached an interlude or breakroom, its scripts jumped the shared death goo up to that room, killing everyone still climbing below. The goo now waits until every living player is above that point.
-- **Spectating.** When you died, the camera stayed where you died. It now follows the teammate you're spectating (Tab switches teammates).
-- **Levels looked different for each player.** The level order matched, but mirroring, room variants, props and textures were randomized separately on each PC. Each level's randomness now comes from the lobby seed, so everyone climbs the same tower.
-- **Different towers for players with different progress.** Some areas only spawn depending on your save (beaten the game, unlocks, facility upgrades, flags). For a lobby run, everyone now uses the host's progress, so the tower matches.
+- **Updater missed new releases.** The update check now reads each release's download link directly instead of parsing GitHub's full release list, skips any cached copy of that list, and writes what it found to LogOutput.log ("Update check: ... newest X, you have Y").
 
-## New
-- **Interludes wait for the team.** Interlude and breakroom buttons can't be pressed until every living teammate is inside the room. The HUD shows how many you're waiting for.
-- **Shared buttons and controls.** Pressing a level button presses it for everyone, so hatches, lifts, doors and the events they set off (like the elevator drop) happen for the whole team. Hold buttons, cranks, levers and touch panels are shared too: levers swing to match on every screen. Shop and roach buttons stay personal.
-- **Level sync checker.** A few seconds after each level loads, every player's copy is compared with the host's (layout, mirroring, variants and textures). The HUD shows "Levels synced: N", and any difference pops up on screen and is written to LogOutput.log with both versions.
-- **Mass distance on the HUD**, so you can see how far below you the mass is.
-- A warning on the main menu if another multiplayer mod is switched on.
-- While the Belay menu (F7) is open during a run, the mouse no longer turns the camera and clicks no longer grab, so it never tugs your character. Grips you are already holding stay held.
-- **Climber avatars.** Teammates now look like climbers instead of placeholders, with 3D hands that wear each player's equipped hand skin (all 22 skins).
-- **Test bots** for trying things solo: add a fake teammate from the menu and watch what it sees in a separate view.
+## If you're on 0.5.0
+The 0.5.0 updater can't see this release, so update once by hand:
+1. Close the game.
+2. Download **Belay-0.5.2-installer.zip** below, extract it, and double-click **Install Belay.bat**. It replaces your old Belay.
 
-## Install (new players)
-1. Download **Belay-0.5.1-installer.zip** and extract it.
-2. Close the game and double-click **Install Belay.bat**.
-3. Start the game and click **Belay (F7)** on the main menu.
+From 0.5.1 on, updates install themselves on launch and apply after a restart.
 
-Everyone in a lobby needs the same Belay version.
+Everything from 0.5.1 is included (playtest fixes, shared controls, tileset checker, climber avatars, test bots). Everyone in a lobby needs the same Belay version.
