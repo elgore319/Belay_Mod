@@ -210,7 +210,7 @@ namespace Belay.World
             ulong target = r.ReadUInt64();
             int levelId = r.ReadInt32();
             string hostSummary = r.ReadString();
-            if (target != SteamClient.SteamId.Value)
+            if (target != NetSession.LocalId.Value)
             {
                 return;
             }

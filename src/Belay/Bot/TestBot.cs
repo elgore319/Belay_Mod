@@ -60,6 +60,8 @@ namespace Belay.Bot
         private bool spawnWhenHosting;
         private int nextBotNumber = 1;
         private BotPov pov;
+        private float testClientLaunched = -1f;
+        private string testClientError;
 
         public BotPlayer Watched => pov != null ? pov.Watched : null;
 
@@ -401,11 +403,49 @@ namespace Belay.Bot
             return s;
         }
 
+        // ---------------------------------------------------------------- Test client
+
+        /// <summary>Start a second copy of the game that joins this lobby over the local link.</summary>
+        public void LaunchTestClient()
+        {
+            testClientError = null;
+            NetSession net = NetSession.Instance;
+            if (!net.AllowTestClient())
+            {
+                testClientError = "Couldn't open the local port for the test client (is another game already using it?).";
+                return;
+            }
+            try
+            {
+                string exe = BepInEx.Paths.ExecutablePath;
+                var start = new System.Diagnostics.ProcessStartInfo(exe,
+                    LoopbackLink.CommandLineFlag + " -screen-fullscreen 0 -window-mode windowed -screen-width 960 -screen-height 540")
+                {
+                    UseShellExecute = false,
+                    WorkingDirectory = System.IO.Path.GetDirectoryName(exe),
+                };
+                System.Diagnostics.Process.Start(start);
+                testClientLaunched = Time.unscaledTime;
+                Plugin.Log.LogInfo("Started a Belay test client: " + exe);
+            }
+            catch (System.Exception e)
+            {
+                testClientError = "Couldn't start the test client: " + e.Message;
+                Plugin.Log.LogWarning(testClientError);
+            }
+        }
+
         // ---------------------------------------------------------------- Menu tab
 
         public void DrawTab()
         {
             NetSession net = NetSession.Instance;
+            if (net.IsTestClient)
+            {
+                GUILayout.Label("This window is the test client. It follows the host automatically; press "
+                    + Plugin.TestClientAutopilotKey.Value + " to take over and play it yourself.");
+                return;
+            }
             GUILayout.Label("Test bots are fake teammates that only exist in your game. They retrace your climb "
                 + "a few seconds behind you, so you can test the rope, goo, doors, revives and the interlude gate solo.");
             GUILayout.Space(4);
@@ -428,6 +468,32 @@ namespace Belay.Bot
                 GUILayout.Label("Bots can only be added by the host.");
                 return;
             }
+
+            GUILayout.BeginVertical(GUI.skin.box);
+            GUILayout.Label("<b>Test client (real second player)</b>");
+            GUILayout.Label("Opens a second copy of the game in a window. It joins this lobby as a real player with its "
+                + "own world, so anything that looks different in that window is a desync. It flies along your path "
+                + "by itself (" + Plugin.TestClientAutopilotKey.Value + " in that window to play it yourself) and never "
+                + "touches your saves.");
+            if (net.Loopback.PeerAlive)
+            {
+                GUILayout.Label("Test client connected.");
+            }
+            else if (testClientLaunched > 0f && Time.unscaledTime - testClientLaunched < 90f)
+            {
+                GUILayout.Label("Starting the test client... (the second window can take a minute to load)");
+            }
+            if (!net.Loopback.PeerAlive && GUILayout.Button("Open test client window"))
+            {
+                LaunchTestClient();
+            }
+            if (testClientError != null)
+            {
+                GUILayout.Label(testClientError);
+            }
+            GUILayout.EndVertical();
+            GUILayout.Space(6);
+            GUILayout.Label("<b>Simple bots (inside this game)</b>");
             int real = 0;
             foreach (Friend _ in net.Members)
             {

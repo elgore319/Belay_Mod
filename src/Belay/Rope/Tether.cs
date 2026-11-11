@@ -133,7 +133,7 @@ namespace Belay.Rope
         {
             var partners = new List<RemotePlayer>(2);
             List<SteamId> order = NetSession.Instance.MemberOrder();
-            int me = order.IndexOf(SteamClient.SteamId);
+            int me = order.IndexOf(NetSession.LocalId);
             if (me < 0)
             {
                 return partners;

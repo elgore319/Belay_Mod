@@ -160,7 +160,7 @@ namespace Belay.UI
             {
                 return;
             }
-            string text = $"Belay: {net.Members.Count()}/{NetSession.MaxPlayers} roped in";
+            string text = $"Belay: {net.MemberOrder().Count}/{NetSession.MaxPlayers} roped in";
             string revivePrompt = ReviveSystem.Instance != null ? ReviveSystem.Instance.Prompt : null;
             if (revivePrompt != null)
             {
@@ -213,7 +213,15 @@ namespace Belay.UI
             {
                 case Tab.Lobby:
                     GUILayout.Label("Status: " + net.Status);
-                    if (!NetSession.SteamReady)
+                    if (net.IsTestClient)
+                    {
+                        GUILayout.Label("This window is a Belay test client. It joins the game running on this PC by itself; close it to stop.");
+                        if (net.InLobby)
+                        {
+                            GUILayout.Label($"Lobby: {net.GetLobbyData(NetSession.KeyName)}");
+                        }
+                    }
+                    else if (!NetSession.SteamReady)
                     {
                         GUILayout.Label("Waiting for Steam...");
                     }
@@ -305,7 +313,7 @@ namespace Belay.UI
                 ? $"Run {run.RunId}: {run.Gamemode}  (seed {run.Seed})"
                 : (net.IsHost ? "Pick a gamemode from the menu to start. Everyone follows you in." : "Waiting for the host to start a run..."));
 
-            GUILayout.Label($"{net.Members.Count()}/{NetSession.MaxPlayers} players. See Players and Rules tabs.");
+            GUILayout.Label($"{net.MemberOrder().Count}/{NetSession.MaxPlayers} players. See Players and Rules tabs.");
             GUILayout.Space(6);
             if (GUILayout.Button("Invite friends"))
             {
@@ -325,17 +333,20 @@ namespace Belay.UI
                 return;
             }
             GUILayout.Label("Rope order (each player is roped to the ones next to them):");
-            string hostMods = net.CurrentLobby.Value.GetMemberData(net.CurrentLobby.Value.Owner, NetSession.KeyMods);
+            Lobby? lobby = net.CurrentLobby;
+            string hostMods = lobby.HasValue ? lobby.Value.GetMemberData(lobby.Value.Owner, NetSession.KeyMods) : null;
             int index = 1;
-            foreach (Friend member in net.Members)
+            foreach (SteamId member in net.MemberOrder())
             {
-                string tag = member.Id == net.HostId ? " (host)" : "";
-                string you = member.Id == SteamClient.SteamId ? " (you)" : "";
-                string mods = net.CurrentLobby.Value.GetMemberData(member, NetSession.KeyMods);
+                string tag = member == net.HostId ? " (host)" : "";
+                string you = member == NetSession.LocalId ? " (you)" : "";
+                string mods = lobby.HasValue && !net.IsLocalBot(member) && member != LoopbackLink.ClientId
+                    ? lobby.Value.GetMemberData(new Friend(member), NetSession.KeyMods)
+                    : null;
                 string mismatch = !string.IsNullOrEmpty(hostMods) && !string.IsNullOrEmpty(mods) && mods != hostMods
                     ? "  [different mods than host]"
                     : "";
-                GUILayout.Label($"  {index++}. {member.Name}{tag}{you}{mismatch}");
+                GUILayout.Label($"  {index++}. {NetSession.NameOf(member)}{tag}{you}{mismatch}");
             }
         }
 

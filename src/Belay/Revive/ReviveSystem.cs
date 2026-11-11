@@ -233,7 +233,7 @@ namespace Belay.Revive
             var dead = new List<SteamId>();
             foreach (SteamId id in NetSession.Instance.MemberOrder())
             {
-                if (id == SteamClient.SteamId)
+                if (id == NetSession.LocalId)
                 {
                     if (ENT_Player.playerObject.dead)
                     {
@@ -366,7 +366,7 @@ namespace Belay.Revive
                 Vector3 spawn = WorldSpace.ToShared(near.SpawnPoint);
                 if (NetSession.Instance.IsHost)
                 {
-                    HostApproveRevive(target, SteamClient.SteamId, spawn);
+                    HostApproveRevive(target, NetSession.LocalId, spawn);
                 }
                 else
                 {
@@ -428,13 +428,13 @@ namespace Belay.Revive
         private void ApplyRevive(SteamId target, SteamId reviver, Vector3 sharedSpawn)
         {
             Revived?.Invoke(target, reviver, sharedSpawn);
-            if (reviver == SteamClient.SteamId)
+            if (reviver == NetSession.LocalId)
             {
                 // Paid from the reviver's own wallet only.
                 CL_GameManager.AddRoaches(-Cost);
                 RunFlowNotice("Revived " + NetSession.NameOf(target));
             }
-            if (target != SteamClient.SteamId || !WorldSpace.Ready)
+            if (target != NetSession.LocalId || !WorldSpace.Ready)
             {
                 return;
             }
