@@ -63,9 +63,16 @@ namespace Belay.UI
             CapturingInput = open && CL_GameManager.IsInGame();
             if (open)
             {
-                // The game re-locks the cursor every frame while playing.
-                Cursor.lockState = CursorLockMode.None;
+                // In a run the cursor stays inside the game window, so a click can't land on another
+                // monitor and pull focus away from the game.
+                Cursor.lockState = CL_GameManager.IsInGame() ? CursorLockMode.Confined : CursorLockMode.None;
                 Cursor.visible = true;
+            }
+            else if (ShouldBeLocked())
+            {
+                // Playing with a free, hidden cursor lets it drift onto a second monitor, and the next
+                // click there tabs you out of the game. The game only locks it on spawn and unpause.
+                Cursor.lockState = CursorLockMode.Locked;
             }
             if (Tether.Instance != null && Tether.Instance.CaughtThisFrame)
             {
@@ -97,14 +104,38 @@ namespace Belay.UI
             }
             else
             {
-                Cursor.lockState = previousLock;
-                Cursor.visible = previousVisible;
+                // Closing the menu used to put back the cursor state from when it was opened. Opened from
+                // the pause menu, that was "free", so you went on playing with an unlocked cursor.
+                if (ShouldBeLocked())
+                {
+                    Cursor.lockState = CursorLockMode.Locked;
+                    Cursor.visible = false;
+                }
+                else
+                {
+                    Cursor.lockState = previousLock;
+                    Cursor.visible = previousVisible;
+                }
                 if (lockedCamera && ENT_Player.playerObject != null)
                 {
                     ENT_Player.playerObject.UnlockCamera();
                 }
                 lockedCamera = false;
             }
+        }
+
+        /// <summary>True when the game itself wants a locked, hidden cursor: playing, not in a menu.</summary>
+        private static bool ShouldBeLocked()
+        {
+            ENT_Player player = ENT_Player.playerObject;
+            return Application.isFocused
+                && CL_GameManager.IsInGame()
+                && CL_GameManager.gMan != null && !CL_GameManager.gMan.isPaused
+                && !CL_GameManager.showCursor
+                && player != null && !player.dead
+                && !OS_Manager.inUse
+                && !CommandConsole.IsConsoleVisible()
+                && Cursor.lockState != CursorLockMode.Locked;
         }
 
         private void OnGUI()
