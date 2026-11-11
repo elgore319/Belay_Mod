@@ -1,8 +1,9 @@
-## Belay 0.5.15
+## Belay 0.5.16
 
-**Diagnostics for getting tabbed out mid-run.**
+**Shortcut votes are easier to see, and a missed vote no longer blocks the shortcut.**
 
-- Belay now writes a line to `BepInEx\LogOutput.log` whenever the game loses or regains focus, or the mouse cursor's lock changes.
-- Each line lists the keys pressed in the 2 seconds before it.
-- On a lost-focus line it also names the window that took focus.
-- Nothing about gameplay changes.
+- The vote panel is now a large, high-contrast banner near the top of the screen. It draws over everything else, including terminal screens.
+- If nobody votes at all, nothing is decided. The shortcut isn't blocked, and it asks again next time someone uses the terminal or tries to open it. Before this, a vote nobody answered counted as "normal path" and blocked the shortcut.
+- The game log now records when the vote appears on your screen.
+
+Everyone in the lobby needs 0.5.16 (network protocol changed).
