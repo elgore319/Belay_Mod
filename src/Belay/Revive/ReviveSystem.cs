@@ -225,25 +225,6 @@ namespace Belay.Revive
             return alive;
         }
 
-        /// <summary>
-        /// Real teammates (not local test bots) who are alive and still sending. Bots can't revive anyone,
-        /// so a bot left standing doesn't keep the run going.
-        /// </summary>
-        private static int LivingHumans()
-        {
-            int alive = 0;
-            foreach (SteamId id in NetSession.Instance.MemberOrder())
-            {
-                if (!NetSession.Instance.IsLocalBot(id)
-                    && PlayerSync.Instance.Remotes.TryGetValue(id, out RemotePlayer remote) && remote != null
-                    && !remote.Latest.Dead && Time.unscaledTime - remote.LastReceived < 3f)
-                {
-                    alive++;
-                }
-            }
-            return alive;
-        }
-
         private static List<SteamId> DeadMembers()
         {
             var dead = new List<SteamId>();
@@ -282,7 +263,7 @@ namespace Belay.Revive
                 return;
             }
             ENT_Player player = ENT_Player.playerObject;
-            bool everyoneDead = player != null && player.dead && LivingHumans() == 0;
+            bool everyoneDead = player != null && player.dead && LivingRemotes().Count == 0;
             if (!everyoneDead)
             {
                 allDeadSince = -1f;
@@ -291,7 +272,7 @@ namespace Belay.Revive
             if (allDeadSince < 0f)
             {
                 allDeadSince = Time.unscaledTime;
-                Plugin.Log.LogInfo("Everyone is down" + (LivingRemotes().Count > 0 ? " (only bots left standing)" : "") + ", the run ends soon");
+                Plugin.Log.LogInfo("Everyone is down, the run ends soon");
                 return;
             }
             float waited = Time.unscaledTime - allDeadSince;
