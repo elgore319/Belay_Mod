@@ -27,6 +27,20 @@ namespace Belay.Rope
 
         public bool Enabled => NetSession.Instance.InLobby && NetSession.Instance.GetLobbyData(NetSession.KeyTether) == "1";
 
+        /// <summary>Host rule: players gripping a wall can haul up teammates roped below them.</summary>
+        public bool PullAllowed => Enabled && NetSession.Instance.GetLobbyData(NetSession.KeyRopePull) != "0";
+
+        /// <summary>Speed a pulled teammate rises at (m/s).</summary>
+        private const float PullSpeed = 4f;
+        private const float PullAccel = 25f;
+
+        /// <summary>For the HUD: who you're hauling, or who's hauling you.</summary>
+        public string PullStatus { get; private set; } = "";
+
+        private float nextPullSend;
+        private SteamId pulledBy;
+        private float pulledUntil;
+
         public float RopeLength
         {
             get
@@ -47,6 +61,72 @@ namespace Belay.Rope
         private void Awake()
         {
             Instance = this;
+        }
+
+        private void Start()
+        {
+            NetSession.Instance.On(PacketType.RopePull, (origin, r) =>
+            {
+                if (!PullAllowed) return;
+                foreach (RemotePlayer partner in RopePartners())
+                {
+                    if (partner.SteamId == origin)
+                    {
+                        pulledBy = origin;
+                        pulledUntil = Time.unscaledTime + 0.3f;
+                        return;
+                    }
+                }
+            });
+        }
+
+        private void Update()
+        {
+            PullStatus = "";
+            if (!PullAllowed || !WorldSpace.Ready)
+            {
+                return;
+            }
+            ENT_Player player = ENT_Player.playerObject;
+            if (player == null || player.dead)
+            {
+                return;
+            }
+            if (Time.unscaledTime < pulledUntil)
+            {
+                PullStatus = NetSession.NameOf(pulledBy) + " is pulling you up" + (player.IsHanging() ? " (let go to be pulled)" : "");
+                return;
+            }
+            if (!player.IsHanging())
+            {
+                return;
+            }
+            // Gripping: you can haul up partners hanging below you on the rope.
+            RemotePlayer below = null;
+            foreach (RemotePlayer partner in RopePartners())
+            {
+                if (partner.LocalPosition.y < player.transform.position.y - 1.5f && (below == null || partner.LocalPosition.y < below.LocalPosition.y))
+                {
+                    below = partner;
+                }
+            }
+            if (below == null)
+            {
+                return;
+            }
+            if (Input.GetKey(Plugin.RopePullKey.Value))
+            {
+                PullStatus = "Pulling " + below.DisplayName + " up";
+                if (Time.unscaledTime >= nextPullSend)
+                {
+                    nextPullSend = Time.unscaledTime + 0.1f;
+                    NetSession.Instance.Send(PacketType.RopePull, w => { });
+                }
+            }
+            else
+            {
+                PullStatus = $"[{Plugin.RopePullKey.Value}] pull {below.DisplayName} up";
+            }
         }
 
         public List<RemotePlayer> RopePartners()
@@ -88,6 +168,23 @@ namespace Belay.Rope
             {
                 // Gripping players are the anchors; the game's own hang code owns their movement.
                 return;
+            }
+
+            if (Time.unscaledTime < pulledUntil && PlayerSync.Instance.Remotes.TryGetValue(pulledBy, out RemotePlayer puller) && puller != null)
+            {
+                // Being hauled up: rise toward the teammate holding the rope.
+                Vector3 to = puller.LocalPosition + Vector3.down * 1.2f - player.transform.position;
+                if (to.sqrMagnitude > 1f)
+                {
+                    Vector3 dir = to.normalized;
+                    float along = Vector3.Dot(player.GetVelocity(), dir) * VelToMetersPerSecond;
+                    float add = Mathf.Min(PullSpeed - along, PullAccel * Time.fixedDeltaTime);
+                    if (add > 0f)
+                    {
+                        player.AddForce(dir * (add / VelToMetersPerSecond / ForceToVel));
+                    }
+                    player.ResetFallingHeight();
+                }
             }
 
             float length = RopeLength;

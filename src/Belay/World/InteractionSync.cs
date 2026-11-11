@@ -165,14 +165,14 @@ namespace Belay.World
                         t.Field("presses").SetValue(t.Field("presses").GetValue<int>() + 1);
                         b.hasBeenPressed = true;
                         AudioManager.PlaySound(b.pressSound, b.transform.position, b.pressVolume);
-                        b.activeEvent?.Invoke();
+                        ButtonSync.RunShared(() => b.activeEvent?.Invoke(), b.activeEvent);
                         break;
                     case HoldKind.Stop:
                         AudioManager.PlaySound(b.letgoSound, b.transform.position, b.pressVolume);
-                        b.stopEvent?.Invoke();
+                        ButtonSync.RunShared(() => b.stopEvent?.Invoke(), b.stopEvent);
                         break;
                     case HoldKind.Fail:
-                        b.failEvent?.Invoke();
+                        ButtonSync.RunShared(() => b.failEvent?.Invoke(), b.failEvent);
                         if (b.resetOnStop) b.curValue = 0f;
                         break;
                     case HoldKind.Finish:
@@ -181,7 +181,7 @@ namespace Belay.World
                         if (b.disableOnFinish) b.canUse = false;
                         b.curValue = b.maxValue;
                         b.progressEvent?.Invoke(b.curValue);
-                        b.finishEvent?.Invoke();
+                        ButtonSync.RunShared(() => b.finishEvent?.Invoke(), b.finishEvent);
                         break;
                 }
             }
@@ -222,7 +222,7 @@ namespace Belay.World
             try
             {
                 hasRun.SetValue(true);
-                trigger.onEnter?.Invoke(trigger.transform);
+                ButtonSync.RunShared(() => trigger.onEnter?.Invoke(trigger.transform), trigger.onEnter);
             }
             catch (System.Exception e)
             {

@@ -48,7 +48,7 @@ namespace Belay.World
         }
 
         /// <summary>Living teammates (not counting you) who aren't inside this level yet.</summary>
-        private static List<string> Missing(M_Level level)
+        internal static List<string> Missing(M_Level level)
         {
             var missing = new List<string>();
             foreach (RemotePlayer remote in PlayerSync.Instance.Remotes.Values)

@@ -28,6 +28,8 @@ namespace Belay.Net
         ShortcutVote = 49,
         ShortcutVoteState = 50,
         ShortcutResult = 51,
+        RopePull = 52,
+        ZoneEntered = 53,
     }
 
     public static class Channels
