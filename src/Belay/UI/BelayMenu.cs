@@ -26,10 +26,11 @@ namespace Belay.UI
             Rules,
             Mods,
             Bot,
+            Dev,
             Settings,
         }
 
-        private static readonly string[] TabLabels = { "Lobby", "Players", "Rules", "Mods", "Bot", "Settings" };
+        private static readonly string[] TabLabels = { "Lobby", "Players", "Rules", "Mods", "Bot", "Dev", "Settings" };
 
         private bool open;
 
@@ -278,6 +279,9 @@ namespace Belay.UI
                     break;
                 case Tab.Bot:
                     Bot.TestBot.Instance?.DrawTab();
+                    break;
+                case Tab.Dev:
+                    Dev.DevMenu.DrawTab();
                     break;
                 case Tab.Settings:
                     DrawSettingsTab();
