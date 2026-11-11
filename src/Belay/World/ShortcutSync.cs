@@ -465,7 +465,8 @@ namespace Belay.World
             if (outcome == Outcome.Approved)
             {
                 Approved.Add(id);
-                Run.RunFlow.Instance?.ShowNotice("The team picked the shortcut. It opens for everyone when someone reaches it.", 6f);
+                BlockNormalPath(FindGenerator(id));
+                Run.RunFlow.Instance?.ShowNotice("The team picked the shortcut. The normal path is blocked: take the shortcut.", 6f);
                 return;
             }
             if (outcome == Outcome.Normal)
@@ -488,7 +489,23 @@ namespace Belay.World
             Open(id, starter);
         }
 
+        private static readonly Dictionary<string, UT_BranchGenerator> generatorCache = new Dictionary<string, UT_BranchGenerator>();
+
         private static UT_BranchGenerator FindGenerator(string id)
+        {
+            if (generatorCache.TryGetValue(id, out UT_BranchGenerator cached) && cached != null)
+            {
+                return cached;
+            }
+            UT_BranchGenerator found = FindGeneratorSlow(id);
+            if (found != null)
+            {
+                generatorCache[id] = found;
+            }
+            return found;
+        }
+
+        private static UT_BranchGenerator FindGeneratorSlow(string id)
         {
             foreach (UT_BranchGenerator g in FindObjectsByType<UT_BranchGenerator>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             {
@@ -498,6 +515,68 @@ namespace Belay.World
                 }
             }
             return null;
+        }
+
+        /// <summary>Generators whose normal path (the rest of their level) already has a barrier.</summary>
+        private static readonly HashSet<string> normalBlocked = new HashSet<string>();
+
+        private static void BlockNormalPath(UT_BranchGenerator g)
+        {
+            M_Level from = g != null ? g.currentLevel : null;
+            if (from == null || from.GetLevelExit() == null || !normalBlocked.Add(ButtonSync.ObjectId(g)))
+            {
+                return;
+            }
+            PlaceBarrier(from.GetLevelExit(), from, "normal");
+        }
+
+        private float nextPathCheck;
+
+        /// <summary>
+        /// Once the team has picked a shortcut that hasn't opened yet, nobody may carry on up the normal path:
+        /// anyone who gets past the barrier into a later level of that branch is put back below it.
+        /// </summary>
+        private void KeepOffNormalPath()
+        {
+            if (Approved.Count == 0 || Time.unscaledTime < nextPathCheck || WorldLoader.instance == null)
+            {
+                return;
+            }
+            nextPathCheck = Time.unscaledTime + 0.5f;
+            ENT_Player player = ENT_Player.playerObject;
+            if (player == null || player.dead)
+            {
+                return;
+            }
+            WorldLoader.LevelInfo here = WorldLoader.GetClosestLevelToPosition(player.transform.position);
+            if (here == null || here.GetLevel() == null)
+            {
+                return;
+            }
+            foreach (string id in Approved)
+            {
+                UT_BranchGenerator g = FindGenerator(id);
+                M_Level from = g != null ? g.currentLevel : null;
+                if (from == null || from.GetLevelExit() == null)
+                {
+                    continue;
+                }
+                WorldLoader.BranchInfo branch = WorldLoader.instance.GetBranchOfLevel(from);
+                if (branch == null || branch.levelTracker == null || here.branch != branch)
+                {
+                    continue;
+                }
+                int fromIndex = branch.levelTracker.FindIndex(l => l != null && l.GetLevel() == from);
+                int hereIndex = branch.levelTracker.IndexOf(here);
+                if (fromIndex >= 0 && hereIndex > fromIndex)
+                {
+                    Transform exit = from.GetLevelExit();
+                    player.Teleport(exit.position - Vector3.up * 2f);
+                    Plugin.Log.LogInfo("Kept off the normal path (team picked the shortcut): " + id);
+                    Run.RunFlow.Instance?.ShowNotice("The team picked the shortcut. Take the shortcut, not the normal path.", 5f);
+                    return;
+                }
+            }
         }
 
         private static Material barrierMaterial;
@@ -545,11 +624,7 @@ namespace Belay.World
                 Opened.Add(id);
                 Approved.Remove(id);
                 // Block the normal way on, so nobody climbs into the part of the map the shortcut replaces.
-                M_Level from = g.currentLevel;
-                if (from != null && from.GetLevelExit() != null)
-                {
-                    PlaceBarrier(from.GetLevelExit(), from, "normal");
-                }
+                BlockNormalPath(g);
                 Applying = true;
                 try
                 {
@@ -610,6 +685,7 @@ namespace Belay.World
                 runId = net.CurrentRun.RunId;
                 Opened.Clear();
                 Approved.Clear();
+                normalBlocked.Clear();
                 wantsOpen.Clear();
                 queue.Clear();
                 earlyVotes.Clear();
@@ -629,6 +705,7 @@ namespace Belay.World
             {
                 showVote = false; // the host went quiet
             }
+            KeepOffNormalPath();
         }
 
         private void OnGUI()
