@@ -162,7 +162,13 @@ namespace Belay.World
         [HarmonyPrefix]
         private static bool Prefix(UT_TriggerZone __instance, Collider other)
         {
-            if (!ZoneSync.Live || ZoneSync.Instance == null || other == null || !ZoneSync.Shared(__instance, out M_Level level))
+            if (!ZoneSync.Live || ZoneSync.Instance == null || other == null || DoorSync.Applying)
+            {
+                return true;
+            }
+            bool closeZone = DoorSync.Instance != null && DoorSync.IsCloseZone(__instance);
+            M_Level level = null;
+            if (!closeZone && !ZoneSync.Shared(__instance, out level))
             {
                 return true;
             }
@@ -171,7 +177,7 @@ namespace Belay.World
             {
                 return true; // not our player (items, creatures): leave it to the game
             }
-            if (Traverse.Create(__instance).Field("hasRun").GetValue<bool>())
+            if (__instance.runOnce && Traverse.Create(__instance).Field("hasRun").GetValue<bool>())
             {
                 return true;
             }
@@ -181,6 +187,11 @@ namespace Belay.World
                 || (__instance.ignoreTags != null && __instance.ignoreTags.Length > 0 && tagger.HasTagInList(__instance.ignoreTags)))
             {
                 return true;
+            }
+            if (closeZone)
+            {
+                // A door's close trigger: start the team's countdown instead of shutting it now.
+                return DoorSync.Instance.OnLocalCloseZone(__instance);
             }
             return ZoneSync.Instance.LocalEnter(__instance, other.transform, level);
         }

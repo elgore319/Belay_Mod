@@ -13,6 +13,9 @@ namespace Belay.World
     /// Shared doors. Opening a door opens it for everyone. Closing one (the first player through its
     /// trigger) starts a host-run countdown that everyone sees, and the door then shuts for all players at
     /// the same moment, so nobody gets locked out just for being a few seconds behind.
+    /// Some doors (the big blast doors) don't close through UT_Door at all: their "close" trigger zone
+    /// drives them some other way. Those zones are held the same way: walking in starts the countdown,
+    /// and the zone fires for everyone when it runs out.
     /// </summary>
     public class DoorSync : MonoBehaviour
     {
@@ -30,6 +33,9 @@ namespace Belay.World
         /// <summary>Door id -> time (Time.unscaledTime) it shuts. Host is authoritative; clients mirror it for the HUD.</summary>
         private readonly Dictionary<string, float> countdowns = new Dictionary<string, float>();
         private readonly Dictionary<string, UT_Door> doorCache = new Dictionary<string, UT_Door>();
+        private readonly Dictionary<string, UT_TriggerZone> zoneCache = new Dictionary<string, UT_TriggerZone>();
+        private static readonly Dictionary<UT_TriggerZone, bool> closeZones = new Dictionary<UT_TriggerZone, bool>();
+        internal const string ZonePrefix = "zone:";
 
         public float CloseDelay
         {
@@ -113,8 +119,8 @@ namespace Belay.World
             foreach (KeyValuePair<string, float> entry in countdowns)
             {
                 // Cache only: this runs from OnGUI several times a frame.
-                UT_Door door = Find(entry.Key, allowScan: false);
-                float d = door != null ? Vector3.Distance(((Component)door).transform.position, me) : float.MaxValue - 1f;
+                Component door = IsZone(entry.Key) ? (Component)FindZone(entry.Key, allowScan: false) : Find(entry.Key, allowScan: false);
+                float d = door != null ? Vector3.Distance(door.transform.position, me) : float.MaxValue - 1f;
                 if (d < bestDistance)
                 {
                     bestDistance = d;
@@ -147,6 +153,23 @@ namespace Belay.World
             return false;
         }
 
+        /// <summary>The local player walked into a door's close zone. Returns false to hold the zone back.</summary>
+        internal bool OnLocalCloseZone(UT_TriggerZone zone)
+        {
+            string id = ZoneId(zone);
+            NetSession net = NetSession.Instance;
+            zoneCache[id] = zone;
+            if (net.IsHost)
+            {
+                HostStartCountdown(id);
+            }
+            else if (!countdowns.ContainsKey(id))
+            {
+                net.Send(PacketType.DoorRequestClose, w => w.Write(id));
+            }
+            return false;
+        }
+
         internal void OnLocalOpen(UT_Door door)
         {
             string id = DoorId(door);
@@ -166,7 +189,8 @@ namespace Belay.World
             }
             float delay = CloseDelay;
             countdowns[id] = Time.unscaledTime + delay;
-            Find(id);
+            if (IsZone(id)) FindZone(id); else Find(id);
+            Plugin.Log.LogInfo($"Door closing for everyone in {delay:0} s: {id}");
             net.Send(PacketType.DoorCountdown, w =>
             {
                 w.Write(id);
@@ -183,7 +207,8 @@ namespace Belay.World
             if (origin == NetSession.Instance.HostId)
             {
                 countdowns[id] = Time.unscaledTime + delay;
-                Find(id);
+                if (IsZone(id)) FindZone(id); else Find(id);
+                Plugin.Log.LogInfo($"Door closing for everyone in {delay:0} s: {id}");
             }
         }
 
@@ -218,6 +243,11 @@ namespace Belay.World
 
         private void ApplyClose(string id)
         {
+            if (IsZone(id))
+            {
+                FireZone(id);
+                return;
+            }
             UT_Door door = Find(id);
             if (door == null)
             {
@@ -233,6 +263,129 @@ namespace Belay.World
             {
                 Applying = false;
             }
+        }
+
+        private void FireZone(string id)
+        {
+            UT_TriggerZone zone = FindZone(id);
+            if (zone == null)
+            {
+                return; // not loaded here
+            }
+            var hasRun = Traverse.Create(zone).Field("hasRun");
+            if (zone.runOnce && hasRun.GetValue<bool>())
+            {
+                return;
+            }
+            Collider c = zone.GetComponent<Collider>();
+            ENT_Player player = ENT_Player.playerObject;
+            bool inside = false;
+            if (c != null && player != null)
+            {
+                Bounds b = c.bounds;
+                b.Expand(1f);
+                inside = b.Contains(player.transform.position);
+            }
+            Transform who = inside ? player.transform : zone.transform;
+            Plugin.Log.LogInfo("Door shutting now: " + id);
+            Applying = true;
+            ZoneSync.Applying = true;
+            ButtonSync.Applying = true;
+            try
+            {
+                hasRun.SetValue(true);
+                ButtonSync.RunShared(() => zone.onEnter?.Invoke(who), zone.onEnter);
+            }
+            catch (System.Exception e)
+            {
+                Plugin.Log.LogWarning($"Couldn't shut the door here ({id}): {e.Message}");
+            }
+            finally
+            {
+                Applying = false;
+                ZoneSync.Applying = false;
+                ButtonSync.Applying = false;
+            }
+        }
+
+        // ---------------------------------------------------------------- Close zones
+
+        private static bool IsZone(string id) => id.StartsWith(ZonePrefix, System.StringComparison.Ordinal);
+
+        internal static string ZoneId(UT_TriggerZone zone) => ZonePrefix + ButtonSync.ObjectId(zone);
+
+        private UT_TriggerZone FindZone(string id, bool allowScan = true)
+        {
+            if (zoneCache.TryGetValue(id, out UT_TriggerZone cached) && cached != null)
+            {
+                return cached;
+            }
+            if (!allowScan)
+            {
+                return null;
+            }
+            foreach (UT_TriggerZone zone in Object.FindObjectsByType<UT_TriggerZone>(FindObjectsSortMode.None))
+            {
+                if (zone != null && IsCloseZone(zone))
+                {
+                    string zoneId = ZoneId(zone);
+                    zoneCache[zoneId] = zone;
+                    if (zoneId == id)
+                    {
+                        return zone;
+                    }
+                }
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// A trigger zone that shuts a door: named "close" and part of a door, or wired straight to a
+        /// door's Close/Toggle.
+        /// </summary>
+        internal static bool IsCloseZone(UT_TriggerZone zone)
+        {
+            if (closeZones.TryGetValue(zone, out bool known))
+            {
+                return known;
+            }
+            bool result = false;
+            string name = zone.name.ToLowerInvariant();
+            if (name.Contains("close") || name.Contains("shut"))
+            {
+                M_Level level = zone.GetComponentInParent<M_Level>();
+                Transform stop = level != null ? level.transform : null;
+                int depth = 0;
+                for (Transform t = zone.transform; t != null && t != stop && depth < 4; t = t.parent, depth++)
+                {
+                    string n = t.name.ToLowerInvariant();
+                    if (n.Contains("door") || n.Contains("bulkhead") || n.Contains("blast") || n.Contains("hatch"))
+                    {
+                        result = true;
+                        break;
+                    }
+                }
+            }
+            var listeners = new StringBuilder();
+            if (zone.onEnter != null)
+            {
+                for (int i = 0; i < zone.onEnter.GetPersistentEventCount(); i++)
+                {
+                    Object target = zone.onEnter.GetPersistentTarget(i);
+                    string method = zone.onEnter.GetPersistentMethodName(i) ?? "";
+                    listeners.Append(' ').Append(target != null ? target.GetType().Name + "(" + target.name + ")" : "null").Append('.').Append(method);
+                    if (target is UT_Door && (method == nameof(UT_Door.Close) || method == nameof(UT_Door.Toggle)))
+                    {
+                        result = true;
+                    }
+                }
+            }
+            closeZones[zone] = result;
+            if (result)
+            {
+                Plugin.Log.LogInfo($"Door close zone found: {ButtonSync.ObjectId(zone)} ->{listeners}");
+            }
+            return result;
         }
 
         // ---------------------------------------------------------------- Ids

@@ -781,7 +781,8 @@ namespace Belay.World
         [HarmonyPostfix]
         private static void Postfix(OS_Manager __instance)
         {
-            if (!ShortcutSync.Live || ShortcutSync.Instance == null || WorldLoader.instance == null || ENT_Player.playerObject == null)
+            if (!ShortcutSync.Live || ShortcutSync.Instance == null || WorldLoader.instance == null || ENT_Player.playerObject == null
+                || TerminalGuard.ReplayingTeammate)
             {
                 return;
             }
