@@ -429,6 +429,8 @@ namespace Belay.UI
             DrawKeyBinding("Open Belay menu", Plugin.MenuKey);
             DrawKeyBinding("Revive teammate", Plugin.ReviveKey);
             DrawKeyBinding("Next spectated player", Plugin.SpectateNextKey);
+            DrawKeyBinding("Vote yes (shortcut)", Plugin.VoteYesKey);
+            DrawKeyBinding("Vote no (shortcut)", Plugin.VoteNoKey);
             GUILayout.Space(6);
             Plugin.ShowRope.Value = GUILayout.Toggle(Plugin.ShowRope.Value, "Show rope");
             GUILayout.Label($"Network updates per second: {Plugin.SendRate.Value}");
