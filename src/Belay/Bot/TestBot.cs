@@ -604,13 +604,7 @@ namespace Belay.Bot
                 pov.Quality = quality;
             }
             GUILayout.EndHorizontal();
-            if (BotPov.SecondMonitorAvailable)
-            {
-                if (GUILayout.Button(pov.OnSecondMonitor ? "POV is fullscreen on monitor 2" : "Show POV fullscreen on monitor 2 (until restart; keeps your mouse on monitor 1)"))
-                {
-                    pov.UseSecondMonitor();
-                }
-            }
+            GUILayout.Label("Want it on another monitor? Use the test client window above and drag it there.");
 
             GUILayout.Space(6);
             foreach (BotPlayer bot in new List<BotPlayer>(Bots))
