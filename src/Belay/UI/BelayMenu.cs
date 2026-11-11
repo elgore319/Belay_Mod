@@ -40,7 +40,7 @@ namespace Belay.UI
         /// <summary>True while a text box in the menu has the keyboard, so typing doesn't move the player.</summary>
         internal static bool Typing => CapturingInput && GUIUtility.keyboardControl != 0;
         private Tab tab;
-        private Rect window = new Rect(40, 40, 440, 520);
+        private Rect window = new Rect(40, 40, 600, 520);
         private Vector2 modScroll;
         private ConfigEntry<KeyCode> rebinding;
         private bool lockedCamera;
@@ -57,6 +57,7 @@ namespace Belay.UI
 
         private void Update()
         {
+            GameFont.Tick();
             if (Input.GetKeyDown(Plugin.MenuKey.Value))
             {
                 SetOpen(!open);
@@ -151,10 +152,24 @@ namespace Belay.UI
                 Event.current.Use();
             }
             DrawHud();
-            DrawMenuButton();
-            if (open)
+            // The menu and its button use Belay's own skin (the game's font and colours); the HUD and other mods don't.
+            GUISkin previousSkin = GUI.skin;
+            GUISkin theme = BelayTheme.Skin;
+            if (theme != null)
             {
-                window = GUILayout.Window(0x8E1A7, window, DrawWindow, "Belay " + Plugin.Version);
+                GUI.skin = theme;
+            }
+            try
+            {
+                DrawMenuButton();
+                if (open)
+                {
+                    window = GUILayout.Window(0x8E1A7, window, DrawWindow, "BELAY  v" + Plugin.Version);
+                }
+            }
+            finally
+            {
+                GUI.skin = previousSkin;
             }
         }
 
@@ -167,7 +182,7 @@ namespace Belay.UI
             {
                 return;
             }
-            if (GUI.Button(new Rect(Screen.width - 130, Screen.height - 50, 120, 36), "Belay (" + Plugin.MenuKey.Value + ")"))
+            if (GUI.Button(new Rect(Screen.width - 150, Screen.height - 54, 140, 40), "BELAY (" + Plugin.MenuKey.Value + ")"))
             {
                 SetOpen(true);
             }
@@ -232,13 +247,13 @@ namespace Belay.UI
         private void DrawWindow(int id)
         {
             GUILayout.BeginHorizontal();
-            tab = (Tab)GUILayout.Toolbar((int)tab, TabLabels);
-            if (GUILayout.Button("X", GUILayout.Width(28)))
+            tab = (Tab)GUILayout.Toolbar((int)tab, TabLabels, BelayTheme.Tab ?? GUI.skin.button);
+            if (GUILayout.Button("X", BelayTheme.Tab ?? GUI.skin.button, GUILayout.Width(32)))
             {
                 SetOpen(false);
             }
             GUILayout.EndHorizontal();
-            GUILayout.Space(6);
+            GUILayout.Space(10);
 
             NetSession net = NetSession.Instance;
             switch (tab)
@@ -293,7 +308,7 @@ namespace Belay.UI
 
         private void DrawHostSection(NetSession net)
         {
-            GUILayout.Label("Host a climb");
+            GUILayout.Label("HOST A CLIMB");
             GUILayout.BeginHorizontal();
             GUILayout.Label("Name", GUILayout.Width(50));
             lobbyName = GUILayout.TextField(lobbyName, 40);
@@ -315,7 +330,7 @@ namespace Belay.UI
         private void DrawBrowseSection(NetSession net)
         {
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Public lobbies");
+            GUILayout.Label("PUBLIC LOBBIES");
             if (GUILayout.Button(searching ? "Searching..." : "Refresh", GUILayout.Width(100)) && !searching)
             {
                 Search(net);
@@ -494,7 +509,7 @@ namespace Belay.UI
             GUILayout.Space(6);
             DrawUpdates();
             GUILayout.Space(6);
-            GUILayout.Label("Settings are saved in BepInEx/config/" + Plugin.Guid + ".cfg");
+            GUILayout.Label("Settings are saved in BepInEx/config/" + Plugin.Guid + ".cfg", BelayTheme.Hint ?? GUI.skin.label);
         }
 
         private void DrawUpdates()
