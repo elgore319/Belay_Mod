@@ -1,10 +1,10 @@
-## Belay 0.5.20
+## Belay 0.5.21
 
-**The Dev tab (F7 > Dev) now has Invincible and Fly checkboxes.**
+**Revive stations are gone. Revive teammates at save terminals or with disks.**
 
-- Tick **Invincible** and nothing can hurt or kill you: falls, the mass, enemies or hazards.
-- Tick **Fly** to fly through walls, using the game's own noclip. Look where you want to go and use your normal movement keys. Jump goes up, Crouch goes down, and Sprint is faster. Untick it to drop back to normal; you won't take fall damage from that drop.
-- Both stay on until you untick them, including across levels, and both only affect you.
-- No new keys. The 0.5.19 teleports are all still there.
+- The glowing revive station pillars no longer appear in breakrooms and interludes.
+- To bring a dead teammate back, use a save terminal's revive page (costs roaches from your own wallet) or use a disk you're holding (free, uses up the disk).
+- A revive now costs 4 roaches by default, the same as buying a disk. The host can still change it in Rules.
+- The G "revive teammate" key is removed, since nothing uses it anymore.
 
-No network changes, so 0.5.20 plays with 0.5.18 and 0.5.19.
+No network changes: players on 0.5.17 or newer can still play together, but everyone should update.

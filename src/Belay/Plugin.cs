@@ -18,7 +18,7 @@ namespace Belay
     {
         public const string Guid = "elgore319.belay";
         public const string Name = "Belay";
-        public const string Version = "0.5.20";
+        public const string Version = "0.5.21";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
@@ -29,7 +29,6 @@ namespace Belay
         public static ConfigEntry<bool> RopeOnByDefault;
         public static ConfigEntry<KeyCode> RopePullKey;
         public static ConfigEntry<int> SendRate;
-        public static ConfigEntry<KeyCode> ReviveKey;
         public static ConfigEntry<KeyCode> SpectateNextKey;
         public static ConfigEntry<KeyCode> VoteYesKey;
         public static ConfigEntry<KeyCode> VoteNoKey;
@@ -51,7 +50,6 @@ namespace Belay
             RopeOnByDefault = Config.Bind("Rope", "RopeOnByDefault", false, "Turn the rope on when you host a lobby (you can switch it in Rules).");
             RopePullKey = Config.Bind("Rope", "RopePullKey", KeyCode.V, "Hold while gripping a wall to haul up the teammates roped below you.");
             ShowRope = Config.Bind("Rope", "ShowRope", true, "Draw the rope between you and your teammates.");
-            ReviveKey = Config.Bind("Revive", "ReviveKey", KeyCode.G, "Press at a revive station to revive a dead teammate.");
             VoteYesKey = Config.Bind("Votes", "VoteYesKey", KeyCode.F1, "Vote yes when a teammate wants to take a shortcut.");
             VoteNoKey = Config.Bind("Votes", "VoteNoKey", KeyCode.F2, "Vote no when a teammate wants to take a shortcut.");
             SpectateNextKey = Config.Bind("Revive", "SpectateNextKey", KeyCode.Tab, "While dead, switch which teammate you watch.");
