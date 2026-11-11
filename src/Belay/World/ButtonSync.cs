@@ -41,9 +41,18 @@ namespace Belay.World
         /// </summary>
         internal static bool Shareable(Component owner, params UnityEngine.Events.UnityEventBase[] events)
         {
-            if (owner == null || owner.GetComponentInParent<M_Level>() == null)
+            M_Level level = owner != null ? owner.GetComponentInParent<M_Level>() : null;
+            if (level == null)
             {
                 return false;
+            }
+            // Personal machines (upgrade consoles, shops, vending) are recognised by their objects' names too.
+            for (Transform t = owner.transform; t != null && t != level.transform; t = t.parent)
+            {
+                if (IsPersonal(t.name))
+                {
+                    return false;
+                }
             }
             foreach (var ev in events)
             {
@@ -67,7 +76,8 @@ namespace Belay.World
             string n = name.ToLowerInvariant();
             return n.Contains("roach") || n.Contains("trader") || n.Contains("shop") || n.Contains("vend")
                 || n.Contains("buy") || n.Contains("purchase") || n.Contains("currency") || n.Contains("inventory")
-                || n.Contains("ent_player") || n.Contains("perk") || n.Contains("cosmetic");
+                || n.Contains("ent_player") || n.Contains("perk") || n.Contains("cosmetic") || n.Contains("upgrade")
+                || n.Contains("_atm") || n.Contains("barter") || n.Contains("locker");
         }
 
         internal void Broadcast(CL_Button button)

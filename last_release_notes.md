@@ -1,13 +1,10 @@
-Fixes the auto-updater. Some players on 0.5.0 were told "up to date" even though 0.5.1 was out.
+Shared items. Your game updates to this automatically on the next launch (from 0.5.1 on), then asks you to restart.
+
+## New
+- **Items are shared.** Items lying in the levels are the same for everyone. When someone picks one up, it disappears for the rest of the team. Dropped or thrown items appear for everyone, with the same charge, uses and contents, and whoever grabs one first takes it. What you carry stays yours, and wallets are never shared.
 
 ## Fixed
-- **Updater missed new releases.** The update check now reads each release's download link directly instead of parsing GitHub's full release list, skips any cached copy of that list, and writes what it found to LogOutput.log ("Update check: ... newest X, you have Y").
+- Upgrade consoles, ATMs, barterers and lockers no longer press for everyone when one player uses them.
 
-## If you're on 0.5.0
-The 0.5.0 updater can't see this release, so update once by hand:
-1. Close the game.
-2. Download **Belay-0.5.2-installer.zip** below, extract it, and double-click **Install Belay.bat**. It replaces your old Belay.
-
-From 0.5.1 on, updates install themselves on launch and apply after a restart.
-
-Everything from 0.5.1 is included (playtest fixes, shared controls, tileset checker, climber avatars, test bots). Everyone in a lobby needs the same Belay version.
+## Still on 0.5.0?
+Download **Belay-0.5.3-installer.zip** below, extract it and double-click **Install Belay.bat** (it replaces your old Belay). Everyone in a lobby needs the same Belay version.
