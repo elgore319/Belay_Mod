@@ -71,6 +71,7 @@ namespace Belay.Players
                 RightHanging = IsHandHanging(player, 1),
                 Dead = player.dead,
                 InventoryOpen = Inventory.IsShowingInventory(),
+                Crouched = player.IsCrouching(),
                 LeftItem = Avatar.HeldItems.LocalHeld(0),
                 RightItem = Avatar.HeldItems.LocalHeld(1),
             };

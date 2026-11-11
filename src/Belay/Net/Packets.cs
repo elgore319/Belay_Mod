@@ -72,6 +72,8 @@ namespace Belay.Net
         public Vector3 CarryPoint;
         /// <summary>Standing or gripping the wall with the other hand: strong enough to lift whoever they hold.</summary>
         public bool Anchored;
+        /// <summary>Crouched (the character capsule is half height), so the avatar ducks with them.</summary>
+        public bool Crouched;
 
         public void Write(BinaryWriter w)
         {
@@ -87,6 +89,7 @@ namespace Belay.Net
             if (InventoryOpen) flags |= 8;
             if (HeldTarget != 0) flags |= 16;
             if (Anchored) flags |= 32;
+            if (Crouched) flags |= 64;
             w.Write(flags);
             w.Write(LeftItem ?? "");
             w.Write(RightItem ?? "");
@@ -120,6 +123,7 @@ namespace Belay.Net
                 s.RightItem = r.ReadString();
             }
             s.Anchored = (flags & 32) != 0;
+            s.Crouched = (flags & 64) != 0;
             if ((flags & 16) != 0)
             {
                 s.HeldTarget = r.ReadUInt64();

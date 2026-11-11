@@ -22,6 +22,8 @@ namespace Belay.Players.Avatar
             /// cuff to fingertips, and how far it reaches along and across that direction.
             /// </summary>
             public float CenterX, CenterY, AxisX, AxisY, MinAlong, MaxAlong, MinAcross, MaxAcross;
+            /// <summary>Colors drawn on the fingers (outline and shadow lines left out), for the 3D fingers.</summary>
+            public Color32[] FingerColors;
         }
 
         /// <summary>
@@ -159,8 +161,12 @@ namespace Belay.Players.Avatar
                 maxX = width;
                 maxY = height;
             }
+            // The art has a one pixel outline around the hand. On the 3D hand it would wrap onto the sides
+            // as bright or dark streaks, so peel it off.
+            Erode(output, width, height);
             var result = new Result { Pixels = output, Width = width, Height = height, MinX = minX, MinY = minY, MaxX = maxX, MaxY = maxY };
             FindAxis(output, width, height, ref result);
+            result.FingerColors = FingerColors(output, width, height, result);
             Bleed(output, width, height);
             return result;
         }
@@ -207,6 +213,84 @@ namespace Belay.Players.Avatar
             r.CenterX = (float)cx; r.CenterY = (float)cy; r.AxisX = ax; r.AxisY = ay;
             r.MinAlong = minA; r.MaxAlong = maxA; r.MinAcross = minB; r.MaxAcross = maxB;
         }
+
+        /// <summary>Clears every visible pixel that touches an empty one (left, right, above or below).</summary>
+        private static void Erode(Color32[] px, int w, int h)
+        {
+            var clear = new System.Collections.Generic.List<int>();
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    int i = y * w + x;
+                    if (px[i].a == 0)
+                    {
+                        continue;
+                    }
+                    if (x == 0 || y == 0 || x == w - 1 || y == h - 1
+                        || px[i - 1].a == 0 || px[i + 1].a == 0 || px[i - w].a == 0 || px[i + w].a == 0)
+                    {
+                        clear.Add(i);
+                    }
+                }
+            }
+            // Never erase a hand that is all edge.
+            int opaque = 0;
+            foreach (Color32 c in px)
+            {
+                if (c.a != 0) opaque++;
+            }
+            if (clear.Count * 2 > opaque)
+            {
+                return;
+            }
+            foreach (int i in clear)
+            {
+                px[i] = new Color32(0, 0, 0, 0);
+            }
+        }
+
+        /// <summary>
+        /// The colors of the top part of the hand (the fingers), skipping the darkest fifth, which is
+        /// the shading and the lines between fingers.
+        /// </summary>
+        private static Color32[] FingerColors(Color32[] px, int w, int h, Result r)
+        {
+            var picked = new System.Collections.Generic.List<Color32>();
+            float from = Mathf.Lerp(r.MinAlong, r.MaxAlong, 0.62f);
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    Color32 c = px[y * w + x];
+                    if (c.a == 0)
+                    {
+                        continue;
+                    }
+                    float along = (x + 0.5f - r.CenterX) * r.AxisX + (y + 0.5f - r.CenterY) * r.AxisY;
+                    if (along >= from)
+                    {
+                        picked.Add(c);
+                    }
+                }
+            }
+            if (picked.Count == 0)
+            {
+                for (int i = 0; i < px.Length; i++)
+                {
+                    if (px[i].a != 0) picked.Add(px[i]);
+                }
+            }
+            if (picked.Count == 0)
+            {
+                return new[] { new Color32(90, 80, 76, 255) };
+            }
+            picked.Sort((a, b) => Luma(a).CompareTo(Luma(b)));
+            int skip = picked.Count >= 10 ? picked.Count / 5 : 0;
+            return picked.GetRange(skip, picked.Count - skip).ToArray();
+        }
+
+        private static int Luma(Color32 c) => c.r * 299 + c.g * 587 + c.b * 114;
 
         private static bool LooksIndexed(Color32[] pixels, int paletteSize)
         {
@@ -290,15 +374,32 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// Packs the back-of-hand picture (left half) and the palm picture (right half) into one texture,
-        /// each cropped to the hand and stretched to fill its half (nearest neighbor, so pixels stay crisp).
+        /// Packs the back-of-hand picture (left third), the palm picture (middle third) and a swatch of
+        /// the finger colors (right third) into one texture, each picture cropped to the hand and
+        /// stretched to fill its cell (nearest neighbor, so pixels stay crisp).
         /// With <paramref name="mirror"/>, both pictures are flipped left to right (for the other hand).
+        /// The texture is <paramref name="cellWidth"/> * 3 wide.
         /// </summary>
         public static Color32[] Atlas(Result back, Result palm, bool mirror, int cellWidth, int cellHeight)
         {
-            var atlas = new Color32[cellWidth * 2 * cellHeight];
-            Fill(atlas, cellWidth * 2, 0, back, mirror, cellWidth, cellHeight);
-            Fill(atlas, cellWidth * 2, cellWidth, palm, mirror, cellWidth, cellHeight);
+            int stride = cellWidth * 3;
+            var atlas = new Color32[stride * cellHeight];
+            Fill(atlas, stride, 0, back, mirror, cellWidth, cellHeight);
+            Fill(atlas, stride, cellWidth, palm, mirror, cellWidth, cellHeight);
+            Color32[] fingers = back.FingerColors != null && back.FingerColors.Length > 0 ? back.FingerColors
+                : new[] { new Color32(90, 80, 76, 255) };
+            // Pixel noise in 2x2 blocks, like the rest of the avatar's textures.
+            for (int y = 0; y < cellHeight; y++)
+            {
+                for (int x = 0; x < cellWidth; x++)
+                {
+                    uint hash = (uint)(x / 2) * 73856093u ^ (uint)(y / 2) * 19349663u;
+                    hash ^= hash >> 13;
+                    hash *= 0x5bd1e995u;
+                    hash ^= hash >> 15;
+                    atlas[y * stride + cellWidth * 2 + x] = fingers[(int)(hash % (uint)fingers.Length)];
+                }
+            }
             return atlas;
         }
 
