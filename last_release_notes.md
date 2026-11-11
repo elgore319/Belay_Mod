@@ -1,10 +1,9 @@
-## Belay 0.5.17
+## Belay 0.5.18
 
-**Saves no longer drop you back under the mass. In co-op, terminals and disks revive teammates instead.**
+**Fixes a crash when opening the save terminal's revive page in co-op.**
 
-- Disk saves are off in a lobby. Loading one put you back at the terminal where you saved, usually far below your team and right in the mass's path, and regenerated the map differently from everyone else's.
-- The save terminal's disk page is now a revive station. Pick the reformat option and confirm to bring a dead teammate back next to you. It costs the usual revive price from your own wallet, and no disk is needed.
-- Disks can't be inserted into terminals in co-op. Instead, hold a disk and use it (your normal use button) to revive a dead teammate right where you are, for free. The disk is used up. If nobody is dead, the disk does what it normally does.
-- Solo play is unchanged.
+- In 0.5.17, opening the disk page on a save terminal with no disk inserted crashed the game. It now opens the revive page normally.
+- In co-op, the page's "biological backup" and "reformat" wording now says revive instead.
+- Everything else from 0.5.17 is the same. The terminal revives a dead teammate next to you for roaches, and a held disk revives one where you stand for free.
 
-Everyone in the lobby needs 0.5.17 (network protocol changed).
+Everyone in the lobby needs 0.5.17 or newer (same network protocol as 0.5.17).

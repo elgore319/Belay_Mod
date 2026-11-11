@@ -86,14 +86,63 @@ namespace Belay.Revive
             return false;
         }
 
-        /// <summary>The revive page doesn't need disks, so don't send the player to the "no disks" screen.</summary>
+        /// <summary>
+        /// The revive page doesn't need disks, so don't send the player to the "no disks" screen. The
+        /// switch is skipped outright: ChangeMenu("reformat") with no disks calls ChangeMenu("nodisks")
+        /// itself, so turning that call back into "reformat" (as 0.5.17 did) recursed until the game
+        /// crashed with a stack overflow.
+        /// </summary>
         [HarmonyPrefix]
         [HarmonyPatch(nameof(App_SavePage.ChangeMenu))]
-        private static void ChangeMenuPrefix(ref string menuName)
+        private static bool ChangeMenuPrefix(string menuName) => !(CoOp && menuName == "nodisks");
+
+        private static Type tmpTextType;
+        private static readonly System.Text.RegularExpressions.Regex Relabel = new System.Text.RegularExpressions.Regex(
+            "biological backup|reformat(ting)?", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        /// <summary>
+        /// Relabel the page for co-op ("biological backup"/"reformat" become revive wording) and log every
+        /// label once, so the wording can be tuned to the real screen text.
+        /// </summary>
+        [HarmonyPostfix]
+        [HarmonyPatch("OnOpen")]
+        private static void OnOpenPostfix(App_SavePage __instance)
         {
-            if (CoOp && menuName == "nodisks")
+            if (!CoOp)
             {
-                menuName = "reformat";
+                return;
+            }
+            try
+            {
+                tmpTextType = tmpTextType ?? AccessTools.TypeByName("TMPro.TMP_Text");
+                if (tmpTextType == null)
+                {
+                    return;
+                }
+                var textProp = AccessTools.Property(tmpTextType, "text");
+                foreach (Component label in __instance.GetComponentsInChildren(tmpTextType, true))
+                {
+                    string text = textProp.GetValue(label) as string;
+                    if (string.IsNullOrEmpty(text))
+                    {
+                        continue;
+                    }
+                    Plugin.Log.LogInfo($"Save terminal label '{label.name}': {text.Replace('\n', ' ')}");
+                    string relabeled = Relabel.Replace(text, m =>
+                    {
+                        string word = m.Value.ToLowerInvariant().StartsWith("bio") ? "teammate revive" : m.Value.ToLowerInvariant() == "reformatting" ? "reviving" : "revive";
+                        return m.Value == m.Value.ToUpperInvariant() ? word.ToUpperInvariant()
+                            : char.IsUpper(m.Value[0]) ? char.ToUpperInvariant(word[0]) + word.Substring(1) : word;
+                    });
+                    if (relabeled != text)
+                    {
+                        textProp.SetValue(label, relabeled);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogWarning("Couldn't relabel the save terminal: " + e.Message);
             }
         }
 
