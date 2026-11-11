@@ -24,6 +24,7 @@ namespace Belay.Players
         private Color color;
         private bool hasState;
         private RemoteBody body;
+        private bool bodyFailed;
 
         public Vector3 LocalPosition => transform.position;
         public bool IsHanging => Latest.LeftHanging || Latest.RightHanging;
@@ -157,7 +158,20 @@ namespace Belay.Players
                 {
                     return;
                 }
-                body = RemoteBody.Create(this);
+                if (bodyFailed)
+                {
+                    return;
+                }
+                try
+                {
+                    body = RemoteBody.Create(this);
+                }
+                catch (System.Exception e)
+                {
+                    bodyFailed = true;
+                    Plugin.Log.LogWarning($"Couldn't make {DisplayName} solid: {e}");
+                    return;
+                }
             }
             body.SetSolid(solid);
         }

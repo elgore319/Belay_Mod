@@ -488,7 +488,14 @@ namespace Belay.World
         {
             if (PropSync.Live)
             {
-                PropSync.Instance.OnPropStarted(__instance);
+                try
+                {
+                    PropSync.Instance.OnPropStarted(__instance);
+                }
+                catch (System.Exception e)
+                {
+                    Plugin.Log.LogWarning($"Prop sync skipped {__instance.name}: {e.Message}");
+                }
             }
         }
 
@@ -498,7 +505,14 @@ namespace Belay.World
         {
             if (PropSync.Live && !__instance.dead)
             {
-                PropSync.Instance.OnLocalKill(__instance);
+                try
+                {
+                    PropSync.Instance.OnLocalKill(__instance);
+                }
+                catch (System.Exception e)
+                {
+                    Plugin.Log.LogWarning($"Prop break not shared ({__instance.name}): {e.Message}");
+                }
             }
         }
     }
