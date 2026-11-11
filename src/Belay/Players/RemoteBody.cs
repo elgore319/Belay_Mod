@@ -7,7 +7,7 @@ namespace Belay.Players
     /// <summary>
     /// The solid part of a teammate: a capsule you bump into and can stand on, that your hands can grip
     /// like a handhold (grip a teammate to climb them, or lift them if you're standing or holding the
-    /// wall), and that a hammer swing or a punch knocks back instead of hurting.
+    /// wall), and that a hammer swing knocks back instead of hurting.
     /// </summary>
     public class RemoteBody : MonoBehaviour, Damageable
     {
