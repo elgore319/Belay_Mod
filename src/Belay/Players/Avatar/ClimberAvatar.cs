@@ -27,6 +27,22 @@ namespace Belay.Players.Avatar
         public const float SelfLight = 0.55f;
 
         private static ConfigEntry<bool> headlamps;
+        private static ConfigEntry<bool> heldItems;
+
+        /// <summary>Teammates hold a copy of the item in their hand.</summary>
+        public static bool HeldItemsEnabled
+        {
+            get
+            {
+                if (heldItems == null && Plugin.Instance != null)
+                {
+                    heldItems = Plugin.Instance.Config.Bind("Avatars", "ShowHeldItems", true,
+                        "Show the item each teammate is holding in their avatar's hand.");
+                }
+                return heldItems == null || heldItems.Value;
+            }
+        }
+
 
         public static bool HeadlampsEnabled
         {
@@ -129,7 +145,7 @@ namespace Belay.Players.Avatar
         /// </summary>
         public void Pose(Vector3 position, float yaw, float pitch, Vector3 leftHand, Vector3 rightHand,
             bool leftGrip, bool rightGrip, Vector3 velocity, bool inventoryOpen, float dt,
-            string leftHandSkin = null, string rightHandSkin = null)
+            string leftHandSkin = null, string rightHandSkin = null, string leftItem = null, string rightItem = null)
         {
             bool hanging = leftGrip || rightGrip;
             Vector3 flat = new Vector3(velocity.x, 0, velocity.z);
@@ -222,12 +238,14 @@ namespace Belay.Players.Avatar
             // Arms reach to the synced hand positions.
             ApplyHandSkin(0, leftHandSkin, leftHandMaterials, leftFist, leftOpen);
             ApplyHandSkin(1, rightHandSkin, rightHandMaterials, rightFist, rightOpen);
+            bool leftHolds = Hold(0, inventoryOpen ? null : leftItem, leftFist);
+            bool rightHolds = Hold(1, inventoryOpen ? null : rightItem, rightFist);
             airborneNow = airborne;
             Quaternion look = Quaternion.Euler(Mathf.Clamp(signedPitch, -89f, 89f), yaw, 0);
             Vector3 eye = position + Vector3.up * 0.45f;
             bool holdingPack = packOut > 0.01f;
-            PoseArm(0, leftArm, -1f, pelvis, leftHand, leftGrip, holdingPack, eye, look, dt, leftFist, leftOpen);
-            PoseArm(1, rightArm, 1f, pelvis, rightHand, rightGrip, holdingPack, eye, look, dt, rightFist, rightOpen);
+            PoseArm(0, leftArm, -1f, pelvis, leftHand, leftGrip, leftHolds, holdingPack, eye, look, dt, leftFist, leftOpen);
+            PoseArm(1, rightArm, 1f, pelvis, rightHand, rightGrip, rightHolds, holdingPack, eye, look, dt, rightFist, rightOpen);
 
             // Legs.
             float ground = position.y - FeetDrop + AvatarDesign.AnkleHeight * Scale;
@@ -275,6 +293,52 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>Dresses a hand in the teammate's glove cosmetic, or our own glove when there is none.</summary>
+        private readonly string[] heldNames = new string[2];
+        private readonly GameObject[] heldModels = new GameObject[2];
+
+        /// <summary>
+        /// Puts the item a teammate holds in the avatar's fist (its own world model, gripped by the
+        /// handle with the heavy end on the thumb side). Returns whether the hand holds something.
+        /// </summary>
+        private bool Hold(int hand, string item, Transform fist)
+        {
+            item = string.IsNullOrEmpty(item) || !HeldItemsEnabled ? null : item;
+            if (item != heldNames[hand])
+            {
+                if (heldModels[hand] != null)
+                {
+                    UnityEngine.Object.Destroy(heldModels[hand]);
+                    heldModels[hand] = null;
+                }
+                heldNames[hand] = item;
+                if (item != null)
+                {
+                    GameObject model = HeldItems.Create(item);
+                    if (model != null)
+                    {
+                        // The fist is built at avatar scale; the item keeps its real size.
+                        float t = hand == 0 ? 1f : -1f;
+                        model.transform.SetParent(fist, false);
+                        model.transform.localPosition = new Vector3(0f, -0.035f, 0.11f);
+                        model.transform.localRotation = t > 0 ? Quaternion.identity : Quaternion.Euler(0f, 0f, 180f);
+                        model.transform.localScale = Vector3.one / Mathf.Max(0.01f, Scale);
+                        SetLayerRecursive(model.transform, fist.gameObject.layer);
+                        heldModels[hand] = model;
+                    }
+                }
+            }
+            return item != null;
+        }
+
+        private static void SetLayerRecursive(Transform t, int layer)
+        {
+            t.gameObject.layer = layer;
+            for (int i = 0; i < t.childCount; i++)
+            {
+                SetLayerRecursive(t.GetChild(i), layer);
+            }
+        }
+
         private void ApplyHandSkin(int hand, string skin, Material[] handMaterials, Transform fist, Transform open)
         {
             Material glove = HandSkinMaterials.For(skin, hand, litShader) ?? materials[Slot.Glove];
@@ -294,7 +358,7 @@ namespace Belay.Players.Avatar
         /// hand is the first-person view model, which normally floats in front of the camera, so "reaching"
         /// means it has moved away from where it usually sits relative to the view.
         /// </summary>
-        private void PoseArm(int index, Limb arm, float side, Vector3 pelvis, Vector3 hand, bool grip, bool holdingPack,
+        private void PoseArm(int index, Limb arm, float side, Vector3 pelvis, Vector3 hand, bool grip, bool holdsItem, bool holdingPack,
             Vector3 eye, Quaternion look, float dt, Transform fist, Transform open)
         {
             Vector3 shoulder = pelvis + torsoRotation * (new Vector3(side * AvatarDesign.ShoulderWidth, AvatarDesign.ShoulderHeight - 0.02f, 0) * Scale);
@@ -348,8 +412,9 @@ namespace Belay.Players.Avatar
             Vector3 forearmDir = elbowToWrist.sqrMagnitude > 1e-6f ? elbowToWrist.normalized : dir;
             Vector3 back = Vector3.Lerp(up, -(torsoRotation * Vector3.forward), Mathf.Abs(Vector3.Dot(forearmDir, up)));
             Quaternion handRotation = SafeLook(forearmDir, back);
-            Transform shown = grip ? fist : open;
-            Transform hidden = grip ? open : fist;
+            // A hand holding an item is a closed fist around it, even when it isn't on a hold.
+            Transform shown = grip || holdsItem ? fist : open;
+            Transform hidden = grip || holdsItem ? open : fist;
             if (!shown.gameObject.activeSelf)
             {
                 shown.gameObject.SetActive(true);

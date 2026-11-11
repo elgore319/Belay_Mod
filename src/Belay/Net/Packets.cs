@@ -54,6 +54,9 @@ namespace Belay.Net
         public bool Dead;
         /// <summary>Inventory screen open: the avatar holds its backpack open in front of it.</summary>
         public bool InventoryOpen;
+        /// <summary>Prefab names of the items in each hand ("" when empty), so teammates see them.</summary>
+        public string LeftItem;
+        public string RightItem;
 
         public void Write(BinaryWriter w)
         {
@@ -68,6 +71,8 @@ namespace Belay.Net
             if (Dead) flags |= 4;
             if (InventoryOpen) flags |= 8;
             w.Write(flags);
+            w.Write(LeftItem ?? "");
+            w.Write(RightItem ?? "");
         }
 
         public static PlayerState Read(BinaryReader r)
@@ -85,6 +90,12 @@ namespace Belay.Net
             s.RightHanging = (flags & 2) != 0;
             s.Dead = (flags & 4) != 0;
             s.InventoryOpen = (flags & 8) != 0;
+            // Older versions stop after the flags.
+            if (r.BaseStream.Position < r.BaseStream.Length)
+            {
+                s.LeftItem = r.ReadString();
+                s.RightItem = r.ReadString();
+            }
             return s;
         }
     }
