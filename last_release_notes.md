@@ -1,8 +1,7 @@
-## Belay 0.5.25
+## Belay 0.5.26
 
-**The vote terminal stands beside the original terminal, on its right.**
+**Vote terminal looks.**
 
-- "Right" is now as seen by a player standing at the terminal. Belay tries the right side first at a few distances, then the left.
-- Teammates and bots standing there no longer count as blocking the spot.
-- The vote terminal is never placed facing the original from across the room anymore. That's where it ended up in 0.5.24.
-- The log records where each vote terminal was placed.
+- The vote terminal now lines up flush with the original terminal. It slides along the original's own side, so it sits back against the wall at the same depth instead of sticking out.
+- It has an amber tint and a warm glow, so you can tell it apart from the game's terminals.
+- The floating "SHORTCUT VOTE" label is gone.
