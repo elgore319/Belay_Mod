@@ -22,6 +22,8 @@ namespace Belay.Net
         HoldInteract = 43,
         LeverAngle = 44,
         HandTouch = 45,
+        ItemPickup = 46,
+        ItemDrop = 47,
     }
 
     public static class Channels
