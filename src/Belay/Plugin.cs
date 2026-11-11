@@ -18,7 +18,7 @@ namespace Belay
     {
         public const string Guid = "elgore319.belay";
         public const string Name = "Belay";
-        public const string Version = "0.5.6";
+        public const string Version = "0.5.7";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
@@ -37,6 +37,7 @@ namespace Belay
         public static ConfigEntry<string> UpdateRepo;
         public static ConfigEntry<KeyCode> BotPovKey;
         public static ConfigEntry<float> BotFollowDelay;
+        public static ConfigEntry<KeyCode> TestClientAutopilotKey;
 
         private void Awake()
         {
@@ -55,6 +56,7 @@ namespace Belay
             SendRate = Config.Bind("Network", "SendRate", 20, "Player state updates sent per second.");
             AutoUpdate = Config.Bind("Updates", "AutoUpdate", true, "Download new Belay releases on launch. They apply the next time the game starts.");
             BotPovKey = Config.Bind("Test Bot", "PovWindowKey", KeyCode.F8, "Shows or hides the test bot's point-of-view window.");
+            TestClientAutopilotKey = Config.Bind("Test Bot", "TestClientAutopilotKey", KeyCode.F9, "In the test client window: switch between following you automatically and playing it yourself.");
             BotFollowDelay = Config.Bind("Test Bot", "FollowDelay", 2f, "Seconds a following test bot trails behind you (each extra bot adds this again).");
             UpdateRepo = Config.Bind("Updates", "UpdateRepo", "elgore319/Belay_Mod", "GitHub repo (owner/name) whose releases Belay updates from.");
 
@@ -77,7 +79,15 @@ namespace Belay
             gameObject.AddComponent<LevelCheck>();
             gameObject.AddComponent<ReviveSystem>();
             gameObject.AddComponent<BelayMenu>();
-            gameObject.AddComponent<Updater>();
+            if (Net.LoopbackLink.LaunchedAsClient)
+            {
+                // Second copy of the game for solo testing: never self-update, never write saves.
+                Bot.TestClient.Install(gameObject, harmony);
+            }
+            else
+            {
+                gameObject.AddComponent<Updater>();
+            }
             gameObject.AddComponent<Bot.TestBot>();
 
             Log.LogInfo($"{Name} {Version} loaded");

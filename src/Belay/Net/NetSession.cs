@@ -42,9 +42,19 @@ namespace Belay.Net
         public static NetSession Instance { get; private set; }
 
         public Lobby? CurrentLobby { get; private set; }
-        public bool InLobby => CurrentLobby.HasValue;
-        public bool IsHost => InLobby && CurrentLobby.Value.Owner.Id == SteamClient.SteamId;
-        public SteamId HostId => InLobby ? CurrentLobby.Value.Owner.Id : default;
+        public bool InLobby => CurrentLobby.HasValue || Loopback.ClientConnected;
+        public bool IsHost => CurrentLobby.HasValue && CurrentLobby.Value.Owner.Id == SteamClient.SteamId;
+        public SteamId HostId => Loopback.IsClient ? Loopback.HostId : CurrentLobby.HasValue ? CurrentLobby.Value.Owner.Id : default;
+
+        /// <summary>
+        /// Who this game is in the session. Use this instead of SteamClient.SteamId: a local test client runs
+        /// on the same Steam account as the host, so it has its own id (LoopbackLink.ClientId).
+        /// </summary>
+        public static SteamId LocalId => Instance != null && Instance.Loopback.IsClient ? LoopbackLink.ClientId : SteamClient.SteamId;
+
+        /// <summary>Second copy of the game on this PC, for solo testing (see LoopbackLink).</summary>
+        public readonly LoopbackLink Loopback = new LoopbackLink();
+        public bool IsTestClient => Loopback.IsClient;
         public string Status { get; private set; } = "Not connected";
 
         public event Action<SteamId, PlayerState> OnPlayerState;
@@ -61,10 +71,20 @@ namespace Belay.Net
         {
             Instance = this;
             sendWriter = new BinaryWriter(sendBuffer);
+            if (LoopbackLink.LaunchedAsClient)
+            {
+                Loopback.StartClient();
+                Status = "Test client: waiting for the host";
+            }
         }
 
         private void Update()
         {
+            if (Loopback.IsClient)
+            {
+                UpdateTestClient();
+                return;
+            }
             if (!SteamReady)
             {
                 return;
@@ -73,6 +93,23 @@ namespace Belay.Net
             {
                 HookCallbacks();
             }
+            if (Loopback.IsListening)
+            {
+                bool wasAlive = Loopback.PeerAlive;
+                Loopback.Poll((channel, packet) => HandleSafe(LoopbackLink.ClientId, packet, channel));
+                if (wasAlive != Loopback.PeerAlive)
+                {
+                    if (!Loopback.PeerAlive)
+                    {
+                        OnPlayerLeft?.Invoke(LoopbackLink.ClientId);
+                    }
+                    OnLobbyChanged?.Invoke();
+                }
+                if (IsHost)
+                {
+                    Loopback.HostTick(HostId, MemberIds(), NameOf, CurrentLobby.Value.Data);
+                }
+            }
             if (InLobby)
             {
                 Receive(Channels.Reliable);
@@ -80,9 +117,36 @@ namespace Belay.Net
             }
         }
 
+        private void UpdateTestClient()
+        {
+            bool wasConnected = Loopback.ClientConnected;
+            bool changed = Loopback.Poll((channel, packet) => HandleSafe(Loopback.HostId, packet, channel));
+            Loopback.ClientTick();
+            if (Loopback.ClientConnected && !wasConnected)
+            {
+                Status = "Test client: connected to " + NameOf(Loopback.HostId);
+                SendReliable(PacketType.Hello, HostId, w => w.Write(ProtocolVersion));
+            }
+            else if (!Loopback.ClientConnected && wasConnected)
+            {
+                Status = "Test client: lost the host";
+            }
+            if (changed)
+            {
+                OnLobbyChanged?.Invoke();
+            }
+        }
+
+        /// <summary>Host: accept a second copy of the game on this PC as a client.</summary>
+        public bool AllowTestClient()
+        {
+            return !Loopback.IsClient && Loopback.StartListening();
+        }
+
         private void OnDestroy()
         {
             LeaveLobby();
+            Loopback.Stop();
         }
 
         private void HookCallbacks()
@@ -152,7 +216,7 @@ namespace Belay.Net
 
         public void LeaveLobby()
         {
-            if (!InLobby)
+            if (!CurrentLobby.HasValue)
             {
                 return;
             }
@@ -188,18 +252,34 @@ namespace Belay.Net
 
         public void OpenInviteOverlay()
         {
-            if (InLobby)
+            if (CurrentLobby.HasValue)
             {
                 SteamFriends.OpenGameInviteOverlay(CurrentLobby.Value.Id);
             }
         }
 
-        public IEnumerable<Friend> Members => InLobby ? CurrentLobby.Value.Members : Enumerable.Empty<Friend>();
+        /// <summary>Steam lobby members (real Steam accounts only). For gameplay, use MemberIds or MemberOrder.</summary>
+        public IEnumerable<Friend> Members => CurrentLobby.HasValue ? CurrentLobby.Value.Members : Enumerable.Empty<Friend>();
+
+        /// <summary>Everyone connected, in join order: Steam members, then a local test client.</summary>
+        public List<SteamId> MemberIds()
+        {
+            if (Loopback.IsClient)
+            {
+                return Loopback.ClientConnected ? new List<SteamId>(Loopback.Members) : new List<SteamId>();
+            }
+            List<SteamId> ids = Members.Select(m => m.Id).ToList();
+            if (IsHost && Loopback.PeerAlive)
+            {
+                ids.Add(LoopbackLink.ClientId);
+            }
+            return ids;
+        }
 
         /// <summary>Members in join order, used to decide who is roped to whom. Local test bots come last.</summary>
         public List<SteamId> MemberOrder()
         {
-            List<SteamId> order = Members.Select(m => m.Id).ToList();
+            List<SteamId> order = MemberIds();
             if (InLobby)
             {
                 order.AddRange(LocalBots);
@@ -222,6 +302,14 @@ namespace Belay.Net
             if (Instance != null && Instance.LocalBotNames.TryGetValue(id, out string name))
             {
                 return name;
+            }
+            if (id == LoopbackLink.ClientId)
+            {
+                return LoopbackLink.ClientName;
+            }
+            if (Instance != null && Instance.Loopback.IsClient && Instance.Loopback.Names.TryGetValue(id, out string hostName) && !string.IsNullOrEmpty(hostName))
+            {
+                return hostName;
             }
             return new Friend(id).Name;
         }
@@ -257,7 +345,11 @@ namespace Belay.Net
 
         public string GetLobbyData(string key)
         {
-            return InLobby ? CurrentLobby.Value.GetData(key) : null;
+            if (Loopback.IsClient)
+            {
+                return Loopback.LobbyData.TryGetValue(key, out string value) ? value : null;
+            }
+            return CurrentLobby.HasValue ? CurrentLobby.Value.GetData(key) : null;
         }
 
         public void SetLobbyData(string key, string value)
@@ -335,7 +427,7 @@ namespace Belay.Net
 
         private void HandleMembersChanged(Lobby lobby)
         {
-            if (InLobby && lobby.Id == CurrentLobby.Value.Id)
+            if (CurrentLobby.HasValue && lobby.Id == CurrentLobby.Value.Id)
             {
                 Status = IsHost ? "Hosting" : "Connected to " + lobby.Owner.Name;
                 OnLobbyChanged?.Invoke();
@@ -344,7 +436,7 @@ namespace Belay.Net
 
         private void HandleMemberGone(Lobby lobby, Friend friend)
         {
-            if (!InLobby || lobby.Id != CurrentLobby.Value.Id)
+            if (!CurrentLobby.HasValue || lobby.Id != CurrentLobby.Value.Id)
             {
                 return;
             }
@@ -356,7 +448,7 @@ namespace Belay.Net
         private void HandleSessionRequest(SteamId from)
         {
             // Only talk to people in our lobby.
-            if (InLobby && CurrentLobby.Value.Members.Any(m => m.Id == from))
+            if (CurrentLobby.HasValue && CurrentLobby.Value.Members.Any(m => m.Id == from))
             {
                 SteamNetworking.AcceptP2PSessionWithUser(from);
             }
@@ -367,14 +459,14 @@ namespace Belay.Net
 
         public void BroadcastState(PlayerState state)
         {
-            byte[] packet = Build(PacketType.PlayerState, SteamClient.SteamId, state.Write);
+            byte[] packet = Build(PacketType.PlayerState, LocalId, state.Write);
             if (IsHost)
             {
-                SendToAllExcept(packet, SteamClient.SteamId, Channels.State, P2PSend.UnreliableNoDelay);
+                SendToAllExcept(packet, LocalId, Channels.State, P2PSend.UnreliableNoDelay);
             }
             else
             {
-                SteamNetworking.SendP2PPacket(HostId, packet, packet.Length, Channels.State, P2PSend.UnreliableNoDelay);
+                SendRaw(HostId, packet, Channels.State, P2PSend.UnreliableNoDelay);
             }
         }
 
@@ -400,23 +492,44 @@ namespace Belay.Net
             {
                 return;
             }
-            byte[] packet = Build(type, SteamClient.SteamId, payload);
+            byte[] packet = Build(type, LocalId, payload);
             int channel = reliable ? Channels.Reliable : Channels.State;
             P2PSend sendType = reliable ? P2PSend.Reliable : P2PSend.UnreliableNoDelay;
             if (IsHost)
             {
-                SendToAllExcept(packet, SteamClient.SteamId, channel, sendType);
+                SendToAllExcept(packet, LocalId, channel, sendType);
             }
             else
             {
-                SteamNetworking.SendP2PPacket(HostId, packet, packet.Length, channel, sendType);
+                SendRaw(HostId, packet, channel, sendType);
             }
         }
 
         private void SendReliable(PacketType type, SteamId to, Action<BinaryWriter> payload)
         {
-            byte[] packet = Build(type, SteamClient.SteamId, payload);
-            SteamNetworking.SendP2PPacket(to, packet, packet.Length, Channels.Reliable, P2PSend.Reliable);
+            byte[] packet = Build(type, LocalId, payload);
+            SendRaw(to, packet, Channels.Reliable, P2PSend.Reliable);
+        }
+
+        /// <summary>Send one built packet to one member, over Steam or the local test-client link.</summary>
+        private void SendRaw(SteamId to, byte[] packet, int channel, P2PSend sendType)
+        {
+            if (Loopback.IsClient)
+            {
+                // A test client only ever talks to the host, over the local link.
+                Loopback.SendGame(channel, packet);
+            }
+            else if (to == LoopbackLink.ClientId)
+            {
+                if (Loopback.PeerAlive)
+                {
+                    Loopback.SendGame(channel, packet);
+                }
+            }
+            else if (!IsLocalBot(to))
+            {
+                SteamNetworking.SendP2PPacket(to, packet, packet.Length, channel, sendType);
+            }
         }
 
         private byte[] Build(PacketType type, SteamId origin, Action<BinaryWriter> payload)
@@ -431,11 +544,11 @@ namespace Belay.Net
 
         private void SendToAllExcept(byte[] packet, SteamId except, int channel, P2PSend sendType)
         {
-            foreach (Friend member in Members)
+            foreach (SteamId member in MemberIds())
             {
-                if (member.Id != SteamClient.SteamId && member.Id != except)
+                if (member != LocalId && member != except)
                 {
-                    SteamNetworking.SendP2PPacket(member.Id, packet, packet.Length, channel, sendType);
+                    SendRaw(member, packet, channel, sendType);
                 }
             }
         }
@@ -449,14 +562,23 @@ namespace Belay.Net
                 {
                     continue;
                 }
-                try
-                {
-                    Handle(packet.Value.SteamId, packet.Value.Data, channel);
-                }
-                catch (Exception e)
-                {
-                    Plugin.Log.LogWarning($"Bad packet from {packet.Value.SteamId}: {e.Message}");
-                }
+                HandleSafe(packet.Value.SteamId, packet.Value.Data, channel);
+            }
+        }
+
+        private void HandleSafe(SteamId sender, byte[] data, int channel)
+        {
+            if (data == null || data.Length < 9)
+            {
+                return;
+            }
+            try
+            {
+                Handle(sender, data, channel);
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogWarning($"Bad packet from {sender}: {e.Message}");
             }
         }
 
@@ -496,7 +618,7 @@ namespace Belay.Net
                         Plugin.Log.LogInfo($"Hello from {origin} ({version})");
                         break;
                     case PacketType.PlayerState:
-                        if (origin != SteamClient.SteamId)
+                        if (origin != LocalId)
                         {
                             OnPlayerState?.Invoke(origin, PlayerState.Read(reader));
                         }

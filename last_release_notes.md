@@ -1,15 +1,8 @@
-Fixes from the latest co-op test, and you can now see what teammates are holding. Your game updates to this automatically on the next launch, then asks you to restart.
-
-## Fixed
-- **Using a terminal yanked everyone to it.** Teammates still get what the terminal does, but only the player using it sits down at the screen.
-- **Falling through the map after a revive.** The level where you're revived (and the one you're spectating) is switched on first, including after a shortcut.
-- **Choppy spectating.** The spectate camera now moves smoothly every frame instead of at physics/network rate.
+A test client for checking sync on your own. Your game updates to this automatically on the next launch, then asks you to restart.
 
 ## New
-- **See teammates' held items.** The item in each teammate's hands shows on their climber.
-- **Room sequences are shared and wait for the team.** In interludes and breakrooms, walk-in triggers (like the habitation elevator ride) wait until every living teammate is in the room, then start for everyone at once.
-- **Pull teammates up.** With the rope on, grip a wall and hold **V** to haul up the teammate roped below you (they rise toward you once they let go). The host can switch this off in Rules; the key is in Settings.
-- **Rope is off by default** for new lobbies. The host can turn it on in Rules (or set RopeOnByDefault in the config).
+- **Test client (a real second player).** Host a lobby, open Belay (F7) > **Bot** > **Open test client window**. A second copy of the game opens in a small window and joins your lobby as a real player with its own world. It follows you by itself, so anything that looks different in that window is a desync, and the level checker flags levels that don't match. Press **F9** in that window to play it yourself. It's muted and never writes your saves, stats, settings, leaderboards or achievements. Close the window to stop it.
+- The Players tab now lists everyone in rope order, including test bots and the test client.
 
 ## Still on 0.5.0 or 0.5.1?
-Download **Belay-0.5.6-installer.zip** below, extract it and double-click **Install Belay.bat**. Everyone in a lobby needs the same Belay version.
+Download **Belay-0.5.7-installer.zip** below, extract it and double-click **Install Belay.bat**. Everyone in a lobby needs the same Belay version.

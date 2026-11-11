@@ -89,7 +89,7 @@ namespace Belay.World
             NetSession net = NetSession.Instance;
             if (net.IsHost)
             {
-                HostStartVote(SteamClient.SteamId, id);
+                HostStartVote(NetSession.LocalId, id);
             }
             else
             {
@@ -99,7 +99,7 @@ namespace Belay.World
 
         private List<SteamId> Voters()
         {
-            return NetSession.Instance.Members.Select(m => m.Id).ToList();
+            return NetSession.Instance.MemberIds();
         }
 
         private void HostStartVote(SteamId starter, string id)
@@ -326,7 +326,7 @@ namespace Belay.World
             NetSession net = NetSession.Instance;
             if (net.IsHost)
             {
-                HostCount(SteamClient.SteamId, id, inFavour);
+                HostCount(NetSession.LocalId, id, inFavour);
             }
             else
             {

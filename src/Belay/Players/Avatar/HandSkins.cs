@@ -49,7 +49,7 @@ namespace Belay.Players.Avatar
             }
             nextPublish = Time.unscaledTime + 2f;
             NetSession net = NetSession.Instance;
-            if (net == null || !net.InLobby)
+            if (net == null || !net.CurrentLobby.HasValue)
             {
                 published[0] = published[1] = null;
                 return;
@@ -106,7 +106,7 @@ namespace Belay.Players.Avatar
         private static string LookUp(SteamId id, int hand)
         {
             NetSession net = NetSession.Instance;
-            if (net != null && net.InLobby)
+            if (net != null && net.CurrentLobby.HasValue)
             {
                 string skin = net.CurrentLobby.Value.GetMemberData(new Friend(id), KeyPrefix + hand);
                 if (!string.IsNullOrEmpty(skin))

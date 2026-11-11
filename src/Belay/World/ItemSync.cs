@@ -133,7 +133,7 @@ namespace Belay.World
             {
                 return;
             }
-            string id = "drop:" + SteamClient.SteamId.Value + ":" + (++dropCounter);
+            string id = "drop:" + NetSession.LocalId.Value + ":" + (++dropCounter);
             Register(id, obj);
             SaveableInfo info;
             try
