@@ -99,6 +99,12 @@
   .faq summary { cursor: pointer; font-weight: 600; }
   .faq p { color: #bdb8af; margin: 10px 0 0; }
 
+  .support { display: grid; grid-template-columns: 1.3fr .7fr; gap: 24px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--rust); padding: 24px; }
+  .support p { margin: 0 0 10px; }
+  .support-lede { font-size: 18px; color: #cfcac1; }
+  .support-links { display: grid; gap: 10px; }
+  .support-links .btn { justify-content: center; }
+
   footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--muted); font-size: 13px; }
   footer p { margin: 6px 0; }
 
@@ -107,7 +113,8 @@
     .hero-img { order: -1; }
     .hero-img img { max-width: 160px; }
     .grid { grid-template-columns: 1fr; }
-    nav a:not(:last-child) { display: none; }
+    .support { grid-template-columns: 1fr; }
+    nav a:not([href="#faq"]) { display: none; }
     .lede { font-size: 17px; }
     .btn { width: 100%; justify-content: center; }
   }
@@ -123,6 +130,7 @@
       <a href="#install">Install</a>
       <a href="#changes">Changelog</a>
       <a href="#faq">FAQ</a>
+      <a href="#support" data-support-link hidden>Support</a>
     </nav>
   </header>
 
@@ -177,6 +185,17 @@
   <h2>Changelog</h2>
   <div class="changes" id="changes-list">
     <p class="muted">Loading releases... If this doesn't load, see <a href="https://github.com/elgore319/belay/releases">all releases</a>.</p>
+  </div>
+</div></section>
+
+<section id="support" hidden><div class="wrap">
+  <h2>Support Belay</h2>
+  <div class="support">
+    <div>
+      <p class="support-lede">Belay is free and always will be. If you're having fun with it, you can chip in to help us keep building it. Every bit goes into more time on the mod.</p>
+      <p class="muted">Supporting is completely optional.</p>
+    </div>
+    <div class="support-links" id="support-links"></div>
   </div>
 </div></section>
 
@@ -235,6 +254,22 @@
     try { return new Date(s).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }); }
     catch (e) { return s.slice(0, 10); }
   }
+
+  // Support links. Fill in the URL of each one you use; empty ones stay hidden, and the whole
+  // Support section stays hidden until at least one is filled in.
+  var SUPPORT = [
+    { label: "Support on Patreon", url: "" },
+    { label: "Donate on Ko-fi", url: "" }
+  ];
+  (function () {
+    var live = SUPPORT.filter(function (s) { return /^https:\/\//.test(s.url); });
+    if (!live.length) return;
+    document.getElementById("support-links").innerHTML = live.map(function (s, i) {
+      return '<a class="btn' + (i ? " ghost" : "") + '" href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.label) + "</a>";
+    }).join("");
+    document.getElementById("support").hidden = false;
+    document.querySelectorAll("[data-support-link]").forEach(function (a) { a.hidden = false; });
+  })();
 
   fetch(API, { headers: { Accept: "application/vnd.github+json" } })
     .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
