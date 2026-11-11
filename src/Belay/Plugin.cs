@@ -1,3 +1,4 @@
+using System;
 using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
@@ -34,6 +35,10 @@ namespace Belay
         public static ConfigEntry<KeyCode> VoteNoKey;
         public static ConfigEntry<bool> AutoUpdate;
         public static ConfigEntry<string> UpdateRepo;
+        /// <summary>Public releases-only repo that players download Belay from.</summary>
+        public const string DefaultUpdateRepo = "elgore319/belay";
+        /// <summary>The source repo, which hosted releases up to 0.6.0.</summary>
+        public const string LegacyUpdateRepo = "elgore319/Belay_Mod";
         public static ConfigEntry<KeyCode> BotPovKey;
         public static ConfigEntry<float> BotFollowDelay;
         public static ConfigEntry<KeyCode> TestClientAutopilotKey;
@@ -60,7 +65,13 @@ namespace Belay
             BotFollowDelay = Config.Bind("Test Bot", "FollowDelay", 2f, "Seconds the test client window trails behind you when it follows you.");
             SolidTeammates = Config.Bind("Teammates", "SolidTeammates", true, "Teammates are solid: you bump into them, can stand on them, grip them to climb them, and lift them while you stand or hold the wall.");
             SyncProps = Config.Bind("World", "SyncProps", true, "Boxes and other loose physics objects move the same for everyone.");
-            UpdateRepo = Config.Bind("Updates", "UpdateRepo", "elgore319/Belay_Mod", "GitHub repo (owner/name) whose releases Belay updates from.");
+            UpdateRepo = Config.Bind("Updates", "UpdateRepo", DefaultUpdateRepo, "GitHub repo (owner/name) whose releases Belay updates from.");
+            // Releases moved from the source repo to a public releases-only repo. Configs written by
+            // older versions still name the old repo, so move them over.
+            if (string.Equals(UpdateRepo.Value.Trim(), LegacyUpdateRepo, StringComparison.OrdinalIgnoreCase))
+            {
+                UpdateRepo.Value = DefaultUpdateRepo;
+            }
 
             var harmony = new Harmony(Guid);
             harmony.PatchAll(typeof(Plugin).Assembly);

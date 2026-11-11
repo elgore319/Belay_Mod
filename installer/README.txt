@@ -19,3 +19,8 @@ You can switch this off in the Belay menu > Settings.
 
 UNINSTALL
 Double-click "Uninstall Belay.bat". It removes Belay only and leaves BepInEx and other mods alone.
+
+LICENSE
+Belay is free to play. Please don't re-upload or sell it: link to the official page instead.
+See LICENSE.txt. BepInEx and its parts are covered by their own licenses in THIRD-PARTY-NOTICES.txt.
+Belay is a fan-made mod and isn't affiliated with Dark Machine Games or DreadXP.

@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Belay: co-op for White Knuckle</title>
+<meta name="description" content="Belay is a free co-op mod for White Knuckle. Climb the tower with up to 8 friends, roped together.">
+<meta property="og:title" content="Belay: co-op for White Knuckle">
+<meta property="og:description" content="Climb the tower with up to 8 friends, roped together. Free mod, one-click installer.">
+<meta property="og:image" content="climber.png">
+<style>
+  :root {
+    --bg: #14161b;
+    --panel: #1c1f26;
+    --line: #2c3039;
+    --text: #e4e0d8;
+    --muted: #9a958c;
+    --rust: #c8743a;
+    --rust-hi: #e08a4a;
+    --hazard: #e3b23c;
+    --ok: #7fb36a;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.55 var(--sans);
+    background-image:
+      linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+  a { color: var(--rust-hi); }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+  .hazard { height: 8px; background: repeating-linear-gradient(135deg, var(--hazard) 0 14px, #111 14px 28px); opacity: .85; }
+
+  header.top { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; }
+  .logo { font: 800 22px/1 var(--mono); letter-spacing: .32em; text-transform: uppercase; color: var(--text); text-decoration: none; }
+  .logo span { color: var(--rust); }
+  nav a { color: var(--muted); text-decoration: none; margin-left: 20px; font: 600 13px var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+  nav a:hover { color: var(--text); }
+
+  .hero { display: grid; grid-template-columns: 1.25fr .75fr; gap: 32px; align-items: center; padding: 40px 0 56px; }
+  .eyebrow { font: 600 12px var(--mono); letter-spacing: .22em; text-transform: uppercase; color: var(--hazard); }
+  h1 { font: 800 clamp(40px, 7vw, 76px)/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; margin: 14px 0 18px; }
+  .lede { font-size: 19px; color: #cfcac1; max-width: 34em; margin: 0 0 28px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px; padding: 15px 22px;
+    font: 700 15px var(--mono); letter-spacing: .08em; text-transform: uppercase; text-decoration: none;
+    border: 2px solid var(--rust); color: #15110d; background: var(--rust);
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  }
+  .btn:hover { background: var(--rust-hi); border-color: var(--rust-hi); }
+  .btn.ghost { background: transparent; color: var(--text); border-color: var(--line); }
+  .btn.ghost:hover { border-color: var(--muted); }
+  .meta { margin-top: 14px; font: 13px var(--mono); color: var(--muted); }
+  .meta b { color: var(--text); font-weight: 600; }
+  .hero-img { justify-self: center; position: relative; }
+  .hero-img img { width: 100%; height: auto; max-width: 330px; display: block; -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 62%, transparent 100%); mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 62%, transparent 100%); }
+
+  section { padding: 48px 0; border-top: 1px solid var(--line); }
+  h2 { font: 800 15px var(--mono); letter-spacing: .26em; text-transform: uppercase; color: var(--muted); margin: 0 0 24px; }
+  h2::before { content: "// "; color: var(--rust); }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--line); padding: 20px; }
+  .card h3 { margin: 0 0 6px; font: 700 15px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+  .card p { margin: 0; color: #bdb8af; font-size: 15px; }
+
+  ol.steps { list-style: none; padding: 0; margin: 0; counter-reset: s; display: grid; gap: 12px; }
+  ol.steps li { counter-increment: s; display: grid; grid-template-columns: 44px 1fr; gap: 14px; background: var(--panel); border: 1px solid var(--line); padding: 16px 18px; }
+  ol.steps li::before { content: counter(s, decimal-leading-zero); font: 800 20px var(--mono); color: var(--rust); }
+  ol.steps p { margin: 0; color: #bdb8af; }
+  ol.steps strong { color: var(--text); }
+  kbd { font: 600 13px var(--mono); background: #0e0f12; border: 1px solid var(--line); border-bottom-width: 2px; padding: 1px 6px; color: var(--text); }
+
+  .keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-top: 18px; }
+  .keys div { color: #bdb8af; font-size: 15px; }
+
+  .changes { display: grid; gap: 12px; }
+  .release { background: var(--panel); border: 1px solid var(--line); padding: 18px 20px; }
+  .release header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+  .release .v { font: 800 17px var(--mono); }
+  .release .d { font: 13px var(--mono); color: var(--muted); }
+  .tag { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--hazard); border: 1px solid #6b5520; padding: 1px 6px; margin-left: 8px; vertical-align: middle; }
+  .release header:last-child { margin-bottom: 0; }
+  .release .body { color: #bdb8af; font-size: 15px; }
+  .release .body ul { margin: 6px 0; padding-left: 20px; }
+  .release .body h4 { margin: 10px 0 2px; font: 700 13px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--text); }
+  .release .body p { margin: 6px 0; }
+  details.release summary { cursor: pointer; list-style: none; }
+  details.release summary::-webkit-details-marker { display: none; }
+  .muted { color: var(--muted); }
+
+  .faq details { background: var(--panel); border: 1px solid var(--line); padding: 14px 18px; margin-bottom: 10px; }
+  .faq summary { cursor: pointer; font-weight: 600; }
+  .faq p { color: #bdb8af; margin: 10px 0 0; }
+
+  footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--muted); font-size: 13px; }
+  footer p { margin: 6px 0; }
+
+  @media (max-width: 760px) {
+    .hero { grid-template-columns: 1fr; padding-top: 16px; }
+    .hero-img { order: -1; }
+    .hero-img img { max-width: 160px; }
+    .grid { grid-template-columns: 1fr; }
+    nav a:not(:last-child) { display: none; }
+    .lede { font-size: 17px; }
+    .btn { width: 100%; justify-content: center; }
+  }
+</style>
+</head>
+<body>
+<div class="hazard"></div>
+<div class="wrap">
+  <header class="top">
+    <a class="logo" href="#">Bel<span>a</span>y</a>
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+      <a href="#changes">Changelog</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <div>
+      <div class="eyebrow">Co-op mod for White Knuckle</div>
+      <h1>Don't climb alone.</h1>
+      <p class="lede">Belay puts up to 8 climbers in the same tower, roped together. One death goo, shared doors, revives at the terminals. Leave your team behind and you'll regret it.</p>
+      <div class="cta">
+        <a class="btn" id="dl-installer" href="https://github.com/elgore319/belay/releases/latest">Download for Windows</a>
+        <a class="btn ghost" href="#install">How to install</a>
+      </div>
+      <div class="meta" id="dl-meta">Free. Needs White Knuckle on Steam.</div>
+    </div>
+    <div class="hero-img"><img src="climber.png" alt="A Belay climber hanging by one hand" width="390" height="590"></div>
+  </div>
+</div>
+
+<section id="features"><div class="wrap">
+  <h2>What you get</h2>
+  <div class="grid">
+    <div class="card"><h3>Up to 8 players</h3><p>Host a public, friends-only or private Steam lobby. Friends join through Steam invites, no port forwarding.</p></div>
+    <div class="card"><h3>Same tower</h3><p>The lobby shares one world seed, so everyone climbs the exact same level layout.</p></div>
+    <div class="card"><h3>The rope</h3><p>Optional rope between climbers. Hold <kbd>V</kbd> on a wall to haul up the teammate below you.</p></div>
+    <div class="card"><h3>One death goo</h3><p>The mass rises for everyone and chases whoever is lowest. Nobody gets to hang back.</p></div>
+    <div class="card"><h3>Shared doors</h3><p>When the first climber passes a door, a countdown starts. Then it shuts for the whole team.</p></div>
+    <div class="card"><h3>Revives</h3><p>Dead players spectate. A teammate can bring them back at a save terminal, or for free with a disk.</p></div>
+    <div class="card"><h3>Your own wallet</h3><p>Roaches are never shared. What you pick up is yours, and you pay for your own revives.</p></div>
+    <div class="card"><h3>Team votes</h3><p>Shortcuts need a vote at the shortcut terminal, so nobody splits the team on their own.</p></div>
+    <div class="card"><h3>Updates itself</h3><p>New versions download when the game starts and apply after a restart. The F7 menu also manages your other mods.</p></div>
+  </div>
+</div></section>
+
+<section id="install"><div class="wrap">
+  <h2>Install</h2>
+  <ol class="steps">
+    <li><p><strong>Close White Knuckle</strong> and download the installer zip with the button above.</p></li>
+    <li><p><strong>Extract the whole zip</strong> anywhere (right-click, Extract All). Running it from inside the zip won't work.</p></li>
+    <li><p><strong>Double-click "Install Belay.bat".</strong> It finds your game through Steam and installs BepInEx (the mod loader) and Belay. If Windows says "Windows protected your PC", click More info, then Run anyway.</p></li>
+    <li><p><strong>Start the game</strong> and click "Belay (F7)" in the bottom right of the main menu. Host a lobby or join a friend's. Everyone needs the same Belay version.</p></li>
+  </ol>
+  <div class="keys">
+    <div><kbd>F7</kbd> Belay menu</div>
+    <div><kbd>V</kbd> haul up teammate (rope on)</div>
+    <div><kbd>Tab</kbd> switch spectate target</div>
+    <div><kbd>F1</kbd> / <kbd>F2</kbd> vote yes / no</div>
+  </div>
+  <p class="muted" style="margin-top:18px">Already run BepInEx 5? Grab the <a id="dl-modonly" href="https://github.com/elgore319/belay/releases/latest">mod-only zip</a> and drop <code>BepInEx\plugins\Belay\Belay.dll</code> into your game folder. To remove Belay, run "Uninstall Belay.bat". It leaves BepInEx and your other mods alone.</p>
+</div></section>
+
+<section id="changes"><div class="wrap">
+  <h2>Changelog</h2>
+  <div class="changes" id="changes-list">
+    <p class="muted">Loading releases... If this doesn't load, see <a href="https://github.com/elgore319/belay/releases">all releases</a>.</p>
+  </div>
+</div></section>
+
+<section id="faq" class="faq"><div class="wrap">
+  <h2>FAQ</h2>
+  <details><summary>Does everyone need to own White Knuckle?</summary><p>Yes. Belay is a mod for the Steam version of the game. It doesn't include or unlock the game.</p></details>
+  <details><summary>Is it safe? Windows warned me about the installer.</summary><p>The warning appears for any new download that isn't code-signed. The installer is a plain script you can open in Notepad. It only touches your White Knuckle folder.</p></details>
+  <details><summary>Will it break my saves?</summary><p>Solo play is unchanged. In a co-op lobby, runs use the host's progression and disk saves are switched off so the team can't desync.</p></details>
+  <details><summary>I have another multiplayer mod installed.</summary><p>Switch it off in the Belay menu (F7, Mods tab) and restart the game. Two multiplayer mods at once will fight each other.</p></details>
+  <details><summary>Something broke. Where do I report it?</summary><p>Open an issue on the <a href="https://github.com/elgore319/belay/issues">releases page</a> and attach <code>BepInEx\LogOutput.log</code> from your game folder.</p></details>
+</div></section>
+
+<footer><div class="wrap">
+  <p>Belay is free to download and play. See the <a href="LICENSE.txt">license</a> and <a href="THIRD-PARTY-NOTICES.txt">third-party notices</a>.</p>
+  <p>Belay is a fan-made mod. It isn't made, endorsed or supported by Dark Machine Games or DreadXP. White Knuckle is their game.</p>
+</div></footer>
+<div class="hazard"></div>
+
+<script>
+(function () {
+  // The public releases-only repo. Change this in one place if it moves.
+  var REPO = "elgore319/belay";
+  var API = "https://api.github.com/repos/" + REPO + "/releases?per_page=15";
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function inline(s) {
+    return esc(s)
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/`([^`]+)`/g, "<code>$1</code>");
+  }
+  // Release notes are short Markdown: headings, bullets, paragraphs.
+  function md(text) {
+    var out = [], inList = false;
+    (text || "").split(/\r?\n/).forEach(function (line) {
+      var t = line.trim();
+      var li = /^[-*]\s+(.*)/.exec(t);
+      if (li) { if (!inList) { out.push("<ul>"); inList = true; } out.push("<li>" + inline(li[1]) + "</li>"); return; }
+      if (inList) { out.push("</ul>"); inList = false; }
+      if (!t) return;
+      var h = /^#{1,6}\s+(.*)/.exec(t);
+      if (h) { if (!/^Belay\s+v?\d/i.test(h[1])) out.push("<h4>" + inline(h[1]) + "</h4>"); return; }
+      out.push("<p>" + inline(t) + "</p>");
+    });
+    if (inList) out.push("</ul>");
+    return out.join("");
+  }
+  function asset(rel, re) {
+    var a = (rel.assets || []).filter(function (x) { return re.test(x.name); })[0];
+    return a ? a.browser_download_url : null;
+  }
+  function date(s) {
+    try { return new Date(s).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }); }
+    catch (e) { return s.slice(0, 10); }
+  }
+
+  fetch(API, { headers: { Accept: "application/vnd.github+json" } })
+    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function (rels) {
+      rels = rels.filter(function (r) { return !r.draft; });
+      if (!rels.length) throw new Error("none");
+      var latest = rels[0];
+      var inst = asset(latest, /-installer\.zip$/i), mod = asset(latest, /-mod-only\.zip$/i);
+      var ver = latest.tag_name.replace(/^v/i, "");
+      if (inst) document.getElementById("dl-installer").href = inst;
+      if (mod) document.getElementById("dl-modonly").href = mod;
+      document.getElementById("dl-installer").textContent = "Download Belay " + ver;
+      document.getElementById("dl-meta").innerHTML =
+        "<b>v" + esc(ver) + "</b> &middot; " + esc(date(latest.published_at)) +
+        (latest.prerelease ? " &middot; test build" : "") +
+        " &middot; Windows &middot; free";
+
+      var list = document.getElementById("changes-list");
+      list.innerHTML = rels.map(function (r, i) {
+        var head = '<header><span class="v">' + esc(r.tag_name) +
+          (r.prerelease ? '<span class="tag">test</span>' : "") +
+          '</span><span class="d">' + esc(date(r.published_at)) + "</span></header>";
+        var notes = md(r.body);
+        if (!notes) return '<article class="release">' + head + "</article>";
+        var body = '<div class="body">' + notes + "</div>";
+        return i < 3
+          ? '<article class="release">' + head + body + "</article>"
+          : '<details class="release"><summary>' + head + "</summary>" + body + "</details>";
+      }).join("") +
+        '<p class="muted">Older versions: <a href="https://github.com/' + REPO + '/releases">all releases</a>.</p>';
+    })
+    .catch(function () {
+      document.getElementById("changes-list").innerHTML =
+        '<p class="muted">Couldn\'t load the changelog right now. See <a href="https://github.com/' + REPO + '/releases">all releases</a>.</p>';
+    });
+})();
+</script>
+</body>
+</html>
