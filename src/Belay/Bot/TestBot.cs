@@ -174,6 +174,18 @@ namespace Belay.Bot
             Push(bot);
         }
 
+        /// <summary>A teammate punched or hammered this bot: shove it (a following bot walks back after).</summary>
+        public void Knock(SteamId id, Vector3 velocity)
+        {
+            BotPlayer bot = Bots.Find(b => b.Id == id);
+            if (bot == null || bot.Dead)
+            {
+                return;
+            }
+            bot.State = Offset(bot.State, velocity * 0.3f);
+            Push(bot);
+        }
+
         public void Kill(BotPlayer bot)
         {
             if (!bot.Dead)

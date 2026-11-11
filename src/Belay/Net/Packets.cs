@@ -30,6 +30,9 @@ namespace Belay.Net
         ShortcutResult = 51,
         RopePull = 52,
         ZoneEntered = 53,
+        Knockback = 54,
+        PropState = 55,
+        PropKill = 56,
     }
 
     public static class Channels
@@ -57,6 +60,14 @@ namespace Belay.Net
         /// <summary>Prefab names of the items in each hand ("" when empty), so teammates see them.</summary>
         public string LeftItem;
         public string RightItem;
+        /// <summary>Teammate this player is gripping (0 = none). Their body is carried when <see cref="Anchored"/>.</summary>
+        public ulong HeldTarget;
+        /// <summary>Where on the held teammate's body the grip is, relative to that body's center.</summary>
+        public Vector3 HeldOffset;
+        /// <summary>Shared-space point in front of this player's face that a carried teammate is pulled to.</summary>
+        public Vector3 CarryPoint;
+        /// <summary>Standing or gripping the wall with the other hand: strong enough to lift whoever they hold.</summary>
+        public bool Anchored;
 
         public void Write(BinaryWriter w)
         {
@@ -70,9 +81,17 @@ namespace Belay.Net
             if (RightHanging) flags |= 2;
             if (Dead) flags |= 4;
             if (InventoryOpen) flags |= 8;
+            if (HeldTarget != 0) flags |= 16;
+            if (Anchored) flags |= 32;
             w.Write(flags);
             w.Write(LeftItem ?? "");
             w.Write(RightItem ?? "");
+            if (HeldTarget != 0)
+            {
+                w.Write(HeldTarget);
+                w.WriteVector(HeldOffset);
+                w.WriteVector(CarryPoint);
+            }
         }
 
         public static PlayerState Read(BinaryReader r)
@@ -95,6 +114,13 @@ namespace Belay.Net
             {
                 s.LeftItem = r.ReadString();
                 s.RightItem = r.ReadString();
+            }
+            s.Anchored = (flags & 32) != 0;
+            if ((flags & 16) != 0)
+            {
+                s.HeldTarget = r.ReadUInt64();
+                s.HeldOffset = r.ReadVector();
+                s.CarryPoint = r.ReadVector();
             }
             return s;
         }
