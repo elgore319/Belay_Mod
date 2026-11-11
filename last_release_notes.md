@@ -1,13 +1,10 @@
-## Belay 0.5.19
+## Belay 0.5.20
 
-**New Dev tab in the Belay menu (F7) for teleporting around the map while testing.**
+**The Dev tab (F7 > Dev) now has Invincible and Fly checkboxes.**
 
-- **Next level** jumps to the next level up, generating it first if needed.
-- **Where I'm looking** teleports you to the surface your camera is pointing at (up to 500 m).
-- **Save this spot / Back to saved spot** lets you mark a place and return to it.
-- **Teammates** lists everyone in the lobby with a Go button to jump to them.
-- **Levels on this path** lists every loaded level, highest first, with a Go button for each.
-- Teleports skip fall damage, and by default push the mass 20 m below you so it doesn't catch you when you jump up.
-- Teleports only move you. No new keys were added; the tab lives in the existing menu.
+- Tick **Invincible** and nothing can hurt or kill you: falls, the mass, enemies or hazards.
+- Tick **Fly** to fly through walls, using the game's own noclip. Look where you want to go and use your normal movement keys. Jump goes up, Crouch goes down, and Sprint is faster. Untick it to drop back to normal; you won't take fall damage from that drop.
+- Both stay on until you untick them, including across levels, and both only affect you.
+- No new keys. The 0.5.19 teleports are all still there.
 
-No network changes, so 0.5.19 plays with 0.5.18.
+No network changes, so 0.5.20 plays with 0.5.18 and 0.5.19.
