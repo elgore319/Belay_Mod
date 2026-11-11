@@ -162,22 +162,24 @@ namespace Belay.World
         {
             Transform root = PropRoot(anchor, level);
             Bounds bounds = BoundsOf(root);
+            // "Right" as seen by someone standing at the terminal and looking at it.
             Vector3 right = Vector3.ProjectOnPlane(root.right, Vector3.up).normalized;
-            if (right.sqrMagnitude < 0.01f) right = Vector3.right;
-            float width = Mathf.Clamp(Mathf.Abs(Vector3.Dot(bounds.size, right)), 0.8f, 3f);
-            var spots = new List<Spot>();
-            foreach (float k in new[] { 1f, -1f, 1.6f, -1.6f, 2.3f, -2.3f })
-            {
-                Vector3 shift = right * (width + 0.3f) * k;
-                spots.Add(new Spot { Position = root.position + shift, Rotation = root.rotation, Shift = shift, What = k > 0 ? "right of" : "left of" });
-            }
-            // Back to back with the original, across the spot where you stand to use it.
             Transform stand = anchor.playerPosition;
             if (stand != null)
             {
-                Quaternion turn = Quaternion.AngleAxis(180f, Vector3.up);
-                Vector3 pos = stand.position + turn * (root.position - stand.position);
-                spots.Add(new Spot { Position = pos, Rotation = turn * root.rotation, Shift = pos - root.position, What = "facing" });
+                Vector3 facing = Vector3.ProjectOnPlane(bounds.center - stand.position, Vector3.up);
+                if (facing.sqrMagnitude > 0.01f)
+                {
+                    right = Vector3.Cross(Vector3.up, facing.normalized);
+                }
+            }
+            if (right.sqrMagnitude < 0.01f) right = Vector3.right;
+            float width = Mathf.Clamp(Mathf.Abs(bounds.size.x * right.x) + Mathf.Abs(bounds.size.z * right.z), 0.8f, 3f);
+            var spots = new List<Spot>();
+            foreach (float k in new[] { 1f, 1.3f, 1.6f, -1f, -1.3f, -1.6f, 2.2f, -2.2f })
+            {
+                Vector3 shift = right * (width + 0.25f) * k;
+                spots.Add(new Spot { Position = root.position + shift, Rotation = root.rotation, Shift = shift, What = k > 0 ? "right of" : "left of" });
             }
             var own = new HashSet<Collider>(root.GetComponentsInChildren<Collider>());
             Spot best = spots[0];
@@ -205,7 +207,7 @@ namespace Belay.World
                 t.desktopData = EmptyDisk();
             }
             placed[level] = marker;
-            Plugin.Log.LogInfo($"Placed a vote terminal {best.What} {root.name} in {level.name}" + (bestHits > 0 ? $" (touching {bestHits} things: no clear spot)" : ""));
+            Plugin.Log.LogInfo($"Placed a vote terminal {best.What} {root.name} in {level.name} at {best.Position}" + (bestHits > 0 ? $" (touching {bestHits} things: no clear spot)" : ""));
         }
 
         /// <summary>How many solid things a copy of the prop moved by shift would overlap, plus one if it has no floor.</summary>
@@ -223,6 +225,10 @@ namespace Belay.World
                 if (ENT_Player.playerObject != null && c.transform.IsChildOf(ENT_Player.playerObject.transform))
                 {
                     continue;
+                }
+                if (c.GetComponentInParent<Players.RemoteBody>() != null || c.GetComponentInParent<Players.RemotePlayer>() != null)
+                {
+                    continue; // teammates and bots move
                 }
                 hits++;
             }
