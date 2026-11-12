@@ -18,7 +18,7 @@ namespace Belay
     {
         public const string Guid = "elgore319.belay";
         public const string Name = "Belay";
-        public const string Version = "0.6.12";
+        public const string Version = "0.6.13";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }

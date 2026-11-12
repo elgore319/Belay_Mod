@@ -528,7 +528,9 @@ namespace Belay.Bot
                 return;
             }
             float dt = Time.deltaTime;
-            Vector3 move = bot.KnockVelocity * dt;
+            // A hard pipe swing is up to 14 m/s: sweep the body along the shove so walls and floors stop it
+            // instead of it passing straight through.
+            Vector3 move = SweepKnock(path.Position + bot.KnockOffset, bot.KnockVelocity * dt, ref bot.KnockVelocity);
             bot.KnockVelocity = Vector3.Lerp(bot.KnockVelocity, Vector3.zero, dt * 6f);
             if (bot.Mode == BotMode.Hold)
             {
@@ -541,6 +543,56 @@ namespace Belay.Bot
                 // A following bot drifts back onto your path after the shove.
                 bot.KnockOffset = Vector3.Lerp(bot.KnockOffset + move, Vector3.zero, dt * 1.5f);
             }
+        }
+
+        /// <summary>
+        /// How far the bot's body can really move along this shove before it touches the level. Whatever
+        /// pushed into the surface is taken off the velocity, so the bot slides along it.
+        /// </summary>
+        private static Vector3 SweepKnock(Vector3 fromShared, Vector3 move, ref Vector3 velocity)
+        {
+            float distance = move.magnitude;
+            if (distance < 0.0001f)
+            {
+                return move;
+            }
+            const float Skin = 0.05f;
+            Vector3 dir = move / distance;
+            Vector3 c = WorldSpace.ToLocal(fromShared);
+            float half = RemoteBody.Height * 0.5f - RemoteBody.Radius;
+            float best = float.MaxValue;
+            Vector3 normal = Vector3.zero;
+            foreach (RaycastHit hit in Physics.CapsuleCastAll(c - Vector3.up * half, c + Vector3.up * half, RemoteBody.Radius * 0.85f, dir,
+                distance + Skin, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+            {
+                Collider col = hit.collider;
+                if (col == null || RemoteBody.Of(col) != null || col.GetComponentInParent<ENT_Player>() != null
+                    || col.attachedRigidbody != null && !col.attachedRigidbody.isKinematic)
+                {
+                    // Players, bots and loose props don't stop a shove.
+                    continue;
+                }
+                if (hit.distance <= 0f && hit.point == Vector3.zero)
+                {
+                    // Already overlapping at the start (the body hugs walls on your path): no direction to judge.
+                    continue;
+                }
+                if (hit.distance < best)
+                {
+                    best = hit.distance;
+                    normal = hit.normal;
+                }
+            }
+            if (best == float.MaxValue)
+            {
+                return move;
+            }
+            float into = Vector3.Dot(velocity, normal);
+            if (into < 0f)
+            {
+                velocity -= normal * into;
+            }
+            return dir * Mathf.Max(0f, best - Skin);
         }
 
         private PlayerState SampleAt(float time)
