@@ -6,8 +6,9 @@ using UnityEngine;
 namespace Belay.Dev
 {
     /// <summary>
-    /// The Dev tab of the Belay menu: teleporting around the map for testing. It only moves your own
-    /// player (teammates see you arrive through normal position sync) and adds no keys of its own.
+    /// The dev menu's Teleport page: teleporting around the map for testing, plus invincibility and
+    /// flying. It only moves your own player (teammates see you arrive through normal position sync).
+    /// The menu is a separate window that only opens with a hidden shortcut (see DevTools).
     /// </summary>
     internal static class DevMenu
     {
@@ -34,9 +35,10 @@ namespace Belay.Dev
             {
                 player.noclip = true;
             }
+            TilesetPicker.Tick();
         }
 
-        public static void DrawTab()
+        public static void DrawTeleportPage()
         {
             ENT_Player player = ENT_Player.playerObject;
             WorldLoader loader = WorldLoader.instance;
@@ -234,12 +236,99 @@ namespace Belay.Dev
         }
     }
 
-    /// <summary>Runs the Dev tab's per-frame upkeep while the menu is closed.</summary>
+    /// <summary>
+    /// The dev menu window. It isn't in the F7 menu, so normal players won't find it: it only opens with
+    /// Ctrl + Shift + F9, which nobody hits by accident.
+    /// </summary>
     internal class DevTools : MonoBehaviour
     {
+        /// <summary>True while the dev window is open (BelayMenu frees the cursor for it).</summary>
+        internal static bool Open { get; private set; }
+
+        private static readonly string[] Pages = { "Teleport", "Tilesets" };
+        private int page;
+        private Rect window = new Rect(500, 40, 480, 560);
+        private bool lockedCamera;
+
+        private static bool ShortcutPressed()
+        {
+            bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+            bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+            return ctrl && shift && Input.GetKeyDown(KeyCode.F9);
+        }
+
         private void Update()
         {
+            if (ShortcutPressed())
+            {
+                SetOpen(!Open);
+            }
             DevMenu.Tick();
+        }
+
+        private void SetOpen(bool value)
+        {
+            Open = value;
+            Plugin.Log.LogInfo("[Dev] Dev menu " + (value ? "opened" : "closed"));
+            ENT_Player player = ENT_Player.playerObject;
+            if (value)
+            {
+                if (player != null && CL_GameManager.gMan != null && !CL_GameManager.gMan.isPaused && !player.dead)
+                {
+                    player.LockCamera();
+                    lockedCamera = true;
+                }
+            }
+            else
+            {
+                if (lockedCamera && player != null)
+                {
+                    player.UnlockCamera();
+                }
+                lockedCamera = false;
+            }
+        }
+
+        private void OnGUI()
+        {
+            if (!Open)
+            {
+                return;
+            }
+            GUISkin previous = GUI.skin;
+            if (UI.BelayTheme.Skin != null)
+            {
+                GUI.skin = UI.BelayTheme.Skin;
+            }
+            try
+            {
+                window = GUILayout.Window(0x8E1D3, window, DrawWindow, "BELAY DEV");
+            }
+            finally
+            {
+                GUI.skin = previous;
+            }
+        }
+
+        private void DrawWindow(int id)
+        {
+            GUILayout.BeginHorizontal();
+            page = GUILayout.Toolbar(page, Pages, UI.BelayTheme.Tab ?? GUI.skin.button);
+            if (GUILayout.Button("X", UI.BelayTheme.Tab ?? GUI.skin.button, GUILayout.Width(32)))
+            {
+                SetOpen(false);
+            }
+            GUILayout.EndHorizontal();
+            GUILayout.Space(6);
+            if (page == 0)
+            {
+                DevMenu.DrawTeleportPage();
+            }
+            else
+            {
+                TilesetPicker.Draw();
+            }
+            GUI.DragWindow();
         }
     }
 }
