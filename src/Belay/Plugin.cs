@@ -81,6 +81,7 @@ namespace Belay
             gameObject.AddComponent<Dev.DevTools>();
             gameObject.AddComponent<PropSync>();
             gameObject.AddComponent<EnemySync>();
+            gameObject.AddComponent<EnemyMotion>();
             gameObject.AddComponent<ShortcutSync>();
             gameObject.AddComponent<VoteTerminal>();
             gameObject.AddComponent<ZoneSync>();
