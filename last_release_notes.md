@@ -1,5 +1,6 @@
-## Belay 0.6.15
+## 0.6.16
 
-- **Teammates stay on the elevator.** Each player's game runs the elevator itself, so it was never at quite the same height on two screens, and riders looked like they were floating above it or standing outside it. Now a player on a moving elevator or lift is shown standing on your own copy of it, and moves with it smoothly. The "everyone aboard" check uses the corrected position too.
-
-Everyone in the lobby should update; on older versions riders still look off the elevator.
+- The mass no longer gets held back by its own speed-ups. Levels that push the mass faster (and slow-zone perks) now work in co-op the way they do solo; only real scripted jumps (interlude goo moves) still wait until everyone is above them.
+- A teammate who is already under the mass no longer counts as the lowest climber, so a dying player can't slow the mass down for everyone else.
+- The far-behind 4x catch-up now looks at the lowest climber instead of the host.
+- The host's log now writes a `[Mass]` line every 15 s with how fast the mass is climbing and how far the lowest climber is above it, to tune the pace.
