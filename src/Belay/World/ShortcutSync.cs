@@ -263,16 +263,12 @@ namespace Belay.World
                 }
                 if (!atTerminal)
                 {
-                    if (Approved.Contains(id))
-                    {
-                        HostSend(id, Outcome.Open, NetSession.NameOf(starter));
-                        continue;
-                    }
-                    if (Waiting(id))
-                    {
-                        wantsOpen.Add(id); // open it as soon as its vote picks the shortcut
-                        continue;
-                    }
+                    // Someone walked or fell into a shortcut the team hasn't turned down. It has to exist
+                    // right now (some shortcuts are a drop: waiting on a vote meant falling to your death),
+                    // so it opens for everyone at once and any vote on it is dropped.
+                    CancelVote(id);
+                    HostSend(id, Outcome.Open, NetSession.NameOf(starter));
+                    continue;
                 }
                 else if (Approved.Contains(id) || Waiting(id))
                 {
@@ -285,6 +281,40 @@ namespace Belay.World
                 queue.Add(new Pending { Starter = starter, Id = fresh[i], AtTerminal = atTerminal, Index = i + 1, Total = fresh.Count });
             }
             HostNext();
+        }
+
+        private void CancelVote(string id)
+        {
+            queue.RemoveAll(p => p.Id == id);
+            wantsOpen.Remove(id);
+            earlyVotes.Remove(id);
+            if (voteId == id)
+            {
+                voteId = null;
+                HostNext();
+            }
+        }
+
+        /// <summary>
+        /// The local player walked or fell into a shortcut: build it here straight away, then have the
+        /// host open it for everyone (same seed, so it's the same shortcut on every PC).
+        /// </summary>
+        internal void OpenNow(UT_BranchGenerator generator)
+        {
+            string id = ButtonSync.ObjectId(generator);
+            generatorCache[id] = generator;
+            Plugin.Log.LogInfo("Walked into a shortcut, opening it for the team: " + id);
+            string me = NetSession.NameOf(NetSession.LocalId);
+            if (NetSession.Instance.IsHost)
+            {
+                CancelVote(id);
+                HostSend(id, Outcome.Open, me);
+            }
+            else
+            {
+                Open(id, me);
+                Ask(new List<string> { id }, false);
+            }
         }
 
         private void HostNext()
@@ -770,7 +800,7 @@ namespace Belay.World
                 // Already opened for the team: don't build a second branch.
                 return false;
             }
-            ShortcutSync.Instance.RequestVote(__instance);
+            ShortcutSync.Instance.OpenNow(__instance);
             return false;
         }
     }
