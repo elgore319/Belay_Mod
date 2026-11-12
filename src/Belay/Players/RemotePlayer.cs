@@ -80,11 +80,31 @@ namespace Belay.Players
             }
         }
 
+        /// <summary>
+        /// Where the body should be on this PC. A teammate riding an elevator is placed on our own copy of
+        /// it, so they stand on its floor here even if it's a little ahead or behind theirs.
+        /// </summary>
+        private Vector3 TargetBody()
+        {
+            Transform platform = PlatformRide.Resolve(Latest.PlatformId);
+            return platform != null ? platform.TransformPoint(Latest.PlatformPosition) : WorldSpace.ToLocal(Latest.Position);
+        }
+
+        private Vector3 TargetHand(int index)
+        {
+            Transform platform = PlatformRide.Resolve(Latest.PlatformId);
+            if (platform != null)
+            {
+                return platform.TransformPoint(index == 0 ? Latest.PlatformLeftHand : Latest.PlatformRightHand);
+            }
+            return WorldSpace.ToLocal(index == 0 ? Latest.LeftHand : Latest.RightHand);
+        }
+
         private void Snap()
         {
-            transform.position = WorldSpace.ToLocal(Latest.Position);
-            leftHand = WorldSpace.ToLocal(Latest.LeftHand);
-            rightHand = WorldSpace.ToLocal(Latest.RightHand);
+            transform.position = TargetBody();
+            leftHand = TargetHand(0);
+            rightHand = TargetHand(1);
             velocity = Vector3.zero;
         }
 
@@ -100,7 +120,7 @@ namespace Belay.Players
 
             float dt = Mathf.Max(Time.unscaledDeltaTime, 1e-4f);
             float t = 1f - Mathf.Exp(-15f * dt);
-            Vector3 target = WorldSpace.ToLocal(Latest.Position);
+            Vector3 target = TargetBody();
             if ((target - transform.position).sqrMagnitude > 25f * 25f)
             {
                 Snap();
@@ -116,8 +136,8 @@ namespace Belay.Players
 
             // A gripping hand is pinned to its hold, so it snaps there faster than a free hand moves.
             float gripT = 1f - Mathf.Exp(-30f * dt);
-            leftHand = Vector3.Lerp(leftHand, WorldSpace.ToLocal(Latest.LeftHand), Latest.LeftHanging ? gripT : t);
-            rightHand = Vector3.Lerp(rightHand, WorldSpace.ToLocal(Latest.RightHand), Latest.RightHanging ? gripT : t);
+            leftHand = Vector3.Lerp(leftHand, TargetHand(0), Latest.LeftHanging ? gripT : t);
+            rightHand = Vector3.Lerp(rightHand, TargetHand(1), Latest.RightHanging ? gripT : t);
 
             HandSkins.PublishTick();
             avatar.Pose(transform.position, Latest.Yaw, Latest.Pitch, leftHand, rightHand,
