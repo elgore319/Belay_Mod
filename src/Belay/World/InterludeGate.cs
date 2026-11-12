@@ -7,9 +7,11 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Interludes and breakrooms wait for the whole team: their buttons and levers can't be used until
-    /// every living teammate is inside the room. The death goo already follows the lowest living
-    /// player, so nobody gets left behind by someone racing ahead and pressing on.
+    /// Interludes and breakrooms wait for the whole team, so nobody gets left behind by someone racing
+    /// ahead and pressing on:
+    ///  - doors and hatches never wait, so whoever is behind can always catch up;
+    ///  - elevators and lifts wait until every living teammate is aboard (within reach of the button);
+    ///  - any other button waits until every living teammate is inside the room.
     /// </summary>
     internal static class InterludeGate
     {
@@ -50,6 +52,15 @@ namespace Belay.World
         /// <summary>Living teammates (not counting you) who aren't inside this level yet.</summary>
         internal static List<string> Missing(M_Level level)
         {
+            return Missing(p => Inside(level, p));
+        }
+
+        /// <summary>
+        /// Living teammates (not counting you) who aren't where <paramref name="there"/> says yet. Bots never
+        /// hold the team up: once you're there, a bot that isn't is brought along.
+        /// </summary>
+        internal static List<string> Missing(System.Func<Vector3, bool> there)
+        {
             var missing = new List<string>();
             foreach (RemotePlayer remote in PlayerSync.Instance.Remotes.Values)
             {
@@ -59,19 +70,87 @@ namespace Belay.World
                 }
                 if (Bot.TestBot.Instance != null && Bot.TestBot.Instance.IsBot(remote.SteamId))
                 {
-                    // Bots never hold the team up; once you're inside, one left outside is brought in.
-                    if (ENT_Player.playerObject != null && Inside(level, ENT_Player.playerObject.transform.position))
+                    if (ENT_Player.playerObject != null && there(ENT_Player.playerObject.transform.position))
                     {
-                        Bot.TestBot.Instance.BringAlong(remote.SteamId, p => Inside(level, p));
+                        Bot.TestBot.Instance.BringAlong(remote.SteamId, there);
                     }
                     continue;
                 }
-                if (!Inside(level, remote.LocalPosition))
+                if (!there(remote.LocalPosition))
                 {
                     missing.Add(remote.DisplayName);
                 }
             }
             return missing;
+        }
+
+        // ---------------------------------------------------------------- What a control does
+
+        internal enum GateKind { Free, Room, Elevator }
+
+        private static readonly Dictionary<int, GateKind> kinds = new Dictionary<int, GateKind>();
+
+        /// <summary>How far from an elevator's button every teammate has to be before it goes (meters).</summary>
+        private const float ElevatorReach = 8f;
+
+        /// <summary>
+        /// Doors and hatches never wait: anyone can open the way on, so a teammate who's behind can still
+        /// catch up. Elevators (and lifts) are where the team waits: they leave only once everyone is aboard.
+        /// Anything else in the room keeps waiting until the whole team is in the room.
+        /// </summary>
+        internal static GateKind Classify(Component control, M_Level level, params UnityEngine.Events.UnityEventBase[] events)
+        {
+            int key = control.GetInstanceID();
+            if (kinds.TryGetValue(key, out GateKind kind))
+            {
+                return kind;
+            }
+            var words = new List<string>();
+            AddPath(words, control.transform, level, 4);
+            foreach (var ev in events)
+            {
+                if (ev == null) continue;
+                for (int i = 0; i < ev.GetPersistentEventCount(); i++)
+                {
+                    Object target = ev.GetPersistentTarget(i);
+                    words.Add(ev.GetPersistentMethodName(i) ?? "");
+                    if (target == null) continue;
+                    words.Add(target.GetType().Name);
+                    if (target is Component c) AddPath(words, c.transform, level, 3);
+                    else if (target is GameObject g) AddPath(words, g.transform, level, 3);
+                }
+            }
+            string all = string.Join(" ", words).ToLowerInvariant();
+            if (all.Contains("elevator") || all.Contains("lift"))
+            {
+                kind = GateKind.Elevator;
+            }
+            else if (all.Contains("door") || all.Contains("hatch") || all.Contains("shutter") || all.Contains("airlock"))
+            {
+                kind = GateKind.Free;
+            }
+            else
+            {
+                kind = GateKind.Room;
+            }
+            kinds[key] = kind;
+            Plugin.Log.LogInfo($"Interlude control {ButtonSync.ObjectId(control)}: {kind} ({all})");
+            return kind;
+        }
+
+        private static void AddPath(List<string> words, Transform t, M_Level level, int depth)
+        {
+            for (int i = 0; t != null && i < depth && (level == null || t != level.transform); i++, t = t.parent)
+            {
+                words.Add(t.name);
+            }
+        }
+
+        private static UnityEngine.Events.UnityEventBase[] EventsOf(Component control)
+        {
+            if (control is CL_Button b) return new UnityEngine.Events.UnityEventBase[] { b.activeEvent };
+            if (control is CL_HoldButton h) return new UnityEngine.Events.UnityEventBase[] { h.activeEvent, h.stopEvent, h.finishEvent, h.failEvent };
+            return new UnityEngine.Events.UnityEventBase[0];
         }
 
         /// <summary>True when this control is in an interlude that's still waiting for teammates.</summary>
@@ -86,7 +165,15 @@ namespace Belay.World
             {
                 return false;
             }
-            List<string> missing = Missing(level);
+            GateKind kind = Classify(control, level, EventsOf(control));
+            if (kind == GateKind.Free)
+            {
+                return false;
+            }
+            Vector3 at = control.transform.position;
+            List<string> missing = kind == GateKind.Elevator
+                ? Missing(p => (p - at).sqrMagnitude <= ElevatorReach * ElevatorReach)
+                : Missing(level);
             if (missing.Count == 0)
             {
                 return false;
@@ -94,7 +181,8 @@ namespace Belay.World
             if (notify && Time.unscaledTime - lastNoticeTime > 2f)
             {
                 lastNoticeTime = Time.unscaledTime;
-                Run.RunFlow.Instance?.ShowNotice("Wait for your team: " + string.Join(", ", missing) + (missing.Count == 1 ? " hasn't" : " haven't") + " reached the room yet");
+                string where = kind == GateKind.Elevator ? "the elevator" : "the room";
+                Run.RunFlow.Instance?.ShowNotice("Wait for your team: " + string.Join(", ", missing) + (missing.Count == 1 ? " hasn't" : " haven't") + " reached " + where + " yet");
             }
             return true;
         }

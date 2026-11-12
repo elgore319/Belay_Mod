@@ -45,20 +45,47 @@ namespace Belay.World
         /// <summary>The local player walked in. Returns false to hold the zone until the team is here.</summary>
         internal bool LocalEnter(UT_TriggerZone zone, Transform who, M_Level level)
         {
-            List<string> missing = InterludeGate.Missing(level);
+            List<string> missing = MissingFor(zone, level, out string where);
             if (missing.Count > 0)
             {
                 waiting[zone] = who;
                 if (Time.unscaledTime - lastNotice > 3f)
                 {
                     lastNotice = Time.unscaledTime;
-                    Run.RunFlow.Instance?.ShowNotice("Waiting for your team: " + string.Join(", ", missing) + (missing.Count == 1 ? " hasn't" : " haven't") + " reached the room yet");
+                    Run.RunFlow.Instance?.ShowNotice("Waiting for your team: " + string.Join(", ", missing) + (missing.Count == 1 ? " hasn't" : " haven't") + " reached " + where + " yet");
                 }
                 return false;
             }
             waiting.Remove(zone);
             Broadcast(zone);
             return true;
+        }
+
+        /// <summary>
+        /// Who the zone is still waiting for. A door zone waits for nobody; an elevator's zone waits until
+        /// everyone is standing in it (the elevator is the wait); anything else waits for the whole room.
+        /// </summary>
+        private static List<string> MissingFor(UT_TriggerZone zone, M_Level level, out string where)
+        {
+            InterludeGate.GateKind kind = InterludeGate.Classify(zone, level, zone.onEnter);
+            if (kind == InterludeGate.GateKind.Free)
+            {
+                where = "the door";
+                return new List<string>();
+            }
+            if (kind == InterludeGate.GateKind.Elevator)
+            {
+                where = "the elevator";
+                Collider c = zone.GetComponent<Collider>();
+                if (c != null)
+                {
+                    Bounds b = c.bounds;
+                    b.Expand(3f);
+                    return InterludeGate.Missing(p => b.Contains(p));
+                }
+            }
+            where = "the room";
+            return InterludeGate.Missing(level);
         }
 
         private void Broadcast(UT_TriggerZone zone)
@@ -88,7 +115,7 @@ namespace Belay.World
                     waiting.Remove(zone);
                     continue;
                 }
-                if (InterludeGate.Missing(level).Count == 0)
+                if (MissingFor(zone, level, out _).Count == 0)
                 {
                     waiting.Remove(zone);
                     Broadcast(zone);
