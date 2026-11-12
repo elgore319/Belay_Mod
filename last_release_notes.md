@@ -1,7 +1,3 @@
-## 0.6.20
+## 0.6.21
 
-- More hints removed, since the game doesn't need hand holding. The mechanics are unchanged, just silent:
-  - The shortcut outcome messages ("the team picked...", "shortcut opened by...", "nobody voted...")
-  - "This way is locked" on a locked shortcut door
-  - "Disks don't go in terminals"
-- Notices for real problems (level mismatch, updates) and revive confirmations stay.
+- Dev menu teleports no longer drag the mass under you in areas where it isn't active. Like the game's own level teleport, the mass is only pushed down when it's above you, and only where it's switched on and already rising.
