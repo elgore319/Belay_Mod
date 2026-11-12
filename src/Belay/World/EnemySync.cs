@@ -58,9 +58,24 @@ namespace Belay.World
 
         internal static bool Tracked(GameEntity e) => e is AIGameEntity && !(e is DEN_Roach);
 
-        private static string KindOf(GameEntity e) => e.name.Replace("(Clone)", "").Trim();
+        internal static string KindOf(GameEntity e) => e.name.Replace("(Clone)", "").Trim();
 
         internal void Track(AIGameEntity enemy) => Register(enemy);
+
+        /// <summary>Where this enemy spawned, in shared space.</summary>
+        internal Vector3 SpawnOf(AIGameEntity enemy) => Register(enemy).SpawnShared;
+
+        /// <summary>Every live enemy this PC knows about.</summary>
+        internal IEnumerable<AIGameEntity> Known()
+        {
+            foreach (AIGameEntity e in entries.Keys)
+            {
+                if (e != null && !e.dead)
+                {
+                    yield return e;
+                }
+            }
+        }
 
         private Entry Register(AIGameEntity enemy)
         {
@@ -74,10 +89,10 @@ namespace Belay.World
         }
 
         /// <summary>The same enemy here: same kind, spawned at (nearly) the same spot, or else nearest to where it was.</summary>
-        private AIGameEntity Find(string kind, Vector3 spawnShared, Vector3 nowShared)
+        internal AIGameEntity Find(string kind, Vector3 spawnShared, Vector3 nowShared)
         {
             AIGameEntity bySpawn = null, byNow = null;
-            float bestSpawn = 2.5f, bestNow = 4f;
+            float bestSpawn = 2.5f, bestNow = 5f;
             var stale = new List<AIGameEntity>();
             foreach (var pair in entries)
             {
@@ -108,7 +123,36 @@ namespace Belay.World
             {
                 entries.Remove(s);
             }
-            return bySpawn ?? byNow;
+            if (bySpawn != null || byNow != null)
+            {
+                return bySpawn ?? byNow;
+            }
+            // Not tracked yet here: look through every enemy that's loaded.
+            AIGameEntity best = null;
+            float bestDist = 6f;
+            foreach (AIGameEntity candidate in FindObjectsByType<AIGameEntity>(FindObjectsSortMode.None))
+            {
+                if (candidate == null || candidate.dead || !Tracked(candidate) || KindOf(candidate) != kind)
+                {
+                    continue;
+                }
+                Vector3 here = WorldSpace.ToShared(candidate.transform.position);
+                float d = Mathf.Min(Vector3.Distance(here, spawnShared), Vector3.Distance(here, nowShared));
+                if (entries.TryGetValue(candidate, out Entry known))
+                {
+                    d = Mathf.Min(d, Vector3.Distance(known.SpawnShared, spawnShared));
+                }
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    best = candidate;
+                }
+            }
+            if (best != null)
+            {
+                Register(best);
+            }
+            return best;
         }
 
         private static void WriteWho(BinaryWriter w, Entry e)
@@ -220,7 +264,10 @@ namespace Belay.World
         [HarmonyPrefix]
         private static void EntityStart(GameEntity __instance)
         {
-            if (EnemySync.Live && EnemySync.Tracked(__instance))
+            // Levels generated as the run loads start their enemies before the player exists, so this
+            // doesn't wait for the world to be ready (the world offset is still zero then).
+            if (EnemySync.Instance != null && !EnemySync.Applying && NetSession.Instance != null && NetSession.Instance.InLobby
+                && EnemySync.Tracked(__instance))
             {
                 EnemySync.Instance.Track((AIGameEntity)__instance);
             }
