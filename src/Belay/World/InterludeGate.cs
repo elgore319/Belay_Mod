@@ -178,12 +178,7 @@ namespace Belay.World
             {
                 return false;
             }
-            if (notify && Time.unscaledTime - lastNoticeTime > 2f)
-            {
-                lastNoticeTime = Time.unscaledTime;
-                string where = kind == GateKind.Elevator ? "the elevator" : "the room";
-                Run.RunFlow.Instance?.ShowNotice("Wait for your team: " + string.Join(", ", missing) + (missing.Count == 1 ? " hasn't" : " haven't") + " reached " + where + " yet");
-            }
+            // Waits quietly: no text on screen (Lee: the game doesn't need hand holding).
             return true;
         }
     }
