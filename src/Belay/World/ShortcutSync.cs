@@ -503,7 +503,7 @@ namespace Belay.World
             {
                 Opened.Add(id); // the vote is over: this shortcut stays shut for the run
                 UT_BranchGenerator g = FindGenerator(id);
-                if (g != null && g.startTransform != null)
+                if (g != null && !ShortcutDoors.LockSide(g, shortcutSide: true) && g.startTransform != null)
                 {
                     PlaceBarrier(g.startTransform, g.currentLevel, "shortcut");
                 }
@@ -557,7 +557,10 @@ namespace Belay.World
             {
                 return;
             }
-            PlaceBarrier(from.GetLevelExit(), from, "normal");
+            if (!ShortcutDoors.LockSide(g, shortcutSide: false))
+            {
+                PlaceBarrier(from.GetLevelExit(), from, "normal");
+            }
         }
 
         private float nextPathCheck;
@@ -700,8 +703,23 @@ namespace Belay.World
             Run.RunFlow.Instance?.ShowNotice(inFavour ? "You voted for the shortcut." : "You voted for the normal path.", 3f);
         }
 
+        private float nextReportTry;
+
         private void Update()
         {
+            if (Time.unscaledTime >= nextReportTry)
+            {
+                nextReportTry = Time.unscaledTime + 5f;
+                try
+                {
+                    ShortcutDoors.WriteReportOnce();
+                }
+                catch (System.Exception e)
+                {
+                    Plugin.Log.LogWarning("Shortcut report failed: " + e.Message);
+                    nextReportTry = float.MaxValue;
+                }
+            }
             NetSession net = NetSession.Instance;
             if (net == null || !net.InLobby)
             {
@@ -714,6 +732,7 @@ namespace Belay.World
             {
                 runId = net.CurrentRun.RunId;
                 Opened.Clear();
+                ShortcutDoors.Clear();
                 Approved.Clear();
                 normalBlocked.Clear();
                 wantsOpen.Clear();
