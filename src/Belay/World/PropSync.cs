@@ -130,9 +130,19 @@ namespace Belay.World
             }
         }
 
+        /// <summary>
+        /// Local test bots only exist on this PC, so nothing else would ever push a prop for them: their
+        /// bodies keep colliding with props here.
+        /// </summary>
+        private static bool IsLocalBotBody(Collider body)
+        {
+            RemoteBody rb = RemoteBody.Of(body);
+            return rb != null && rb.Owner != null && Net.NetSession.Instance != null && Net.NetSession.Instance.IsLocalBot(rb.Owner.SteamId);
+        }
+
         private static void IgnorePair(Collider body, List<Collider> colliders)
         {
-            if (body == null || colliders == null)
+            if (body == null || colliders == null || IsLocalBotBody(body))
             {
                 return;
             }
