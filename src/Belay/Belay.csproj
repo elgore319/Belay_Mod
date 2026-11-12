@@ -7,7 +7,7 @@
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Version>0.6.21</Version>
+    <Version>0.6.22</Version>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
 
@@ -39,6 +39,12 @@
     <Reference Include="UnityEngine.UnityWebRequestModule" HintPath="$(ManagedDir)\UnityEngine.UnityWebRequestModule.dll" Private="false" />
     <Reference Include="UnityEngine.JSONSerializeModule" HintPath="$(ManagedDir)\UnityEngine.JSONSerializeModule.dll" Private="false" />
     <Reference Include="netstandard" HintPath="$(ManagedDir)\netstandard.dll" Private="false" />
+  </ItemGroup>
+
+  <!-- The launch updater (BepInEx preloader patcher) is built first and carried inside Belay.dll. -->
+  <ItemGroup>
+    <ProjectReference Include="..\BelayUpdater\BelayUpdater.csproj" ReferenceOutputAssembly="false" Private="false" />
+    <EmbeddedResource Include="..\BelayUpdater\bin\$(Configuration)\BelayUpdater.dll" LogicalName="Belay.BelayUpdater.dll" />
   </ItemGroup>
 
   <Target Name="DeployToGame" AfterTargets="Build" Condition="'$(DeployToGame)' == 'true'">
