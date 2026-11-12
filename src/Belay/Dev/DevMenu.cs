@@ -1,3 +1,4 @@
+using HarmonyLib;
 using System.Collections.Generic;
 using Belay.Players;
 using Steamworks;
@@ -209,11 +210,27 @@ namespace Belay.Dev
             lastAction = what;
             Plugin.Log.LogInfo("[Dev] " + what);
             ENT_Player player = ENT_Player.playerObject;
-            if (moveGoo && player != null && DEN_DeathFloor.instance != null
-                && DEN_DeathFloor.instance.transform.position.y > player.transform.position.y - 20f)
+            DEN_DeathFloor goo = DEN_DeathFloor.instance;
+            if (moveGoo && player != null && MassIsHere(goo)
+                && goo.transform.position.y > player.transform.position.y)
             {
-                DEN_DeathFloor.instance.Teleport(player.transform.position - Vector3.up * 20f);
+                // Same rule as the game's own level teleport: only a mass that's above you gets pushed down.
+                goo.Teleport(player.transform.position - Vector3.up * 20f);
             }
+        }
+
+        /// <summary>
+        /// Whether the mass is in play where you are. Areas without one switch it off (UT_GooController
+        /// SetActive / SetGooObjectActive), and before the climb starts it hasn't begun rising yet; in
+        /// those cases the teleport leaves it alone instead of dragging it under you.
+        /// </summary>
+        private static bool MassIsHere(DEN_DeathFloor goo)
+        {
+            if (goo == null || !goo.gameObject.activeInHierarchy || !goo.IsActive())
+            {
+                return false;
+            }
+            return Traverse.Create(goo).Field("hasStarted").GetValue<bool>();
         }
 
         private static Vector3 LevelStart(M_Level level)
