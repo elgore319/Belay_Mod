@@ -1,3 +1,7 @@
-## Belay 0.6.19
+## 0.6.20
 
-- No more waiting text. Doors, the elevator and interlude rooms still wait for the whole team, but nothing on screen tells you so: the door countdown, "waiting for teammates" and "wait for your team" messages are gone.
+- More hints removed, since the game doesn't need hand holding. The mechanics are unchanged, just silent:
+  - The shortcut outcome messages ("the team picked...", "shortcut opened by...", "nobody voted...")
+  - "This way is locked" on a locked shortcut door
+  - "Disks don't go in terminals"
+- Notices for real problems (level mismatch, updates) and revive confirmations stay.
