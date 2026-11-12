@@ -26,6 +26,37 @@ namespace Belay.World
         private float hostVelocity;
         private float hostStateTime;
 
+        // Host diagnostics: how fast the mass actually climbs vs how far it is from the lowest climber.
+        private float diagTimer = 15f;
+        private float diagStartY = float.NaN;
+        private float diagDistanceSum;
+        private int diagFrames;
+
+        public void NoteHostFrame(float gooY, float lowestDistance)
+        {
+            float shared = WorldSpace.ToShared(new Vector3(0f, gooY, 0f)).y;
+            if (float.IsNaN(diagStartY))
+            {
+                diagStartY = shared;
+            }
+            diagDistanceSum += lowestDistance;
+            diagFrames++;
+            diagTimer -= Time.deltaTime;
+            if (diagTimer > 0f)
+            {
+                return;
+            }
+            float span = 15f - diagTimer;
+            DEN_DeathFloor goo = DEN_DeathFloor.instance;
+            Plugin.Log.LogInfo($"[Mass] climbed {(shared - diagStartY) / span:F2} m/s over {span:F0}s, "
+                + $"lowest climber {diagDistanceSum / Mathf.Max(diagFrames, 1):F1} m above it on average, "
+                + $"base speed {(goo != null ? goo.GetCurrentSpeed() : 0f):F2}, active {(goo != null && goo.IsActive())}");
+            diagTimer = 15f;
+            diagStartY = shared;
+            diagDistanceSum = 0f;
+            diagFrames = 0;
+        }
+
         private void Awake()
         {
             Instance = this;
@@ -89,18 +120,24 @@ namespace Belay.World
             return WorldSpace.ToLocal(new Vector3(0f, shared, 0f)).y;
         }
 
-        /// <summary>Host: lowest living player's height, local space.</summary>
+        /// <summary>
+        /// Host: lowest living player's height, local space. A player already under the mass is about to
+        /// die (their own PC kills them a moment later), so they don't hold the mass back.
+        /// </summary>
         public static float LowestPlayerHeight()
         {
-            float lowest = ENT_Player.playerObject.dead ? float.MaxValue : ENT_Player.playerObject.transform.position.y;
+            float gooY = DEN_DeathFloor.instance != null ? ((Component)DEN_DeathFloor.instance).transform.position.y : float.MinValue;
+            float own = ENT_Player.playerObject.transform.position.y;
+            float lowest = ENT_Player.playerObject.dead || own < gooY - 1f ? float.MaxValue : own;
             foreach (RemotePlayer remote in PlayerSync.Instance.Remotes.Values)
             {
-                if (remote != null && !remote.Latest.Dead && Time.unscaledTime - remote.LastReceived < 2f)
+                if (remote != null && !remote.Latest.Dead && Time.unscaledTime - remote.LastReceived < 2f
+                    && remote.LocalPosition.y >= gooY - 1f)
                 {
                     lowest = Mathf.Min(lowest, remote.LocalPosition.y);
                 }
             }
-            return lowest == float.MaxValue ? ENT_Player.playerObject.transform.position.y : lowest;
+            return lowest == float.MaxValue ? own : lowest;
         }
     }
 
@@ -110,11 +147,18 @@ namespace Belay.World
         /// <summary>How far below the lowest living climber a scripted goo jump is allowed to land.</summary>
         private const float ScriptedJumpMargin = 10f;
 
+        /// <summary>
+        /// Rises slower than this (m/s) outside the goo's own Update are the level speeding the mass up
+        /// (UT_GooController.RaiseOverTime and friends) and go through. Only real jumps get held.
+        /// </summary>
+        private const float ScriptedJumpSpeed = 8f;
+
         // Host, in shared space (immune to world-offset shifts): goo height after our last Update, and a
         // scripted jump that's waiting for everyone to get above it.
         private static DEN_DeathFloor trackedGoo;
         private static float lastPostY = float.NaN;
         private static float pendingJumpY = float.NaN;
+        private static float savedFrameMult = float.NaN;
 
         private static bool Active => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
 
@@ -154,7 +198,9 @@ namespace Belay.World
             float y = WorldSpace.ToShared(pos).y;
             float limit = WorldSpace.ToShared(new Vector3(0f, GooSync.LowestPlayerHeight(), 0f)).y - ScriptedJumpMargin;
             float target = y;
-            if (y > lastPostY + 0.05f && y > limit)
+            float rise = y - lastPostY;
+            bool jump = rise > 0.05f && rise > ScriptedJumpSpeed * Mathf.Max(Time.deltaTime, 0.001f);
+            if (jump && y > limit)
             {
                 if (float.IsNaN(pendingJumpY))
                 {
@@ -176,9 +222,10 @@ namespace Belay.World
         }
 
         [HarmonyPrefix]
-        private static void Prefix(DEN_DeathFloor __instance, ref float ___rubberbandMult, out float __state)
+        private static void Prefix(DEN_DeathFloor __instance, ref float ___rubberbandMult, ref float ___speedMultFrameStorage, out float __state)
         {
             __state = ___rubberbandMult;
+            savedFrameMult = float.NaN;
             if (!Active)
             {
                 return;
@@ -192,8 +239,20 @@ namespace Belay.World
                 float lowestDistance = Mathf.Abs(gooY - GooSync.LowestPlayerHeight());
                 if (hostDistance > 0.5f)
                 {
-                    ___rubberbandMult = __state * lowestDistance / hostDistance;
+                    float mult = lowestDistance / hostDistance;
+                    // The game also goes 4x when the mass is over 300 m behind the host; make that the lowest climber too.
+                    if (lowestDistance > 300f && hostDistance <= 300f)
+                    {
+                        mult *= 4f;
+                    }
+                    else if (hostDistance > 300f && lowestDistance <= 300f)
+                    {
+                        savedFrameMult = ___speedMultFrameStorage;
+                        ___speedMultFrameStorage *= 0.25f;
+                    }
+                    ___rubberbandMult = __state * mult;
                 }
+                GooSync.Instance?.NoteHostFrame(gooY, lowestDistance);
             }
             else
             {
@@ -202,9 +261,14 @@ namespace Belay.World
         }
 
         [HarmonyPostfix]
-        private static void Postfix(DEN_DeathFloor __instance, ref float ___rubberbandMult, float __state)
+        private static void Postfix(DEN_DeathFloor __instance, ref float ___rubberbandMult, ref float ___speedMultFrameStorage, float __state)
         {
             ___rubberbandMult = __state;
+            if (!float.IsNaN(savedFrameMult))
+            {
+                ___speedMultFrameStorage = savedFrameMult;
+                savedFrameMult = float.NaN;
+            }
             if (!Active)
             {
                 lastPostY = float.NaN;
