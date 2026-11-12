@@ -38,6 +38,10 @@ namespace Belay.Net
         public const string KeyDoorDelay = "belay_door_delay";
         public const string KeyReviveCost = "belay_revive_cost";
         public const string KeyMods = "belay_mods";
+        /// <summary>The Belay release (Plugin.Version), on the lobby for the host and as member data for everyone.</summary>
+        public const string KeyModVersion = "belay_mod_ver";
+
+        private readonly HashSet<ulong> versionWarned = new HashSet<ulong>();
 
         public static NetSession Instance { get; private set; }
 
@@ -157,6 +161,7 @@ namespace Belay.Net
             SteamMatchmaking.OnLobbyMemberLeave += (lobby, friend) => HandleMemberGone(lobby, friend);
             SteamMatchmaking.OnLobbyMemberDisconnected += (lobby, friend) => HandleMemberGone(lobby, friend);
             SteamMatchmaking.OnLobbyDataChanged += lobby => HandleMembersChanged(lobby);
+            SteamMatchmaking.OnLobbyMemberDataChanged += (lobby, friend) => HandleMembersChanged(lobby);
             SteamFriends.OnGameLobbyJoinRequested += (lobby, friend) => JoinLobby(lobby.Id);
             SteamNetworking.OnP2PSessionRequest += HandleSessionRequest;
             SteamNetworking.AllowP2PPacketRelay(true);
@@ -189,6 +194,7 @@ namespace Belay.Net
             lobby.SetJoinable(true);
             lobby.SetData(KeyTag, "1");
             lobby.SetData(KeyVersion, ProtocolVersion);
+            lobby.SetData(KeyModVersion, Plugin.Version);
             lobby.SetData(KeyName, string.IsNullOrEmpty(lobbyName) ? SteamClient.Name + "'s climb" : lobbyName);
             lobby.SetData(KeyRopeLength, Plugin.DefaultRopeLength.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
             lobby.SetData(KeyTether, Plugin.RopeOnByDefault.Value ? "1" : "0");
@@ -408,14 +414,22 @@ namespace Belay.Net
                 // Not a Belay lobby (vanilla invite or another mod's lobby).
                 return;
             }
+            string hostVersion = lobby.GetData(KeyModVersion);
             if (lobby.GetData(KeyVersion) != ProtocolVersion)
             {
-                Status = "Version mismatch: host runs " + lobby.GetData(KeyVersion);
+                Status = "Version mismatch: host runs " + (string.IsNullOrEmpty(hostVersion) ? lobby.GetData(KeyVersion) : "Belay " + hostVersion);
                 lobby.Leave();
+                WarnVersion(hostVersion, "the host", joined: false);
                 return;
             }
             CurrentLobby = lobby;
+            versionWarned.Clear();
             lobby.SetMemberData(KeyMods, UI.ModManager.LoadedModList());
+            lobby.SetMemberData(KeyModVersion, Plugin.Version);
+            if (!IsHost && hostVersion != Plugin.Version)
+            {
+                WarnVersion(hostVersion, "the host", joined: true);
+            }
             Status = IsHost ? "Hosting" : "Connected to " + lobby.Owner.Name;
             if (!IsHost)
             {
@@ -425,10 +439,45 @@ namespace Belay.Net
             OnLobbyChanged?.Invoke();
         }
 
+        /// <summary>
+        /// Error notice for a Belay version mismatch. A missing version means a Belay from before
+        /// versions were shared, so older. When the other side is newer, this game updates right away.
+        /// </summary>
+        private void WarnVersion(string theirs, string who, bool joined)
+        {
+            bool theyAreNewer = !string.IsNullOrEmpty(theirs) && UI.Updater.Compare(theirs, Plugin.Version) > 0;
+            string them = string.IsNullOrEmpty(theirs) ? "an older Belay" : "Belay " + theirs;
+            string head = joined ? "Version mismatch: " : "Can't join: ";
+            string fix = theyAreNewer
+                ? "Updating, then restart."
+                : char.ToUpperInvariant(who[0]) + who.Substring(1) + " needs to restart to update.";
+            Plugin.Log.LogWarning($"Belay version mismatch: {who} has {them}, you have {Plugin.Version}");
+            Run.RunFlow.Instance?.ShowNotice($"{head}{who} has {them}, you have {Plugin.Version}. {fix}", 12f);
+            if (theyAreNewer && Plugin.AutoUpdate.Value)
+            {
+                UI.Updater.Instance?.UpdateNow();
+            }
+        }
+
+        private void CheckMemberVersions(Lobby lobby)
+        {
+            if (!IsHost) return;
+            foreach (Friend member in lobby.Members)
+            {
+                if (member.Id == SteamClient.SteamId || versionWarned.Contains(member.Id.Value)) continue;
+                string theirs = lobby.GetMemberData(member, KeyModVersion);
+                // Empty can also mean their member data hasn't arrived yet; check again on the next change.
+                if (string.IsNullOrEmpty(theirs) || theirs == Plugin.Version) continue;
+                versionWarned.Add(member.Id.Value);
+                WarnVersion(theirs, member.Name, joined: true);
+            }
+        }
+
         private void HandleMembersChanged(Lobby lobby)
         {
             if (CurrentLobby.HasValue && lobby.Id == CurrentLobby.Value.Id)
             {
+                CheckMemberVersions(lobby);
                 Status = IsHost ? "Hosting" : "Connected to " + lobby.Owner.Name;
                 OnLobbyChanged?.Invoke();
             }

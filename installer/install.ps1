@@ -110,6 +110,9 @@ try {
     $belayDir = Join-Path $plugins "Belay"
 
     if ($Uninstall) {
+        # Belay's launch updater (a BepInEx patcher it installs itself).
+        $patcherDir = Join-Path $GameDir "BepInEx\patchers\Belay"
+        if (Test-Path -LiteralPath $patcherDir) { Remove-Item -LiteralPath $patcherDir -Recurse -Force }
         if (Test-Path -LiteralPath $belayDir) {
             Remove-Item -LiteralPath $belayDir -Recurse -Force
             Say "Belay removed. BepInEx and your other mods were left alone." "Green"

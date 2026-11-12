@@ -18,7 +18,7 @@ namespace Belay
     {
         public const string Guid = "elgore319.belay";
         public const string Name = "Belay";
-        public const string Version = "0.6.21";
+        public const string Version = "0.6.22";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
@@ -54,7 +54,7 @@ namespace Belay
             VoteNoKey = Config.Bind("Votes", "VoteNoKey", KeyCode.F2, "Vote no when a teammate wants to take a shortcut.");
             SpectateNextKey = Config.Bind("Revive", "SpectateNextKey", KeyCode.Tab, "While dead, switch which teammate you watch.");
             SendRate = Config.Bind("Network", "SendRate", 20, "Player state updates sent per second.");
-            AutoUpdate = Config.Bind("Updates", "AutoUpdate", true, "Download new Belay releases on launch. They apply the next time the game starts.");
+            AutoUpdate = Config.Bind("Updates", "AutoUpdate", true, "Install new Belay releases when the game starts, and check for new ones every 10 minutes while it runs.");
             BotPovKey = Config.Bind("Test Bot", "PovWindowKey", KeyCode.F8, "Shows or hides the test bot's point-of-view window.");
             TestClientAutopilotKey = Config.Bind("Test Bot", "TestClientAutopilotKey", KeyCode.F9, "In the test client window: switch between following you automatically and playing it yourself.");
             BotFollowDelay = Config.Bind("Test Bot", "FollowDelay", 2f, "Seconds the test client window trails behind you when it follows you.");

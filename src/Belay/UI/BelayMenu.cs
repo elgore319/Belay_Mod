@@ -162,6 +162,7 @@ namespace Belay.UI
             try
             {
                 DrawMenuButton();
+                DrawUpdatePopup();
                 if (open)
                 {
                     window = GUILayout.Window(0x8E1A7, window, DrawWindow, "BELAY  v" + Plugin.Version);
@@ -192,6 +193,36 @@ namespace Belay.UI
                 GUI.Label(new Rect(Screen.width - 520, Screen.height - 90, 510, 40),
                     "Another multiplayer mod (MultiPlayer Mod) is on and conflicts with Belay. Turn it off in Belay > Mods, then restart.");
                 GUI.color = UnityEngine.Color.white;
+            }
+        }
+
+        /// <summary>
+        /// Lee asked for a popup when an update is out. Shown on the main menu and the pause menu; during
+        /// play the updater shows a notice instead.
+        /// </summary>
+        private void DrawUpdatePopup()
+        {
+            Updater up = Updater.Instance;
+            if (up == null || up.PopupDismissed) return;
+            bool ready = up.State == Updater.UpdateState.Ready;
+            if (!ready && up.State != Updater.UpdateState.Available) return;
+            bool onMainMenu = !CL_GameManager.IsInGame();
+            bool paused = CL_GameManager.gMan != null && CL_GameManager.gMan.isPaused;
+            if (!onMainMenu && !paused) return;
+
+            var box = new Rect(Screen.width / 2f - 230f, 40f, 460f, 112f);
+            GUI.Box(box, "");
+            GUI.Label(new Rect(box.x + 16f, box.y + 12f, box.width - 32f, 50f), ready
+                ? "Belay " + up.LatestVersion + " is downloaded (you're on " + Plugin.Version + "). Restart the game to use it."
+                : "Belay " + up.LatestVersion + " is out (you're on " + Plugin.Version + ").");
+            if (GUI.Button(new Rect(box.x + 16f, box.y + 64f, 200f, 36f), ready ? "Restart now" : "Update"))
+            {
+                if (ready) Updater.RestartGame();
+                else up.InstallNow();
+            }
+            if (GUI.Button(new Rect(box.xMax - 136f, box.y + 64f, 120f, 36f), "Later"))
+            {
+                up.PopupDismissed = true;
             }
         }
 
@@ -518,9 +549,9 @@ namespace Belay.UI
             {
                 up.InstallNow();
             }
-            if (up.State == Updater.UpdateState.Ready && GUILayout.Button("Quit to apply", GUILayout.Width(160)))
+            if (up.State == Updater.UpdateState.Ready && GUILayout.Button("Restart now", GUILayout.Width(160)))
             {
-                Application.Quit();
+                Updater.RestartGame();
             }
             GUILayout.EndHorizontal();
         }

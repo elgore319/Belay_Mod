@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    BepInEx preloader patcher that installs Belay updates BEFORE the plugin loads, so a new release
+    takes effect on the same launch (no second restart). Belay.dll embeds this DLL and copies it to
+    BepInEx\patchers\Belay\ itself, so it ships inside the normal release and needs no installer change.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>BelayUpdater</AssemblyName>
+    <RootNamespace>BelayUpdater</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <Version>1.0.0</Version>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GameDir Condition="'$(GameDir)' == ''">D:\SteamLibrary\steamapps\common\White Knuckle</GameDir>
+    <BepInExDir>$(GameDir)\BepInEx</BepInExDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <!-- BepInEx 5.4 ships Mono.Cecil 0.10.4; compile against the same version and don't copy it. -->
+    <PackageReference Include="Mono.Cecil" Version="0.10.4" PrivateAssets="all" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="BepInEx" HintPath="$(BepInExDir)\core\BepInEx.dll" Private="false" />
+  </ItemGroup>
+
+</Project>
