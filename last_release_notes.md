@@ -1,6 +1,5 @@
-## Belay 0.6.17
+## 0.6.18
 
-- **The elevator won't leave anyone behind.** When the elevator stops and someone has to get off to press a button, it now waits after the press until every living player is back on, then carries on. While it waits, you'll see who it's waiting for. An empty elevator (one you're calling) still comes straight away.
-- Bots are brought back aboard once you're on.
-
-Everyone in the lobby should update.
+- Items that are the only one of their kind in a level are now one per player. When a teammate picks one up, yours stays where it is, so everyone gets one. Each player can still only take one, because your own copy leaves your world when you grab it.
+- Items that spawn several to a level still work as before: whoever grabs one takes it from everyone.
+- The log says "Teammate took their copy of ..." when this happens.

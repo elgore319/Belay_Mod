@@ -13,6 +13,8 @@ namespace Belay.World
     ///    level, taken when it spawns). When someone picks one up, it disappears for everyone else.
     ///  - When someone drops or throws an item, a copy appears for everyone at the same spot with the
     ///    same contents (charge, uses, notes...), and whoever grabs it first takes it from the others.
+    ///  - An item that's the only one of its kind in its level is one per player: when a teammate takes
+    ///    it, yours stays where it is.
     /// What you carry stays yours: inventories and wallets are never shared.
     /// </summary>
     public class ItemSync : MonoBehaviour
@@ -26,6 +28,15 @@ namespace Belay.World
         internal readonly HashSet<Item_Object> RemoteCopies = new HashSet<Item_Object>();
         /// <summary>Our own drops still flying or rolling: once they stop, teammates' copies snap to the same spot.</summary>
         private readonly List<(string id, Item_Object obj, float time)> settling = new List<(string, Item_Object, float)>();
+        /// <summary>
+        /// How many of each item kind spawned in each level (or loose, with their spots). An item that's the
+        /// only one of its kind where it spawned is a one-off: everyone gets their own copy, so a teammate
+        /// picking it up doesn't take it away from you.
+        /// </summary>
+        private readonly Dictionary<string, int> levelCounts = new Dictionary<string, int>();
+        private readonly Dictionary<Item_Object, string> levelKeyOf = new Dictionary<Item_Object, string>();
+        private readonly List<(string kind, Vector3 shared)> looseSpawns = new List<(string, Vector3)>();
+        private const float LooseSingleRadius = 30f;
         private int dropCounter;
         private int runId;
 
@@ -55,6 +66,9 @@ namespace Belay.World
                 idOf.Clear();
                 RemoteCopies.Clear();
                 settling.Clear();
+                levelCounts.Clear();
+                levelKeyOf.Clear();
+                looseSpawns.Clear();
             }
             UpdateSettling();
         }
@@ -210,6 +224,53 @@ namespace Belay.World
             return best;
         }
 
+        /// <summary>Called once an item has really appeared in the world (the game's spawn rules let it show).</summary>
+        internal void OnItemShown(Item_Object obj)
+        {
+            if (obj == null || RemoteCopies.Contains(obj) || levelKeyOf.ContainsKey(obj) || !idOf.ContainsKey(obj))
+            {
+                return;
+            }
+            string kind = Kind(obj);
+            M_Level level = obj.GetComponentInParent<M_Level>();
+            if (level != null)
+            {
+                string key = level.GetInstanceID() + "|" + kind;
+                levelKeyOf[obj] = key;
+                levelCounts.TryGetValue(key, out int n);
+                levelCounts[key] = n + 1;
+            }
+            else
+            {
+                levelKeyOf[obj] = "";
+                looseSpawns.Add((kind, WorldSpace.ToShared(obj.transform.position)));
+            }
+        }
+
+        /// <summary>Was this the only item of its kind where it spawned?</summary>
+        private bool IsOneOff(Item_Object obj, string id)
+        {
+            if (id.StartsWith("drop:", System.StringComparison.Ordinal) || !levelKeyOf.TryGetValue(obj, out string key))
+            {
+                return false;
+            }
+            if (key.Length > 0)
+            {
+                return levelCounts.TryGetValue(key, out int n) && n == 1;
+            }
+            string kind = Kind(obj);
+            Vector3 here = WorldSpace.ToShared(obj.transform.position);
+            int near = 0;
+            foreach (var (k, p) in looseSpawns)
+            {
+                if (k == kind && Vector3.Distance(p, here) < LooseSingleRadius)
+                {
+                    near++;
+                }
+            }
+            return near <= 1;
+        }
+
         // ---------------------------------------------------------------- Picking up
 
         /// <summary>The local player is taking this item out of the world.</summary>
@@ -237,9 +298,15 @@ namespace Belay.World
                 Plugin.Log.LogInfo("Teammate picked up an item that isn't here: " + id);
                 return;
             }
+            Item item = obj.itemData;
+            if (IsOneOff(obj, id))
+            {
+                // One per player: the teammate took theirs, this one is still yours.
+                Plugin.Log.LogInfo("Teammate took their copy of " + (item?.prefabName ?? obj.name) + " (" + id + "), yours stays");
+                return;
+            }
             Forget(obj);
             RemoteCopies.Remove(obj);
-            Item item = obj.itemData;
             if (item != null && item.inventory != null)
             {
                 // Somehow it's already in our hands (we grabbed it at the same moment): keep ours.
@@ -378,6 +445,10 @@ namespace Belay.World
             if (ItemSync.Instance != null && !__instance.gameObject.activeSelf && ItemSync.Instance.RemoteCopies.Contains(__instance))
             {
                 __instance.gameObject.SetActive(true);
+            }
+            if (ItemSync.Instance != null && __instance.gameObject.activeSelf && NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready)
+            {
+                ItemSync.Instance.OnItemShown(__instance);
             }
         }
 
