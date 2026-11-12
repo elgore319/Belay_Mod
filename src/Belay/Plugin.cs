@@ -16,7 +16,8 @@ namespace Belay
     [BepInPlugin(Guid, Name, Version)]
     public class Plugin : BaseUnityPlugin
     {
-        public const string Guid = "elgore319.belay";
+        public const string Guid = "brasswhuckle.belay";
+        public const string DefaultUpdateRepo = "BrassWhuckle/Belay";
         public const string Name = "Belay";
         public const string Version = "0.6.23";
 
@@ -40,10 +41,39 @@ namespace Belay
         public static ConfigEntry<bool> SolidTeammates;
         public static ConfigEntry<bool> SyncProps;
 
+        /// <summary>
+        /// Versions before 0.6.24 used another plugin GUID, so their settings live in a differently named
+        /// .cfg file. Carry them over the first time this version starts.
+        /// </summary>
+        private void MigrateOldConfig()
+        {
+            try
+            {
+                string path = Config.ConfigFilePath;
+                if (System.IO.File.Exists(path)) return;
+                string dir = System.IO.Path.GetDirectoryName(path);
+                if (!System.IO.Directory.Exists(dir)) return;
+                foreach (string old in System.IO.Directory.GetFiles(dir, "*.belay.cfg"))
+                {
+                    if (string.Equals(System.IO.Path.GetFullPath(old), System.IO.Path.GetFullPath(path), System.StringComparison.OrdinalIgnoreCase)) continue;
+                    System.IO.File.Copy(old, path);
+                    Config.Reload();
+                    Logger.LogInfo("Carried settings over from " + System.IO.Path.GetFileName(old));
+                    return;
+                }
+            }
+            catch (System.Exception e)
+            {
+                Logger.LogWarning("Couldn't carry over old settings: " + e.Message);
+            }
+        }
+
         private void Awake()
         {
             Instance = this;
             Log = Logger;
+
+            MigrateOldConfig();
 
             MenuKey = Config.Bind("General", "MenuKey", KeyCode.F7, "Opens the Belay multiplayer window.");
             DefaultRopeLength = Config.Bind("Rope", "DefaultRopeLength", 12f, "Rope length (meters) used when you host a lobby.");
@@ -60,7 +90,12 @@ namespace Belay
             BotFollowDelay = Config.Bind("Test Bot", "FollowDelay", 2f, "Seconds the test client window trails behind you when it follows you.");
             SolidTeammates = Config.Bind("Teammates", "SolidTeammates", true, "Teammates are solid: you bump into them, can stand on them, grip them to climb them, and lift them while you stand or hold the wall.");
             SyncProps = Config.Bind("World", "SyncProps", true, "Boxes and other loose physics objects move the same for everyone.");
-            UpdateRepo = Config.Bind("Updates", "UpdateRepo", "elgore319/Belay_Mod", "GitHub repo (owner/name) whose releases Belay updates from.");
+            UpdateRepo = Config.Bind("Updates", "UpdateRepo", DefaultUpdateRepo, "GitHub repo (owner/name) whose releases Belay updates from.");
+            // Releases moved from the old Belay_Mod repo; installs that saved that repo follow the move.
+            if (UpdateRepo.Value.Trim().EndsWith("/Belay_Mod", System.StringComparison.OrdinalIgnoreCase))
+            {
+                UpdateRepo.Value = DefaultUpdateRepo;
+            }
 
             var harmony = new Harmony(Guid);
             harmony.PatchAll(typeof(Plugin).Assembly);
