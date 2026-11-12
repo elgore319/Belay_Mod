@@ -11,8 +11,9 @@ namespace Belay.World
 {
     /// <summary>
     /// Shared doors. Opening a door opens it for everyone. Closing one (the first player through its
-    /// trigger) starts a host-run countdown that everyone sees, and the door then shuts for all players at
-    /// the same moment, so nobody gets locked out just for being a few seconds behind.
+    /// trigger) starts a host-run countdown that everyone sees. When it runs out, the door still stays open
+    /// until every living player has passed through it (walked through its trigger, or climbed well above
+    /// it), and then shuts for everyone at the same moment, so nobody is ever locked out behind it.
     /// Some doors (the big blast doors) don't close through UT_Door at all: their "close" trigger zone
     /// drives them some other way. Those zones are held the same way: walking in starts the countdown,
     /// and the zone fires for everyone when it runs out.
@@ -35,6 +36,13 @@ namespace Belay.World
         private readonly Dictionary<string, UT_Door> doorCache = new Dictionary<string, UT_Door>();
         private readonly Dictionary<string, UT_TriggerZone> zoneCache = new Dictionary<string, UT_TriggerZone>();
         private static readonly Dictionary<UT_TriggerZone, bool> closeZones = new Dictionary<UT_TriggerZone, bool>();
+        /// <summary>Host: door id -> players who have passed through it.</summary>
+        private readonly Dictionary<string, HashSet<SteamId>> passed = new Dictionary<string, HashSet<SteamId>>();
+        /// <summary>Client: doors we've already told the host we passed.</summary>
+        private readonly HashSet<string> sentPass = new HashSet<string>();
+        private readonly Dictionary<string, string> lastHeldFor = new Dictionary<string, string>();
+        /// <summary>A player this far above a door (meters) has clearly got past it, even without touching its trigger.</summary>
+        private const float PastHeight = 4f;
         internal const string ZonePrefix = "zone:";
 
         public float CloseDelay
@@ -57,14 +65,14 @@ namespace Belay.World
         {
             NetSession net = NetSession.Instance;
             net.On(PacketType.DoorOpen, (origin, r) => ApplyOpen(r.ReadString()));
-            net.On(PacketType.DoorRequestClose, (origin, r) => HostStartCountdown(r.ReadString()));
+            net.On(PacketType.DoorRequestClose, (origin, r) => HostPass(r.ReadString(), origin));
             net.On(PacketType.DoorCountdown, HandleCountdown);
             net.On(PacketType.DoorClose, HandleClose);
             net.OnLobbyChanged += () =>
             {
                 if (!net.InLobby)
                 {
-                    countdowns.Clear();
+                    ClearAll();
                 }
             };
         }
@@ -78,7 +86,7 @@ namespace Belay.World
             }
             if (!WorldSpace.Ready)
             {
-                countdowns.Clear();
+                ClearAll();
                 return;
             }
             if (!net.IsHost)
@@ -88,7 +96,7 @@ namespace Belay.World
             List<string> due = null;
             foreach (KeyValuePair<string, float> entry in countdowns)
             {
-                if (Time.unscaledTime >= entry.Value)
+                if (Time.unscaledTime >= entry.Value && EveryonePassed(entry.Key))
                 {
                     (due ?? (due = new List<string>())).Add(entry.Key);
                 }
@@ -103,6 +111,56 @@ namespace Belay.World
                 net.Send(PacketType.DoorClose, w => w.Write(id));
                 ApplyClose(id);
             }
+        }
+
+        private void ClearAll()
+        {
+            countdowns.Clear();
+            passed.Clear();
+            sentPass.Clear();
+            lastHeldFor.Clear();
+        }
+
+        /// <summary>
+        /// Host: true when every living player has passed this door. Players count as past it once they've
+        /// walked through its trigger or are well above it. Bots don't hold doors.
+        /// </summary>
+        private bool EveryonePassed(string id)
+        {
+            passed.TryGetValue(id, out HashSet<SteamId> through);
+            Component door = IsZone(id) ? (Component)FindZone(id, allowScan: false) : Find(id, allowScan: false);
+            float pastY = door != null ? door.transform.position.y + PastHeight : float.MaxValue;
+            var waiting = new List<string>();
+            ENT_Player me = ENT_Player.playerObject;
+            if (me != null && !me.dead && (through == null || !through.Contains(NetSession.LocalId)) && me.transform.position.y < pastY)
+            {
+                waiting.Add("you");
+            }
+            foreach (RemotePlayer remote in PlayerSync.Instance.Remotes.Values)
+            {
+                if (remote == null || remote.Latest.Dead || Time.unscaledTime - remote.LastReceived > 3f)
+                {
+                    continue;
+                }
+                if (Bot.TestBot.Instance != null && Bot.TestBot.Instance.IsBot(remote.SteamId))
+                {
+                    continue;
+                }
+                if ((through == null || !through.Contains(remote.SteamId)) && remote.LocalPosition.y < pastY)
+                {
+                    waiting.Add(remote.DisplayName);
+                }
+            }
+            string list = string.Join(", ", waiting);
+            if (!lastHeldFor.TryGetValue(id, out string before) || before != list)
+            {
+                lastHeldFor[id] = list;
+                if (waiting.Count > 0)
+                {
+                    Plugin.Log.LogInfo($"Door held open for {list}: {id}");
+                }
+            }
+            return waiting.Count == 0;
         }
 
         /// <summary>Seconds left on the countdown of the nearest closing door, or null.</summary>
@@ -141,15 +199,7 @@ namespace Belay.World
                 return true;
             }
             string id = DoorId(door);
-            NetSession net = NetSession.Instance;
-            if (net.IsHost)
-            {
-                HostStartCountdown(id);
-            }
-            else if (!countdowns.ContainsKey(id))
-            {
-                net.Send(PacketType.DoorRequestClose, w => w.Write(id));
-            }
+            LocalPass(id);
             return false;
         }
 
@@ -157,17 +207,23 @@ namespace Belay.World
         internal bool OnLocalCloseZone(UT_TriggerZone zone)
         {
             string id = ZoneId(zone);
-            NetSession net = NetSession.Instance;
             zoneCache[id] = zone;
+            LocalPass(id);
+            return false;
+        }
+
+        /// <summary>We went through a door's close trigger: tell the host (once) that we're past it.</summary>
+        private void LocalPass(string id)
+        {
+            NetSession net = NetSession.Instance;
             if (net.IsHost)
             {
-                HostStartCountdown(id);
+                HostPass(id, NetSession.LocalId);
             }
-            else if (!countdowns.ContainsKey(id))
+            else if (sentPass.Add(id))
             {
                 net.Send(PacketType.DoorRequestClose, w => w.Write(id));
             }
-            return false;
         }
 
         internal void OnLocalOpen(UT_Door door)
@@ -179,6 +235,20 @@ namespace Belay.World
         }
 
         // ---------------------------------------------------------------- Host
+
+        private void HostPass(string id, SteamId who)
+        {
+            if (!NetSession.Instance.IsHost)
+            {
+                return;
+            }
+            if (!passed.TryGetValue(id, out HashSet<SteamId> through))
+            {
+                passed[id] = through = new HashSet<SteamId>();
+            }
+            through.Add(who);
+            HostStartCountdown(id);
+        }
 
         private void HostStartCountdown(string id)
         {
@@ -243,6 +313,9 @@ namespace Belay.World
 
         private void ApplyClose(string id)
         {
+            passed.Remove(id);
+            sentPass.Remove(id);
+            lastHeldFor.Remove(id);
             if (IsZone(id))
             {
                 FireZone(id);
