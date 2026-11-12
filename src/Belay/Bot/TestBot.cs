@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Belay.Net;
 using Belay.Players;
@@ -37,6 +38,13 @@ namespace Belay.Bot
 
         /// <summary>Follow mode: the point in your recorded trail the bot is replaying.</summary>
         public float Playhead = -1f;
+
+        /// <summary>Hazard triggers it's standing in, and when each one hurts it next.</summary>
+        public readonly Dictionary<UT_DamageTrigger, float> Hazards = new Dictionary<UT_DamageTrigger, float>();
+
+        /// <summary>When it was first seen outside a room you're waiting in (-1 when not).</summary>
+        public float OutsideSince = -1f;
+        public float OutsideChecked = -1f;
     }
 
     /// <summary>
@@ -380,6 +388,7 @@ namespace Belay.Bot
                     // A bot copies your moves, not your menus.
                     bot.State.InventoryOpen = false;
                     CheckGoo(bot);
+                    CheckHazards(bot);
                     // Slow regeneration, like yours.
                     bot.Health = Mathf.Min(MaxHealth, bot.Health + Time.deltaTime * 0.15f);
                 }
@@ -595,6 +604,125 @@ namespace Belay.Bot
             if (bot.State.Position.y < gooY)
             {
                 Kill(bot);
+            }
+        }
+
+        private static readonly Collider[] overlap = new Collider[48];
+        private static readonly HashSet<UT_DamageTrigger> touching = new HashSet<UT_DamageTrigger>();
+
+        /// <summary>
+        /// The game's hazard volumes (damage triggers, instant-death zones) only react to the real player, so
+        /// check the bot's body against them here and hurt it the same way they'd hurt you.
+        /// </summary>
+        private void CheckHazards(BotPlayer bot)
+        {
+            if (bot.Dead || !PlayerSync.Instance.Remotes.TryGetValue(bot.Id, out RemotePlayer remote) || remote == null)
+            {
+                bot.Hazards.Clear();
+                return;
+            }
+            Vector3 c = remote.transform.position;
+            float half = RemoteBody.Height * 0.5f - RemoteBody.Radius;
+            int n = Physics.OverlapCapsuleNonAlloc(c - Vector3.up * half, c + Vector3.up * half, RemoteBody.Radius, overlap,
+                Physics.AllLayers, QueryTriggerInteraction.Collide);
+            touching.Clear();
+            for (int i = 0; i < n; i++)
+            {
+                Collider col = overlap[i];
+                if (col == null || !col.isTrigger)
+                {
+                    continue;
+                }
+                UT_InstantDeath death = col.GetComponent<UT_InstantDeath>();
+                if (death != null && death.isActiveAndEnabled && HitsPlayers(death.triggerTags))
+                {
+                    Plugin.Log.LogInfo($"{bot.Name} hit an instant-death zone ({col.name})");
+                    Kill(bot);
+                    bot.Hazards.Clear();
+                    return;
+                }
+                UT_DamageTrigger damage = col.GetComponent<UT_DamageTrigger>();
+                if (damage == null || !damage.isActiveAndEnabled || !HitsPlayers(damage.triggerTags) || !touching.Add(damage))
+                {
+                    continue;
+                }
+                bool entered = !bot.Hazards.TryGetValue(damage, out float next);
+                if (entered || Time.time >= next)
+                {
+                    bot.Hazards[damage] = damage.damageOverTime ? Time.time + Mathf.Max(0.1f, damage.damageRate) : float.MaxValue;
+                    float amount = damage.damageWhenMoving && damage.minimumDamage > 0f ? damage.minimumDamage : damage.damage;
+                    Hurt(bot.Id, amount, col.name);
+                    if (bot.Dead)
+                    {
+                        bot.Hazards.Clear();
+                        return;
+                    }
+                }
+            }
+            if (bot.Hazards.Count > touching.Count)
+            {
+                var left = new List<UT_DamageTrigger>();
+                foreach (UT_DamageTrigger t in bot.Hazards.Keys)
+                {
+                    if (!touching.Contains(t))
+                    {
+                        left.Add(t);
+                    }
+                }
+                foreach (UT_DamageTrigger t in left)
+                {
+                    bot.Hazards.Remove(t);
+                }
+            }
+        }
+
+        private static bool HitsPlayers(string[] tags)
+        {
+            if (tags == null)
+            {
+                return false;
+            }
+            foreach (string t in tags)
+            {
+                if (t == "Player")
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// A room that waits for the whole team (interludes, the ascent) counts a bot as there once you're
+        /// inside: a bot can't ride an elevator or get past a door that shut behind you on its own, so if it's
+        /// still outside a few seconds after you, it's brought in next to you.
+        /// </summary>
+        public void BringAlong(SteamId id, Func<Vector3, bool> insideLocal)
+        {
+            BotPlayer bot = Bots.Find(b => b.Id == id);
+            if (bot == null || bot.Dead || !bot.HasState || !WorldSpace.Ready)
+            {
+                return;
+            }
+            if (Time.time - bot.OutsideChecked > 0.5f)
+            {
+                // First check in a while (a different room, or you just arrived): start the wait over.
+                bot.OutsideSince = -1f;
+            }
+            bot.OutsideChecked = Time.time;
+            if (insideLocal(WorldSpace.ToLocal(bot.State.Position)))
+            {
+                bot.OutsideSince = -1f;
+                return;
+            }
+            if (bot.OutsideSince < 0f)
+            {
+                bot.OutsideSince = Time.time;
+            }
+            else if (Time.time - bot.OutsideSince > 3f)
+            {
+                bot.OutsideSince = -1f;
+                TeleportToYou(bot);
             }
         }
 

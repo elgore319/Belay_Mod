@@ -115,12 +115,20 @@ namespace Belay.World
             }
             foreach (RemoteBody body in RemoteBody.All)
             {
+                if (IsLocalBot(body))
+                {
+                    continue;
+                }
                 IgnorePair(body.Collider, colliders);
             }
         }
 
         internal void OnBodyCreated(RemoteBody body)
         {
+            if (IsLocalBot(body))
+            {
+                return;
+            }
             foreach (Entry entry in byId.Values)
             {
                 if (entry.Prop != null)
@@ -130,19 +138,15 @@ namespace Belay.World
             }
         }
 
-        /// <summary>
-        /// Local test bots only exist on this PC, so nothing else would ever push a prop for them: their
-        /// bodies keep colliding with props here.
-        /// </summary>
-        private static bool IsLocalBotBody(Collider body)
+        /// <summary>A local test bot only exists on this PC, so its body really does knock props around.</summary>
+        private static bool IsLocalBot(RemoteBody body)
         {
-            RemoteBody rb = RemoteBody.Of(body);
-            return rb != null && rb.Owner != null && Net.NetSession.Instance != null && Net.NetSession.Instance.IsLocalBot(rb.Owner.SteamId);
+            return body != null && body.Owner != null && Bot.TestBot.Instance != null && Bot.TestBot.Instance.IsBot(body.Owner.SteamId);
         }
 
         private static void IgnorePair(Collider body, List<Collider> colliders)
         {
-            if (body == null || colliders == null || IsLocalBotBody(body))
+            if (body == null || colliders == null)
             {
                 return;
             }
