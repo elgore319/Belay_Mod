@@ -178,11 +178,7 @@ namespace Belay.World
             {
                 return false;
             }
-            if (notify && Time.unscaledTime - lastNoticeTime > 2f)
-            {
-                lastNoticeTime = Time.unscaledTime;
-                string where = kind == GateKind.Elevator ? "the elevator" : "the room";
-            }
+            // Waits quietly: no text on screen (Lee: the game doesn't need hand holding).
             return true;
         }
     }

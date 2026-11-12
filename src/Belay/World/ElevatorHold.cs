@@ -9,7 +9,7 @@ namespace Belay.World
     /// <summary>
     /// An elevator in an interlude (the ascent's, for one) doesn't move off while part of the team is off
     /// it. When something tells it to go (the button someone got off to press, say) and some riders are
-    /// aboard but not every living player, the start is held until everyone is back on, then it goes.
+    /// aboard but not every living player, the start is held until everyone is back on, then it goes. It waits quietly: nothing on screen says who it's waiting for.
     /// An empty elevator (nobody aboard, e.g. one being called) is never held. Every PC runs this check
     /// itself, since every PC moves its own copy of the elevator.
     /// Covers the game's path movers (UT_PathMover) and simple platforms (UT_Platform).
@@ -50,7 +50,6 @@ namespace Belay.World
                 Plugin.Log.LogInfo($"Elevator held for {string.Join(", ", missing)}: {ButtonSync.ObjectId(mover)}");
             }
             held[mover] = start;
-            Notify(missing);
             return false;
         }
 
@@ -113,11 +112,6 @@ namespace Belay.World
             return any;
         }
 
-        private void Notify(List<string> missing)
-        {
-            // No on-screen hints (Lee: the game doesn't need hand holding). The elevator just waits.
-        }
-
         private void Update()
         {
             if (held.Count == 0)
@@ -139,8 +133,7 @@ namespace Belay.World
                 Transform car = CarOf(pair.Key);
                 if (car != null && ShouldWait(car, out List<string> missing))
                 {
-                    Notify(missing);
-                    continue;
+                            continue;
                 }
                 held.Remove(pair.Key);
                 Plugin.Log.LogInfo("Everyone's aboard, elevator going: " + ButtonSync.ObjectId(pair.Key));

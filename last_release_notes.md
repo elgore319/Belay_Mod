@@ -1,7 +1,7 @@
-## 0.6.19
+## 0.6.20
 
-- Removed the on-screen hints for co-op mechanics. They don't fit a game that doesn't hand-hold. The mechanics themselves are unchanged, just silent:
-  - "Waiting for your team" at gated rooms and the elevator
-  - Shortcut outcome and "this way is locked" messages
-  - The "disks don't go in terminals" message
+- More hints removed, since the game doesn't need hand holding. The mechanics are unchanged, just silent:
+  - The shortcut outcome messages ("the team picked...", "shortcut opened by...", "nobody voted...")
+  - "This way is locked" on a locked shortcut door
+  - "Disks don't go in terminals"
 - Notices for real problems (level mismatch, updates) and revive confirmations stay.

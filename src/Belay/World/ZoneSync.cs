@@ -49,10 +49,7 @@ namespace Belay.World
             if (missing.Count > 0)
             {
                 waiting[zone] = who;
-                if (Time.unscaledTime - lastNotice > 3f)
-                {
-                    lastNotice = Time.unscaledTime;
-                }
+                // Waits quietly: no text on screen.
                 return false;
             }
             waiting.Remove(zone);

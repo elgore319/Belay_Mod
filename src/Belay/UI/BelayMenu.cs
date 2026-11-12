@@ -213,11 +213,6 @@ namespace Belay.UI
             {
                 GUI.Label(new Rect(Screen.width / 2f - 250f, Screen.height * 0.7f, 500f, 30f), revivePrompt);
             }
-            float? doorSeconds = DoorSync.Instance != null ? DoorSync.Instance.NearestCountdown(out float doorDistance) : null;
-            if (doorSeconds.HasValue && doorSeconds.Value > 0f)
-            {
-                GUI.Label(new Rect(Screen.width / 2f - 150f, 40f, 300f, 30f), $"DOOR CLOSING IN {Mathf.CeilToInt(doorSeconds.Value)}");
-            }
             if (Tether.Instance != null && !string.IsNullOrEmpty(Tether.Instance.PullStatus))
             {
                 text += "   " + Tether.Instance.PullStatus;
@@ -236,11 +231,8 @@ namespace Belay.UI
             {
                 text += check.Mismatches == 0 ? $"   Levels synced: {check.Checked}" : $"   LEVELS DIFFER: {check.Mismatches} of {check.Checked}";
             }
-            int waiting = InterludeGate.MissingInCurrentRoom;
-            if (waiting > 0)
-            {
-                GUI.Label(new Rect(Screen.width / 2f - 200f, 70f, 400f, 30f), $"Waiting for {waiting} teammate{(waiting == 1 ? "" : "s")} to reach the room");
-            }
+            // No "waiting for teammates" text (Lee: no hand holding), but the check still brings bots along.
+            _ = InterludeGate.MissingInCurrentRoom;
             GUI.Label(new Rect(10, Screen.height - 30, 400, 25), text);
         }
 
