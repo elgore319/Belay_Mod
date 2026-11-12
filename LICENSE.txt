@@ -1,0 +1,59 @@
+BELAY LICENSE
+
+Copyright (c) 2026 elgore319. All rights reserved.
+
+Belay is a free, closed-source co-op mod for the game White Knuckle. This
+license covers the Belay mod files (Belay.dll and the Belay installer
+scripts). It does not cover the third-party components listed in
+THIRD-PARTY-NOTICES.txt, which keep their own licenses.
+
+1. WHAT YOU MAY DO
+   You may download, install and play Belay for free, on as many of your own
+   computers as you like. You may stream, record and publish videos and
+   screenshots of Belay, including monetized ones. You may link to the
+   official download page.
+
+2. WHAT YOU MAY NOT DO
+   Unless the author gives you written permission, you may not:
+   a. sell Belay, charge for access to it, or bundle it with anything you sell;
+   b. re-upload or redistribute Belay or any part of it, including on other
+      mod sites (link to the official download page instead);
+   c. modify, decompile, disassemble or reverse engineer Belay, or make
+      derivative works from it, except where the law gives you that right
+      regardless of this license;
+   d. remove or change this license, the copyright notice or the
+      third-party notices.
+
+3. DONATIONS
+   Belay is free. The author may accept voluntary donations or memberships
+   (for example on Patreon or Ko-fi). Supporting the author is optional, does
+   not change this license, does not give you any extra rights to Belay, and
+   is not a purchase of Belay or of any support or warranty.
+
+4. THE GAME
+   Belay is a fan-made mod. It is not made, endorsed or supported by Dark
+   Machine Games, DreadXP or anyone else involved with White Knuckle. White
+   Knuckle and its names, art and trademarks belong to their owners. Belay
+   does not include the game. Every player needs their own legitimate copy.
+
+5. UPDATES AND NETWORK USE
+   Belay connects to GitHub when the game starts to check for new versions,
+   and downloads and installs them unless you turn automatic updates off in
+   the Belay menu. Co-op play uses Steam lobbies and Steam networking. Belay
+   does not collect or send any other data.
+
+6. NO WARRANTY
+   BELAY IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. YOU USE IT AT YOUR
+   OWN RISK, INCLUDING ANY RISK TO YOUR GAME FILES OR SAVES.
+
+7. LIMITATION OF LIABILITY
+   TO THE FULLEST EXTENT THE LAW ALLOWS, THE AUTHOR IS NOT LIABLE FOR ANY
+   CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM OR IN CONNECTION WITH
+   BELAY OR ITS USE.
+
+8. ENDING THIS LICENSE
+   This license ends automatically if you break it. When it ends, you must
+   stop using Belay and delete your copies. The author may publish a new
+   version of this license with a later release of Belay.

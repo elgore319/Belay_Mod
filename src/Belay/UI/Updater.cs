@@ -74,25 +74,61 @@ namespace Belay.UI
             State = UpdateState.Checking;
             Message = "Checking for updates...";
 
-            // The query string defeats any cached copy of an older release list.
-            string url = "https://api.github.com/repos/" + Plugin.UpdateRepo.Value.Trim() + "/releases?per_page=20&t=" + DateTime.UtcNow.Ticks;
-            using (var req = UnityWebRequest.Get(url))
+            // Try the configured repo first. Until the public releases repo has its first release,
+            // fall back to the old source repo, so updates keep working through the move.
+            var repos = new System.Collections.Generic.List<string> { Plugin.UpdateRepo.Value.Trim() };
+            if (!repos.Exists(r => string.Equals(r, Plugin.LegacyUpdateRepo, StringComparison.OrdinalIgnoreCase)))
             {
-                req.SetRequestHeader("User-Agent", "Belay-Updater");
-                req.SetRequestHeader("Accept", "application/vnd.github+json");
-                req.SetRequestHeader("Cache-Control", "no-cache");
-                req.timeout = 15;
-                yield return req.SendWebRequest();
+                repos.Add(Plugin.LegacyUpdateRepo);
+            }
 
-                if (req.result != UnityWebRequest.Result.Success)
+            string body = null;
+            string emptyBody = null;
+            string error = null;
+            foreach (string repo in repos)
+            {
+                // The query string defeats any cached copy of an older release list.
+                string url = "https://api.github.com/repos/" + repo + "/releases?per_page=20&t=" + DateTime.UtcNow.Ticks;
+                using (var req = UnityWebRequest.Get(url))
                 {
-                    Fail(req.responseCode == 404
-                        ? "Update check failed: releases not found (is the repo public?)"
-                        : "Update check failed: " + req.error);
-                    yield break;
-                }
+                    req.SetRequestHeader("User-Agent", "Belay-Updater");
+                    req.SetRequestHeader("Accept", "application/vnd.github+json");
+                    req.SetRequestHeader("Cache-Control", "no-cache");
+                    req.timeout = 15;
+                    yield return req.SendWebRequest();
 
-                string body = req.downloadHandler.text ?? "";
+                    if (req.result != UnityWebRequest.Result.Success)
+                    {
+                        if (error == null)
+                        {
+                            error = req.responseCode == 404
+                                ? "Update check failed: releases not found (is the repo public?)"
+                                : "Update check failed: " + req.error;
+                        }
+                        Plugin.Log.LogInfo("Update check: " + repo + " gave " + (req.responseCode == 404 ? "404" : req.error));
+                        continue;
+                    }
+
+                    string text = req.downloadHandler.text ?? "";
+                    // An existing repo with no releases yet answers "[]": keep looking.
+                    if (!DllUrl.IsMatch(text) && repo != repos[repos.Count - 1])
+                    {
+                        emptyBody = emptyBody ?? text;
+                        continue;
+                    }
+                    body = text;
+                    break;
+                }
+            }
+
+            body = body ?? emptyBody;
+            if (body == null)
+            {
+                Fail(error ?? "Update check failed");
+                yield break;
+            }
+
+            {
                 Version bestVer = null;
                 string bestUrl = null;
                 int seen = 0;
@@ -108,7 +144,7 @@ namespace Belay.UI
                     if (bestVer == null || v > bestVer) { bestVer = v; bestUrl = assetUrl; }
                 }
                 Plugin.Log.LogInfo($"Update check: {seen} release DLLs listed, newest {(bestVer != null ? bestVer.ToString() : "none")}, you have {Plugin.Version}");
-                if (seen == 0 && body.IndexOf("tag_name", StringComparison.Ordinal) < 0)
+                if (seen == 0 && body.IndexOf("tag_name", StringComparison.Ordinal) < 0 && body.Trim() != "[]")
                 {
                     Fail("Update check failed: GitHub sent an unexpected reply");
                     yield break;

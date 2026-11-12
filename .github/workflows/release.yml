@@ -74,3 +74,31 @@ jobs:
             --title "Belay ${{ steps.ver.outputs.version }}" \
             --notes-file last_release_notes.md \
             "${FLAGS[@]}"
+
+      # Players download from a separate public repo, so this source repo can be private.
+      # Needs the RELEASES_TOKEN secret: a fine-grained token with "Contents: read and write"
+      # on the public repo (vars.PUBLIC_REPO, default elgore319/belay). Skipped until it's set.
+      - name: Publish to the public releases repo
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          PUBLIC_REPO: ${{ vars.PUBLIC_REPO || 'elgore319/belay' }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          PRE: ${{ github.event_name == 'push' || inputs.prerelease }}
+        run: |
+          set -euo pipefail
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::RELEASES_TOKEN isn't set, so $PUBLIC_REPO didn't get this release. See RELEASING.md."
+            exit 0
+          fi
+          if gh release view "$TAG" --repo "$PUBLIC_REPO" >/dev/null 2>&1; then
+            echo "::error::$PUBLIC_REPO already has a release $TAG."
+            exit 1
+          fi
+          FLAGS=()
+          [ "$PRE" = "true" ] && FLAGS+=(--prerelease)
+          # Tags in the public repo point at its own default branch; no source code goes there.
+          gh release create "$TAG" dist/*.zip dist/Belay.dll \
+            --repo "$PUBLIC_REPO" \
+            --title "Belay ${{ steps.ver.outputs.version }}" \
+            --notes-file last_release_notes.md \
+            "${FLAGS[@]}"
