@@ -178,7 +178,8 @@ namespace Belay.World
             {
                 return false;
             }
-            if (notify && Time.unscaledTime - lastNoticeTime > 2f)
+            // The elevator waits quietly (Lee: don't say who it's waiting for).
+            if (notify && kind != GateKind.Elevator && Time.unscaledTime - lastNoticeTime > 2f)
             {
                 lastNoticeTime = Time.unscaledTime;
                 string where = kind == GateKind.Elevator ? "the elevator" : "the room";

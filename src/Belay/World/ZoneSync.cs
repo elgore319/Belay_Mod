@@ -49,7 +49,8 @@ namespace Belay.World
             if (missing.Count > 0)
             {
                 waiting[zone] = who;
-                if (Time.unscaledTime - lastNotice > 3f)
+                // The elevator waits quietly (Lee: don't say who it's waiting for).
+                if (where != "the elevator" && Time.unscaledTime - lastNotice > 3f)
                 {
                     lastNotice = Time.unscaledTime;
                     Run.RunFlow.Instance?.ShowNotice("Waiting for your team: " + string.Join(", ", missing) + (missing.Count == 1 ? " hasn't" : " haven't") + " reached " + where + " yet");
