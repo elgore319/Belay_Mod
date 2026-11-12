@@ -26,11 +26,10 @@ namespace Belay.UI
             Rules,
             Mods,
             Bot,
-            Dev,
             Settings,
         }
 
-        private static readonly string[] TabLabels = { "Lobby", "Players", "Rules", "Mods", "Bot", "Dev", "Settings" };
+        private static readonly string[] TabLabels = { "Lobby", "Players", "Rules", "Mods", "Bot", "Settings" };
 
         private bool open;
 
@@ -62,8 +61,9 @@ namespace Belay.UI
             {
                 SetOpen(!open);
             }
-            CapturingInput = open && CL_GameManager.IsInGame();
-            if (open)
+            bool anyOpen = open || Dev.DevTools.Open;
+            CapturingInput = anyOpen && CL_GameManager.IsInGame();
+            if (anyOpen)
             {
                 // In a run the cursor stays inside the game window, so a click can't land on another
                 // monitor and pull focus away from the game.
@@ -294,9 +294,6 @@ namespace Belay.UI
                     break;
                 case Tab.Bot:
                     Bot.TestBot.Instance?.DrawTab();
-                    break;
-                case Tab.Dev:
-                    Dev.DevMenu.DrawTab();
                     break;
                 case Tab.Settings:
                     DrawSettingsTab();
