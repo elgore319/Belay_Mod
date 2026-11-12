@@ -57,6 +57,15 @@ namespace Belay.World
                 {
                     continue;
                 }
+                if (Bot.TestBot.Instance != null && Bot.TestBot.Instance.IsBot(remote.SteamId))
+                {
+                    // Bots never hold the team up; once you're inside, one left outside is brought in.
+                    if (ENT_Player.playerObject != null && Inside(level, ENT_Player.playerObject.transform.position))
+                    {
+                        Bot.TestBot.Instance.BringAlong(remote.SteamId, p => Inside(level, p));
+                    }
+                    continue;
+                }
                 if (!Inside(level, remote.LocalPosition))
                 {
                     missing.Add(remote.DisplayName);
