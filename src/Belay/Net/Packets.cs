@@ -37,6 +37,8 @@ namespace Belay.Net
         ObjectHammered = 61,
         ObjectBroken = 62,
         ItemSettled = 63,
+        EnemyHurt = 70,
+        EnemyKilled = 71,
     }
 
     public static class Channels
