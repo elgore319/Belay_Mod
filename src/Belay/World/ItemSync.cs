@@ -149,11 +149,65 @@ namespace Belay.World
         /// <summary>Called as an item spawns, while it still sits where the level put it.</summary>
         internal void OnItemSpawned(Item_Object obj)
         {
-            if (obj == null || idOf.ContainsKey(obj) || obj.GetComponentInParent<M_Level>() == null)
+            if (obj == null || idOf.ContainsKey(obj))
             {
                 return;
             }
-            Register("lvl:" + ButtonSync.ObjectId(obj), obj);
+            if (obj.GetComponentInParent<M_Level>() != null)
+            {
+                Register("lvl:" + ButtonSync.ObjectId(obj), obj);
+                return;
+            }
+            // Spawned loose in the world (by a spawner or a creature, outside any level's hierarchy):
+            // the seeded spawn puts it at the same spot on every PC, so its kind and spot are its id.
+            Register(PosId(obj), obj);
+        }
+
+        private static string Kind(Item_Object obj)
+        {
+            string name = obj.itemData != null && !string.IsNullOrEmpty(obj.itemData.prefabName) ? obj.itemData.prefabName : obj.name;
+            return name.Replace("(Clone)", "").Trim();
+        }
+
+        private static string PosId(Item_Object obj)
+        {
+            Vector3 p = WorldSpace.ToShared(obj.transform.position);
+            return string.Format(System.Globalization.CultureInfo.InvariantCulture, "pos:{0}:{1:F1}:{2:F1}:{3:F1}", Kind(obj), p.x, p.y, p.z);
+        }
+
+        /// <summary>A loose item's id can differ by a rounding step between PCs: find the same kind nearby.</summary>
+        private Item_Object FindLoose(string id)
+        {
+            string[] parts = id.Split(':');
+            if (parts.Length < 5)
+            {
+                return null;
+            }
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            string kind = string.Join(":", parts, 1, parts.Length - 4);
+            if (!float.TryParse(parts[parts.Length - 3], System.Globalization.NumberStyles.Float, inv, out float x)
+                || !float.TryParse(parts[parts.Length - 2], System.Globalization.NumberStyles.Float, inv, out float y)
+                || !float.TryParse(parts[parts.Length - 1], System.Globalization.NumberStyles.Float, inv, out float z))
+            {
+                return null;
+            }
+            Vector3 target = new Vector3(x, y, z);
+            Item_Object best = null;
+            float bestDist = 1.5f;
+            foreach (var pair in byId)
+            {
+                if (pair.Value == null || !pair.Key.StartsWith("pos:", System.StringComparison.Ordinal) || Kind(pair.Value) != kind)
+                {
+                    continue;
+                }
+                float d = Vector3.Distance(WorldSpace.ToShared(pair.Value.transform.position), target);
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    best = pair.Value;
+                }
+            }
+            return best;
         }
 
         // ---------------------------------------------------------------- Picking up
@@ -174,7 +228,11 @@ namespace Belay.World
 
         private void ApplyPickup(string id)
         {
-            if (!byId.TryGetValue(id, out Item_Object obj) || obj == null)
+            if ((!byId.TryGetValue(id, out Item_Object obj) || obj == null) && id.StartsWith("pos:", System.StringComparison.Ordinal))
+            {
+                obj = FindLoose(id);
+            }
+            if (obj == null)
             {
                 Plugin.Log.LogInfo("Teammate picked up an item that isn't here: " + id);
                 return;
