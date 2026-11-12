@@ -40,6 +40,7 @@ namespace Belay.Net
         EnemyHurt = 70,
         EnemyKilled = 71,
         EnemyStates = 72,
+        ProgressProfile = 80,
     }
 
     public static class Channels
