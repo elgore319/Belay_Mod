@@ -214,9 +214,9 @@ namespace Belay.UI
                 GUI.Label(new Rect(Screen.width / 2f - 250f, Screen.height * 0.7f, 500f, 30f), revivePrompt);
             }
             float? doorSeconds = DoorSync.Instance != null ? DoorSync.Instance.NearestCountdown(out float doorDistance) : null;
-            if (doorSeconds.HasValue)
+            if (doorSeconds.HasValue && doorSeconds.Value > 0f)
             {
-                GUI.Label(new Rect(Screen.width / 2f - 150f, 40f, 300f, 30f), doorSeconds.Value > 0f ? $"DOOR CLOSING IN {Mathf.CeilToInt(doorSeconds.Value)}" : "DOOR HELD OPEN FOR YOUR TEAM");
+                GUI.Label(new Rect(Screen.width / 2f - 150f, 40f, 300f, 30f), $"DOOR CLOSING IN {Mathf.CeilToInt(doorSeconds.Value)}");
             }
             if (Tether.Instance != null && !string.IsNullOrEmpty(Tether.Instance.PullStatus))
             {
