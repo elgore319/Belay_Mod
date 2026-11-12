@@ -1,3 +1,3 @@
-## Belay 0.6.18
+## Belay 0.6.19
 
-- The elevator no longer says who it's waiting for. It still waits until everyone is aboard (before it leaves, and after someone gets off to press a button); it just does it quietly.
+- No more waiting text. Doors, the elevator and interlude rooms still wait for the whole team, but nothing on screen tells you so: the door countdown, "waiting for teammates" and "wait for your team" messages are gone.
