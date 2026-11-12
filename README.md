@@ -42,4 +42,10 @@ dotnet build src/Belay -c Release -p:GameDir="D:\SteamLibrary\steamapps\common\W
 
 ## Config
 
-`BepInEx\config\elgore319.belay.cfg`: menu key, default rope length, rope visibility, network send rate.
+`BepInEx\config\brasswhuckle.belay.cfg`: menu key, default rope length, rope visibility, network send rate.
+
+## Downloads and license
+
+Releases: https://github.com/BrassWhuckle/Belay/releases (download page: https://tinkerwithwandsanywhere.com).
+
+Belay is open source under the MIT license (see [LICENSE.txt](LICENSE.txt)), copyright BrassWhuckle. The installer bundles BepInEx, which keeps its own licenses ([THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt)).

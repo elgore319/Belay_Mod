@@ -178,7 +178,7 @@ namespace Belay.World
             {
                 return false;
             }
-            // Waits quietly: no text on screen (Lee: the game doesn't need hand holding).
+            // Waits quietly: no text on screen (the game doesn't need hand holding).
             return true;
         }
     }

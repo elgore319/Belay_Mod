@@ -2,6 +2,16 @@ name: Release
 
 # Publishes a GitHub release with the installer zip, a mod-only zip and Belay.dll
 # (which the in-game updater downloads).
+#
+# Public releases live in the team's repo, BrassWhuckle/Belay. This workflow first
+# copies the source (without .github/, release/ and the release notes file) to that
+# repo as one commit and publishes the release there, then publishes the same
+# release here. It signs in to the team repo as the team's GitHub App, so nothing
+# there shows a personal account. Secrets needed in this repo:
+#   ORG_APP_ID           the App ID of the team's GitHub App
+#   ORG_APP_PRIVATE_KEY  the contents of the App's private key (.pem)
+# Without them the team-repo part is skipped, unless the build updates from the
+# team repo, in which case the release stops before anything is published.
 # Run it by hand from the Actions tab (Run workflow, tag = vX.Y.Z) or push a vX.Y.Z tag.
 #
 # Belay.dll can't be built on GitHub's runners because it compiles against the
@@ -25,6 +35,10 @@ on:
 permissions:
   contents: write
 
+env:
+  ORG_REPO: BrassWhuckle/Belay
+  HAS_ORG_APP: ${{ secrets.ORG_APP_ID != '' && secrets.ORG_APP_PRIVATE_KEY != '' }}
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -47,6 +61,13 @@ jobs:
           [ -f release/Belay.dll ] || { echo "::error::release/Belay.dll is missing."; exit 1; }
           grep -qaF "$CSPROJ" release/Belay.dll || { echo "::error::release/Belay.dll isn't version $CSPROJ. Rebuild it and commit it."; exit 1; }
           [ -s last_release_notes.md ] || { echo "::error::last_release_notes.md is missing or empty."; exit 1; }
+          # If this build updates from the team repo, the release must reach it, or players are stranded.
+          UPDATE_REPO=$(sed -n 's/.*DefaultUpdateRepo = "\(.*\)";.*/\1/p' src/Belay/Plugin.cs | head -1)
+          echo "updates from: ${UPDATE_REPO:-unknown}"
+          if [ "$UPDATE_REPO" = "$ORG_REPO" ] && [ "$HAS_ORG_APP" != "true" ]; then
+            echo "::error::This build updates from $ORG_REPO, but the ORG_APP_ID / ORG_APP_PRIVATE_KEY secrets are missing, so the release can't be published there."
+            exit 1
+          fi
           echo "version=$CSPROJ" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
@@ -55,6 +76,70 @@ jobs:
           installer/make-package.sh "${{ steps.ver.outputs.version }}" release/Belay.dll dist
           # The in-game updater downloads this file, so the asset name must stay "Belay.dll".
           cp release/Belay.dll dist/Belay.dll
+
+      - name: Check nothing personal goes public
+        run: |
+          set -euo pipefail
+          # Release notes and every file copied to the team repo must be free of personal names.
+          PATTERN='\blee\b|\bgore\b|elgore|obamaprism|@gmail\.'
+          FILES=$(git ls-files | grep -vE '^(\.github/|release/|last_release_notes\.md$)' || true)
+          BAD=$( { echo "$FILES" | xargs -d '\n' grep -IliE "$PATTERN" -- 2>/dev/null || true; grep -liE "$PATTERN" last_release_notes.md || true; } )
+          for f in release/Belay.dll; do
+            if { strings -a "$f"; strings -el "$f"; } | grep -qiE "$PATTERN"; then BAD="$BAD $f"; fi
+          done
+          if [ -n "$(echo $BAD)" ]; then
+            echo "::error::Personal names found in: $BAD"
+            exit 1
+          fi
+
+      - name: Sign in to the team repo
+        id: app
+        if: env.HAS_ORG_APP == 'true'
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.ORG_APP_ID }}
+          private-key: ${{ secrets.ORG_APP_PRIVATE_KEY }}
+          owner: BrassWhuckle
+          repositories: Belay
+
+      - name: Publish to the team repo
+        if: env.HAS_ORG_APP == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          VER: ${{ steps.ver.outputs.version }}
+          PRE: ${{ github.event_name == 'push' || inputs.prerelease }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" -R "$ORG_REPO" >/dev/null 2>&1; then
+            echo "::notice::$ORG_REPO already has $TAG; leaving it as it is."
+            exit 0
+          fi
+          BOT_ID=$(gh api "/users/${APP_SLUG}%5Bbot%5D" --jq .id)
+          ORG="$RUNNER_TEMP/org"
+          git clone -q "https://x-access-token:${GH_TOKEN}@github.com/${ORG_REPO}.git" "$ORG"
+          BRANCH=$(git -C "$ORG" symbolic-ref --short HEAD 2>/dev/null || echo main)
+          # Source only, no history. Files the team repo keeps itself (.github/) are left alone.
+          rsync -a --delete \
+            --exclude .git --exclude .github --exclude release --exclude last_release_notes.md \
+            ./ "$ORG/"
+          cd "$ORG"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git -c user.name="${APP_SLUG}[bot]" -c user.email="${BOT_ID}+${APP_SLUG}[bot]@users.noreply.github.com" \
+              commit -q -m "Belay $VER"
+            git push -q origin "HEAD:$BRANCH"
+          fi
+          SHA=$(git rev-parse HEAD)
+          cd "$GITHUB_WORKSPACE"
+          FLAGS=()
+          [ "$PRE" = "true" ] && FLAGS+=(--prerelease)
+          gh release create "$TAG" dist/*.zip dist/Belay.dll -R "$ORG_REPO" \
+            --target "$SHA" \
+            --title "Belay $VER" \
+            --notes-file last_release_notes.md \
+            "${FLAGS[@]}"
 
       - name: Publish release
         env:

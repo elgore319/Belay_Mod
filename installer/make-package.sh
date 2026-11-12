@@ -20,11 +20,13 @@ unzip -q "$WORK/bep.zip" -d "$PKG/installer/payload"
 cp "$DLL" "$PKG/installer/payload/BepInEx/plugins/Belay/Belay.dll"
 cp "$HERE/install.ps1" "$PKG/installer/"
 cp "$HERE/Install Belay.bat" "$HERE/Uninstall Belay.bat" "$HERE/README.txt" "$PKG/"
+cp "$HERE/../LICENSE.txt" "$HERE/../THIRD-PARTY-NOTICES.txt" "$PKG/"
 sed -i "s/{VERSION}/$VER/g" "$PKG/README.txt"
 (cd "$WORK" && zip -qr "$OUT/Belay-$VER-installer.zip" "Belay-$VER")
 
 # Mod-only zip for people who manage BepInEx themselves.
 mkdir -p "$WORK/modonly/BepInEx/plugins/Belay"
 cp "$DLL" "$WORK/modonly/BepInEx/plugins/Belay/Belay.dll"
+cp "$HERE/../LICENSE.txt" "$WORK/modonly/BepInEx/plugins/Belay/"
 (cd "$WORK/modonly" && zip -qr "$OUT/Belay-$VER-mod-only.zip" BepInEx)
 ls -la "$OUT"

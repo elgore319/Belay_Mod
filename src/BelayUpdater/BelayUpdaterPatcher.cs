@@ -26,7 +26,8 @@ namespace BelayUpdater
 
         public static void Patch(AssemblyDefinition assembly) { }
 
-        private const string DefaultRepo = "elgore319/Belay_Mod";
+        private const string DefaultRepo = "BrassWhuckle/Belay";
+        private const string ConfigName = "brasswhuckle.belay.cfg";
         private const string TestClientFlag = "-belay-testclient";
 
         private static readonly Regex DllUrl = new Regex(
@@ -114,8 +115,13 @@ namespace BelayUpdater
         {
             autoUpdate = true;
             repo = DefaultRepo;
-            string cfg = Path.Combine(Paths.ConfigPath, "elgore319.belay.cfg");
-            if (!File.Exists(cfg)) return;
+            string cfg = Path.Combine(Paths.ConfigPath, ConfigName);
+            if (!File.Exists(cfg))
+            {
+                // Settings saved by versions before 0.6.24 (another plugin GUID); Belay migrates them on load.
+                cfg = Directory.Exists(Paths.ConfigPath) ? Directory.GetFiles(Paths.ConfigPath, "*.belay.cfg").FirstOrDefault() : null;
+                if (cfg == null) return;
+            }
             foreach (string raw in File.ReadAllLines(cfg))
             {
                 int eq = raw.IndexOf('=');
@@ -123,7 +129,7 @@ namespace BelayUpdater
                 string key = raw.Substring(0, eq).Trim();
                 string value = raw.Substring(eq + 1).Trim();
                 if (key == "AutoUpdate") autoUpdate = !string.Equals(value, "false", StringComparison.OrdinalIgnoreCase);
-                else if (key == "UpdateRepo" && value.Length > 0) repo = value;
+                else if (key == "UpdateRepo" && value.Length > 0 && !value.EndsWith("/Belay_Mod", StringComparison.OrdinalIgnoreCase)) repo = value;
             }
         }
 

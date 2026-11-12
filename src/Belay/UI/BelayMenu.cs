@@ -197,7 +197,7 @@ namespace Belay.UI
         }
 
         /// <summary>
-        /// Lee asked for a popup when an update is out. Shown on the main menu and the pause menu; during
+        /// A popup when an update is out. Shown on the main menu and the pause menu; during
         /// play the updater shows a notice instead.
         /// </summary>
         private void DrawUpdatePopup()
@@ -262,7 +262,7 @@ namespace Belay.UI
             {
                 text += check.Mismatches == 0 ? $"   Levels synced: {check.Checked}" : $"   LEVELS DIFFER: {check.Mismatches} of {check.Checked}";
             }
-            // No "waiting for teammates" text (Lee: no hand holding), but the check still brings bots along.
+            // No "waiting for teammates" text (no hand holding), but the check still brings bots along.
             _ = InterludeGate.MissingInCurrentRoom;
             GUI.Label(new Rect(10, Screen.height - 30, 400, 25), text);
         }
