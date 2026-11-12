@@ -77,6 +77,15 @@ namespace Belay.Net
         public bool Anchored;
         /// <summary>Crouched (the character capsule is half height), so the avatar ducks with them.</summary>
         public bool Crouched;
+        /// <summary>
+        /// Moving floor this player is riding (an elevator, a lift), as a level object id, or null. The
+        /// Platform* positions are in that object's own space, so every PC draws the rider on its own copy
+        /// of the elevator instead of where the elevator was on the rider's PC.
+        /// </summary>
+        public string PlatformId;
+        public Vector3 PlatformPosition;
+        public Vector3 PlatformLeftHand;
+        public Vector3 PlatformRightHand;
 
         public void Write(BinaryWriter w)
         {
@@ -93,6 +102,7 @@ namespace Belay.Net
             if (HeldTarget != 0) flags |= 16;
             if (Anchored) flags |= 32;
             if (Crouched) flags |= 64;
+            if (!string.IsNullOrEmpty(PlatformId)) flags |= 128;
             w.Write(flags);
             w.Write(LeftItem ?? "");
             w.Write(RightItem ?? "");
@@ -101,6 +111,13 @@ namespace Belay.Net
                 w.Write(HeldTarget);
                 w.WriteVector(HeldOffset);
                 w.WriteVector(CarryPoint);
+            }
+            if (!string.IsNullOrEmpty(PlatformId))
+            {
+                w.Write(PlatformId);
+                w.WriteVector(PlatformPosition);
+                w.WriteVector(PlatformLeftHand);
+                w.WriteVector(PlatformRightHand);
             }
         }
 
@@ -132,6 +149,13 @@ namespace Belay.Net
                 s.HeldTarget = r.ReadUInt64();
                 s.HeldOffset = r.ReadVector();
                 s.CarryPoint = r.ReadVector();
+            }
+            if ((flags & 128) != 0 && r.BaseStream.Position < r.BaseStream.Length)
+            {
+                s.PlatformId = r.ReadString();
+                s.PlatformPosition = r.ReadVector();
+                s.PlatformLeftHand = r.ReadVector();
+                s.PlatformRightHand = r.ReadVector();
             }
             return s;
         }

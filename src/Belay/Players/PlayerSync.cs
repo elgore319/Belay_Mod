@@ -45,12 +45,14 @@ namespace Belay.Players
             {
                 return;
             }
+            PlatformRide.TrackLocal();
             sendTimer -= Time.unscaledDeltaTime;
             if (sendTimer <= 0f)
             {
                 sendTimer = 1f / Mathf.Max(1, Plugin.SendRate.Value);
                 PlayerState state = CaptureLocal();
                 PlayerContact.Instance?.FillLocal(ref state);
+                PlatformRide.FillLocal(ref state);
                 net.BroadcastState(state);
             }
         }

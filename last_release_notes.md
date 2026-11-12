@@ -1,4 +1,5 @@
-## Belay 0.6.14
+## Belay 0.6.15
 
-- **Shortcuts and main paths are blocked with the game's own doors.** If the team picks the main path, the doors on the shortcut's side never open. If the team picks the shortcut, the main path's doors (the elevator, or the doors at the level's exit) never open. Where there's no door to lock, the red barrier is still used.
-- **Shortcut report:** when the game starts, Belay writes `BepInEx/cache/Belay/shortcut-report.txt` listing every shortcut in the game and whether each side has a door it can lock.
+- **Teammates stay on the elevator.** Each player's game runs the elevator itself, so it was never at quite the same height on two screens, and riders looked like they were floating above it or standing outside it. Now a player on a moving elevator or lift is shown standing on your own copy of it, and moves with it smoothly. The "everyone aboard" check uses the corrected position too.
+
+Everyone in the lobby should update; on older versions riders still look off the elevator.
