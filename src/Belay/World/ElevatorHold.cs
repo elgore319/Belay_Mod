@@ -24,7 +24,6 @@ namespace Belay.World
         private const float AboardSlack = 1f;
 
         private readonly Dictionary<Component, System.Action> held = new Dictionary<Component, System.Action>();
-        private float lastNotice = -10f;
 
         private void Awake()
         {
@@ -116,20 +115,7 @@ namespace Belay.World
 
         private void Notify(List<string> missing)
         {
-            if (Time.unscaledTime - lastNotice < 3f)
-            {
-                return;
-            }
-            lastNotice = Time.unscaledTime;
-            bool youToo = missing.Remove("you");
-            string text = missing.Count > 0
-                ? "The elevator waits for everyone: " + string.Join(", ", missing) + (missing.Count == 1 ? " isn't" : " aren't") + " back on yet"
-                : "";
-            if (youToo)
-            {
-                text = text.Length > 0 ? text + ". Get back on too" : "Get back on the elevator: it's waiting for you";
-            }
-            Run.RunFlow.Instance?.ShowNotice(text);
+            // No on-screen hints (Lee: the game doesn't need hand holding). The elevator just waits.
         }
 
         private void Update()

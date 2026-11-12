@@ -489,14 +489,12 @@ namespace Belay.World
             if (outcome == Outcome.NoVotes)
             {
                 if (myRequestId == id) myRequestId = null;
-                Run.RunFlow.Instance?.ShowNotice("Nobody voted on the shortcut, so nothing changed. It'll ask again later.", 6f);
                 return;
             }
             if (outcome == Outcome.Approved)
             {
                 Approved.Add(id);
                 BlockNormalPath(FindGenerator(id));
-                Run.RunFlow.Instance?.ShowNotice("The team picked the shortcut. The normal path is blocked: take the shortcut.", 6f);
                 return;
             }
             if (outcome == Outcome.Normal)
@@ -513,7 +511,6 @@ namespace Belay.World
                     ENT_Player.playerObject.Teleport(WorldSpace.ToLocal(myRequestPos));
                 }
                 myRequestId = null;
-                Run.RunFlow.Instance?.ShowNotice("The team picked the normal path. The shortcut is blocked off: head back and carry on the normal way.", 6f);
                 return;
             }
             Open(id, starter);
@@ -606,7 +603,6 @@ namespace Belay.World
                     Transform exit = from.GetLevelExit();
                     player.Teleport(exit.position - Vector3.up * 2f);
                     Plugin.Log.LogInfo("Kept off the normal path (team picked the shortcut): " + id);
-                    Run.RunFlow.Instance?.ShowNotice("The team picked the shortcut. Take the shortcut, not the normal path.", 5f);
                     return;
                 }
             }
@@ -673,7 +669,6 @@ namespace Belay.World
                     Applying = false;
                 }
                 Plugin.Log.LogInfo("Shortcut opened for the team: " + id);
-                Run.RunFlow.Instance?.ShowNotice($"Shortcut opened by {starter}. The normal path ahead is closed: follow it.", 8f);
                 return;
             }
             Plugin.Log.LogWarning("The team opened a shortcut that isn't loaded here: " + id);

@@ -19,7 +19,6 @@ namespace Belay.Revive
             if (Time.unscaledTime - lastNotice > 3f)
             {
                 lastNotice = Time.unscaledTime;
-                Run.RunFlow.Instance?.ShowNotice("Disks don't go in terminals in co-op. Use a disk in your hand to revive a teammate.", 5f);
             }
         }
 

@@ -202,7 +202,6 @@ namespace Belay.World
             if (Time.unscaledTime - lastNotice > 4f)
             {
                 lastNotice = Time.unscaledTime;
-                Run.RunFlow.Instance?.ShowNotice("This way is locked: the team picked the other path.", 4f);
             }
             return false;
         }

@@ -52,7 +52,6 @@ namespace Belay.World
                 if (Time.unscaledTime - lastNotice > 3f)
                 {
                     lastNotice = Time.unscaledTime;
-                    Run.RunFlow.Instance?.ShowNotice("Waiting for your team: " + string.Join(", ", missing) + (missing.Count == 1 ? " hasn't" : " haven't") + " reached " + where + " yet");
                 }
                 return false;
             }

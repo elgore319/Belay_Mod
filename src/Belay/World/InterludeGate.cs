@@ -182,7 +182,6 @@ namespace Belay.World
             {
                 lastNoticeTime = Time.unscaledTime;
                 string where = kind == GateKind.Elevator ? "the elevator" : "the room";
-                Run.RunFlow.Instance?.ShowNotice("Wait for your team: " + string.Join(", ", missing) + (missing.Count == 1 ? " hasn't" : " haven't") + " reached " + where + " yet");
             }
             return true;
         }
