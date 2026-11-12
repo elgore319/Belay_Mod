@@ -1,5 +1,8 @@
-## Belay 0.6.4
+## Belay 0.6.5
 
-Playtest fixes:
-- **Trinkets over budget:** in a lobby nobody but the host presses Play, so a pick over the trinket budget used to come along for free. Picks are now cut back to the budget when the run starts, and you're told which trinkets were left behind.
-- **Items spawned loose in the world** (by spawners or creatures, outside a level's own objects) now vanish for everyone when someone picks them up.
+Enemy sync, first step:
+- **Kills are shared.** When an enemy dies on one player's screen, it dies on everyone's.
+- **Hits add up.** When you hurt an enemy, its health drops for everyone, so the team can wear the same enemy down together.
+- Roaches are left alone (they're your own money).
+
+Everyone in the lobby needs this version (protocol belay-15).
