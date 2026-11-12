@@ -43,6 +43,7 @@ namespace Belay.Run
         private void Start()
         {
             NetSession.Instance.OnLobbyChanged += CheckForNewRun;
+            HostProfile.Register(NetSession.Instance);
         }
 
         public void ShowNotice(string text, float seconds = 4f)
@@ -59,6 +60,7 @@ namespace Belay.Run
             }
 
             NetSession net = NetSession.Instance;
+            HostProfile.Tick();
             if (!net.InLobby)
             {
                 LocalRunId = 0;
@@ -111,7 +113,7 @@ namespace Belay.Run
                     }
                 }
             }
-            string profile = HostProfile.Capture(mode);
+            string profile = HostProfile.CaptureTeam(mode);
             RunInfo run = NetSession.Instance.StartRun(mode.gamemodeName, settings);
             NetSession.Instance.SetLobbyData(HostProfile.LobbyKey, profile);
             HostProfile.Load(profile, run.RunId);
