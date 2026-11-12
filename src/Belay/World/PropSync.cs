@@ -115,12 +115,20 @@ namespace Belay.World
             }
             foreach (RemoteBody body in RemoteBody.All)
             {
+                if (IsLocalBot(body))
+                {
+                    continue;
+                }
                 IgnorePair(body.Collider, colliders);
             }
         }
 
         internal void OnBodyCreated(RemoteBody body)
         {
+            if (IsLocalBot(body))
+            {
+                return;
+            }
             foreach (Entry entry in byId.Values)
             {
                 if (entry.Prop != null)
@@ -128,6 +136,12 @@ namespace Belay.World
                     IgnorePair(body.Collider, entry.Prop.GetColliders());
                 }
             }
+        }
+
+        /// <summary>A local test bot only exists on this PC, so its body really does knock props around.</summary>
+        private static bool IsLocalBot(RemoteBody body)
+        {
+            return body != null && body.Owner != null && Bot.TestBot.Instance != null && Bot.TestBot.Instance.IsBot(body.Owner.SteamId);
         }
 
         private static void IgnorePair(Collider body, List<Collider> colliders)
