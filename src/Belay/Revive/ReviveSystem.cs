@@ -62,6 +62,7 @@ namespace Belay.Revive
             NetSession net = NetSession.Instance;
             net.On(PacketType.ReviveRequest, HandleReviveRequest);
             net.On(PacketType.Revived, HandleRevived);
+            Run.WinSync.Listen();
             net.On(PacketType.RunOver, (origin, r) =>
             {
                 if (origin == NetSession.Instance.HostId)
@@ -323,6 +324,14 @@ namespace Belay.Revive
             {
                 Plugin.Log.LogWarning("Couldn't start the game-over screen: " + e.Message);
             }
+        }
+
+        /// <summary>A teammate reached the ending: the run is over for everyone, dead or alive.</summary>
+        internal void OnRunWon()
+        {
+            runOver = true;
+            Spectating = false;
+            gameOverCheckAt = -1f;
         }
 
         private void EndRun()
