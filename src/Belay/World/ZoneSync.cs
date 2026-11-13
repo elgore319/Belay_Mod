@@ -93,6 +93,7 @@ namespace Belay.World
 
         private void Update()
         {
+            RetryMissed();
             if (waiting.Count == 0 || !Live)
             {
                 if (!Live) waiting.Clear();
@@ -139,7 +140,7 @@ namespace Belay.World
             zone.onEnter?.Invoke(who != null ? who : zone.transform);
         }
 
-        private void Apply(string id)
+        private bool Apply(string id, bool catchingUp = false)
         {
             foreach (UT_TriggerZone zone in FindObjectsByType<UT_TriggerZone>(FindObjectsSortMode.None))
             {
@@ -150,7 +151,7 @@ namespace Belay.World
                 var hasRun = Traverse.Create(zone).Field("hasRun");
                 if (hasRun.GetValue<bool>())
                 {
-                    return;
+                    return true;
                 }
                 waiting.Remove(zone);
                 // Pass our own player only if we're standing in the zone too; otherwise the zone itself,
@@ -173,9 +174,48 @@ namespace Belay.World
                     Applying = false;
                     ButtonSync.Applying = false;
                 }
+                return true;
+            }
+            if (!catchingUp)
+            {
+                Plugin.Log.LogInfo("Teammate started a room sequence that isn't loaded here (will replay when it loads): " + id);
+                missed[id] = Time.unscaledTime;
+            }
+            return false;
+        }
+
+        /// <summary>Room sequences that started before this level loaded here: replayed once it does.</summary>
+        private readonly Dictionary<string, float> missed = new Dictionary<string, float>();
+        private float nextRetry;
+
+        private void RetryMissed()
+        {
+            if (missed.Count == 0 || Time.unscaledTime < nextRetry)
+            {
                 return;
             }
-            Plugin.Log.LogInfo("Teammate started a room sequence that isn't loaded here: " + id);
+            nextRetry = Time.unscaledTime + 1f;
+            if (NetSession.Instance == null || !NetSession.Instance.InLobby || !CL_GameManager.IsInGame())
+            {
+                missed.Clear();
+                return;
+            }
+            if (!WorldSpace.Ready)
+            {
+                return;
+            }
+            foreach (var pair in new List<KeyValuePair<string, float>>(missed))
+            {
+                if (Time.unscaledTime - pair.Value > 900f)
+                {
+                    missed.Remove(pair.Key);
+                }
+                else if (Apply(pair.Key, catchingUp: true))
+                {
+                    missed.Remove(pair.Key);
+                    Plugin.Log.LogInfo("Caught up on a teammate's earlier room sequence: " + pair.Key);
+                }
+            }
         }
     }
 
