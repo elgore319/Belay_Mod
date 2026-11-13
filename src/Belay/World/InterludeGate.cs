@@ -94,9 +94,10 @@ namespace Belay.World
         private const float ElevatorReach = 8f;
 
         /// <summary>
-        /// Doors and hatches never wait: anyone can open the way on, so a teammate who's behind can still
-        /// catch up. Elevators (and lifts) are where the team waits: they leave only once everyone is aboard.
-        /// Anything else in the room keeps waiting until the whole team is in the room.
+        /// Opening a door or hatch never waits: anyone can open the way on, so a teammate who's behind can
+        /// still catch up. Elevators (and lifts) are where the team waits: they leave only once everyone is
+        /// aboard. Anything that closes or seals a way behind the team, or moves the mass (an interlude's
+        /// lockdown button, for one), waits until every living teammate is in the room, like everything else.
         /// </summary>
         internal static GateKind Classify(Component control, M_Level level, params UnityEngine.Events.UnityEventBase[] events)
         {
@@ -125,6 +126,11 @@ namespace Belay.World
             {
                 kind = GateKind.Elevator;
             }
+            else if (SealsOrMovesMass(all))
+            {
+                // A lockdown sealed the hatch and raised the mass on a teammate still climbing below.
+                kind = GateKind.Room;
+            }
             else if (all.Contains("door") || all.Contains("hatch") || all.Contains("shutter") || all.Contains("airlock"))
             {
                 kind = GateKind.Free;
@@ -136,6 +142,12 @@ namespace Belay.World
             kinds[key] = kind;
             Plugin.Log.LogInfo($"Interlude control {ButtonSync.ObjectId(control)}: {kind} ({all})");
             return kind;
+        }
+
+        private static bool SealsOrMovesMass(string all)
+        {
+            return all.Contains("close") || all.Contains("shut") || all.Contains("seal") || all.Contains("lockdown")
+                || all.Contains("goo") || all.Contains("deathfloor") || all.Contains("death floor");
         }
 
         private static void AddPath(List<string> words, Transform t, M_Level level, int depth)
