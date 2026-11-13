@@ -134,7 +134,46 @@ namespace Belay.World
             NetSession.Instance.Send(PacketType.ButtonPress, w => w.Write(id));
         }
 
-        private static void ApplyPress(string id)
+        /// <summary>
+        /// Presses on levels that weren't loaded here yet (you were further down, or dead and spectating):
+        /// they're replayed as soon as that level loads, so the room is in the same state for you when you
+        /// get there (an interlude's lockdown, for one, used to never happen on your PC).
+        /// </summary>
+        private static readonly System.Collections.Generic.Dictionary<string, float> missed = new System.Collections.Generic.Dictionary<string, float>();
+        private float nextRetry;
+        private const float MissedKeepSeconds = 900f;
+
+        private void Update()
+        {
+            if (missed.Count == 0 || Time.unscaledTime < nextRetry)
+            {
+                return;
+            }
+            nextRetry = Time.unscaledTime + 1f;
+            if (NetSession.Instance == null || !NetSession.Instance.InLobby || !CL_GameManager.IsInGame())
+            {
+                missed.Clear();
+                return;
+            }
+            if (!WorldSpace.Ready)
+            {
+                return;
+            }
+            foreach (var pair in new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, float>>(missed))
+            {
+                if (Time.unscaledTime - pair.Value > MissedKeepSeconds)
+                {
+                    missed.Remove(pair.Key);
+                }
+                else if (ApplyPress(pair.Key, catchingUp: true))
+                {
+                    missed.Remove(pair.Key);
+                    Plugin.Log.LogInfo("Caught up on a teammate's earlier press: " + pair.Key);
+                }
+            }
+        }
+
+        private static bool ApplyPress(string id, bool catchingUp = false)
         {
             foreach (CL_Button button in FindObjectsByType<CL_Button>(FindObjectsSortMode.None))
             {
@@ -167,9 +206,14 @@ namespace Belay.World
                 {
                     Applying = false;
                 }
-                return;
+                return true;
             }
-            Plugin.Log.LogInfo("Teammate pressed a button that isn't loaded here: " + id);
+            if (!catchingUp)
+            {
+                Plugin.Log.LogInfo("Teammate pressed a button that isn't loaded here (will replay when it loads): " + id);
+                missed[id] = Time.unscaledTime;
+            }
+            return false;
         }
 
         /// <summary>Same scheme as doors: level name, the level's shared height, then the sibling path inside it.</summary>
