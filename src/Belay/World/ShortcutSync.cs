@@ -773,11 +773,6 @@ namespace Belay.World
             {
                 HostCheck();
             }
-            if (showVote && !myVoteSent)
-            {
-                if (Input.GetKeyDown(Plugin.VoteYesKey.Value)) SendVote(true);
-                else if (Input.GetKeyDown(Plugin.VoteNoKey.Value)) SendVote(false);
-            }
             if (showVote && Time.unscaledTime > shownEnds + 5f)
             {
                 showVote = false; // the host went quiet
@@ -786,34 +781,7 @@ namespace Belay.World
             RetryNotLoaded();
         }
 
-        private void OnGUI()
-        {
-            if (!showVote)
-            {
-                return;
-            }
-            GUI.depth = -1000; // above other on-screen text
-            float left = Mathf.Max(0f, shownEnds - Time.unscaledTime);
-            string line1 = shownTitle;
-            string line2 = myVoteSent
-                ? $"Shortcut {shownYes}   Normal {shownNo}   of {shownVoters}   ({Mathf.CeilToInt(left)}s)"
-                : $"[{Plugin.VoteYesKey.Value}] Shortcut   [{Plugin.VoteNoKey.Value}] Normal path      Shortcut {shownYes}   Normal {shownNo}   of {shownVoters}   ({Mathf.CeilToInt(left)}s)";
-            // Big and high-contrast so it reads over a terminal screen too.
-            float w = Mathf.Min(Screen.width - 40f, 900f);
-            var rect = new Rect((Screen.width - w) / 2f, Screen.height * 0.12f, w, 96f);
-            GUI.color = new Color(0f, 0f, 0f, 0.85f);
-            GUI.DrawTexture(rect, Texture2D.whiteTexture);
-            GUI.color = new Color(1f, 0.8f, 0.2f, 1f);
-            GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width, 3f), Texture2D.whiteTexture);
-            GUI.DrawTexture(new Rect(rect.x, rect.yMax - 3f, rect.width, 3f), Texture2D.whiteTexture);
-            GUI.color = Color.white;
-            var title = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 22, fontStyle = FontStyle.Bold, wordWrap = true };
-            title.normal.textColor = new Color(1f, 0.85f, 0.3f);
-            var body = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 18 };
-            body.normal.textColor = Color.white;
-            GUI.Label(new Rect(rect.x + 10f, rect.y + 8f, rect.width - 20f, 40f), line1, title);
-            GUI.Label(new Rect(rect.x + 10f, rect.y + 52f, rect.width - 20f, 34f), line2, body);
-        }
+        // No on-screen vote overlay: voting only happens at the SHORTCUT VOTE terminal.
 
         internal static int Seed(string id)
         {

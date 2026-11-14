@@ -520,8 +520,6 @@ namespace Belay.UI
             DrawKeyBinding("Open Belay menu", Plugin.MenuKey);
             DrawKeyBinding("Next spectated player", Plugin.SpectateNextKey);
             DrawKeyBinding("Pull teammate up (rope)", Plugin.RopePullKey);
-            DrawKeyBinding("Vote: take the shortcut", Plugin.VoteYesKey);
-            DrawKeyBinding("Vote: normal path", Plugin.VoteNoKey);
             GUILayout.Space(6);
             Plugin.ShowRope.Value = GUILayout.Toggle(Plugin.ShowRope.Value, "Show rope");
             GUILayout.Label($"Network updates per second: {Plugin.SendRate.Value}");
