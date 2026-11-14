@@ -95,6 +95,7 @@ namespace Belay.Players
             }
             Rigidbody rb = c.attachedRigidbody;
             skip = c.GetComponentInParent<RemoteBody>() != null
+                || c.GetComponent<Rope.RopeHold>() != null
                 || rb != null && !rb.isKinematic
                 || c is CharacterController
                 || ENT_Player.playerObject != null && c.transform.IsChildOf(ENT_Player.playerObject.transform);

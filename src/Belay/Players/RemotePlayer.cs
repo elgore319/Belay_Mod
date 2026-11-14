@@ -32,6 +32,9 @@ namespace Belay.Players
         public Vector3 LocalPosition => transform.position;
         public bool IsHanging => Latest.LeftHanging || Latest.RightHanging;
 
+        /// <summary>Where a hand is drawn on this PC (0 = left, 1 = right).</summary>
+        public Vector3 HandPosition(int index) => index == 0 ? leftHand : rightHand;
+
         /// <summary>Where a rope to this player should attach: their harness.</summary>
         public Vector3 RopeAnchor => avatar != null && hasState ? avatar.RopeAnchor : transform.position + Vector3.down * 0.4f;
 
