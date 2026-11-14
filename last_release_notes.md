@@ -1,5 +1,5 @@
-## Belay 0.6.28
+## Belay 0.6.29
 
-- **The Face hunts the whole team.** Like Teeth before 0.6.27, it only ever went after the host. It now goes after the nearest living player.
+- **The Ascent elevator no longer flings people.** With more than one person aboard, standing next to a teammate made the game think you had stepped off the elevator, so it kept letting go of you and throwing you with the elevator's speed. Riding a moving floor now looks past teammates' bodies, so everyone stays on.
 
 Everyone in the lobby should update.
