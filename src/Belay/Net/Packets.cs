@@ -42,6 +42,7 @@ namespace Belay.Net
         EnemyStates = 72,
         ProgressProfile = 80,
         PlayerAction = 85,
+        PlayerDied = 86,
         RunWon = 90,
     }
 

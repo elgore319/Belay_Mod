@@ -708,6 +708,7 @@ namespace Belay.Revive
             }
             __instance.localPlayer.KillEffects(type);
             ReviveSystem.Instance.OnLocalDeath(type);
+            UI.DeathFeed.LocalDied(type);
             return false;
         }
     }
