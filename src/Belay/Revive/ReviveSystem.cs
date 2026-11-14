@@ -79,6 +79,7 @@ namespace Belay.Revive
             Prompt = null;
             if (!Active)
             {
+                pendingRevive = false;
                 Spectating = false;
                 runOver = false;
                 allDeadSince = -1f;
@@ -99,6 +100,12 @@ namespace Belay.Revive
                     spectateIndex++;
                 }
                 Prompt = "You died. A teammate can revive you at a save terminal, or by using a disk.  [" + Plugin.SpectateNextKey.Value + "] next player";
+            }
+
+            if (pendingRevive && Time.unscaledTime >= nextPendingTry)
+            {
+                nextPendingTry = Time.unscaledTime + 0.5f;
+                TryFinishRevive();
             }
 
             CheckRunOver();
@@ -531,17 +538,86 @@ namespace Belay.Revive
             {
                 return;
             }
+            // The revive spot may be somewhere this PC hasn't built yet (a teammate rode the Hadal diver or
+            // took a shortcut while you were dead): getting up there meant falling through nothing. Stay
+            // down until the ground there exists, then get up.
+            pendingRevive = true;
+            pendingSpawn = sharedSpawn;
+            pendingReviver = reviver;
+            pendingSince = Time.unscaledTime;
+            TryFinishRevive();
+        }
+
+        private bool pendingRevive;
+        private Vector3 pendingSpawn;
+        private SteamId pendingReviver;
+        private float pendingSince;
+        private float nextPendingTry;
+
+        /// <summary>How long a revive waits for the ground at its spot before it goes ahead anyway.</summary>
+        private const float ReviveWaitLimit = 45f;
+
+        private void TryFinishRevive()
+        {
+            if (!pendingRevive || !WorldSpace.Ready)
+            {
+                return;
+            }
             ENT_Player player = ENT_Player.playerObject;
+            if (player == null)
+            {
+                return;
+            }
+            if (!player.dead)
+            {
+                pendingRevive = false; // revived some other way meanwhile
+                return;
+            }
+            Vector3 spot = WorldSpace.ToLocal(pendingSpawn);
+            bool waitedTooLong = Time.unscaledTime - pendingSince > ReviveWaitLimit;
+            if (!GroundReady(spot) && !waitedTooLong)
+            {
+                EnsureLevelAt(spot);
+                return;
+            }
+            if (waitedTooLong && !GroundReady(spot))
+            {
+                Plugin.Log.LogWarning("The revive spot still isn't built here; getting up there anyway");
+            }
+            pendingRevive = false;
             Spectating = false;
             player.Revive();
             player.GetTagger()?.RemoveTag("Dead");
             World.TeethSync.CleanUpAfterRevive(player);
-            Vector3 spot = WorldSpace.ToLocal(sharedSpawn);
             EnsureLevelAt(spot);
             player.Teleport(spot);
             player.ResetFallingHeight();
-            player.AddIgnoreFallDamageTime(3f);
-            RunFlowNotice(NetSession.NameOf(reviver) + " revived you");
+            player.AddIgnoreFallDamageTime(5f);
+            RunFlowNotice(NetSession.NameOf(pendingReviver) + " revived you");
+        }
+
+        /// <summary>A built, switched-on level holds the spot and there's solid ground under it.</summary>
+        private static bool GroundReady(Vector3 spot)
+        {
+            M_Level level = World.WorldCatchUp.LevelAt(spot);
+            if (level == null)
+            {
+                return false;
+            }
+            if (!level.gameObject.activeInHierarchy)
+            {
+                EnsureLevelAt(spot);
+                return false;
+            }
+            foreach (RaycastHit hit in Physics.RaycastAll(spot + Vector3.up * 1f, Vector3.down, 30f, ~0, QueryTriggerInteraction.Ignore))
+            {
+                // The reviver is standing right there: their body isn't ground.
+                if (hit.collider != null && hit.collider.GetComponentInParent<RemoteBody>() == null)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private static float lastNoLevelWarning = -100f;
