@@ -311,7 +311,7 @@ namespace Belay.World
             }
             if (index >= ids.Count)
             {
-                Show(os, "SHORTCUT VOTE\n\nVote sent. The result shows at the top of everyone's screen.", "OK", null, null, null);
+                Show(os, "SHORTCUT VOTE\n\nVote sent.", "OK", null, null, null);
                 return;
             }
             string id = ids[index];
@@ -343,7 +343,7 @@ namespace Belay.World
             catch (System.Exception e)
             {
                 Plugin.Log.LogWarning("Couldn't show the vote on the terminal: " + e.Message);
-                Run.RunFlow.Instance?.ShowNotice("Couldn't show the vote on this terminal. Use the vote keys instead.", 5f);
+                
             }
         }
 
