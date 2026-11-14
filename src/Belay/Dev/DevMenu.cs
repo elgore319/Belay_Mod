@@ -37,6 +37,42 @@ namespace Belay.Dev
                 player.noclip = true;
             }
             TilesetPicker.Tick();
+            TickPendingTeleport(player);
+        }
+
+        private static void TickPendingTeleport(ENT_Player player)
+        {
+            if (pendingTarget == null)
+            {
+                return;
+            }
+            if (player == null || player.dead || !CL_GameManager.IsInGame())
+            {
+                pendingTarget = null;
+                return;
+            }
+            Vector3 target = pendingTarget();
+            if (World.WorldCatchUp.LevelAt(target) != null || Time.unscaledTime > pendingUntil)
+            {
+                System.Func<Vector3> done = pendingTarget;
+                pendingTarget = null;
+                Teleport(player, done(), pendingWhat, force: true);
+                return;
+            }
+            if (Time.unscaledTime < pendingNextStep)
+            {
+                return;
+            }
+            pendingNextStep = Time.unscaledTime + 0.5f;
+            // The game only builds on ahead of the level you're in, so wait at the top of what's built.
+            Vector3? spot = World.WorldCatchUp.TopSpot();
+            if (spot.HasValue && (player.transform.position - spot.Value).sqrMagnitude > 4f)
+            {
+                player.Teleport(spot.Value);
+                player.ResetFallingHeight();
+                player.AddIgnoreFallDamageTime(5f);
+            }
+            World.WorldCatchUp.Nudge(target);
         }
 
         public static void DrawTeleportPage()
@@ -168,7 +204,9 @@ namespace Belay.Dev
                 GUI.enabled = !dead;
                 if (GUILayout.Button("Go", GUILayout.Width(50)))
                 {
-                    Teleport(player, remote.LocalPosition + Vector3.up * 0.5f, "Teleported to " + remote.DisplayName);
+                    RemotePlayer who = remote;
+                    Teleport(player, remote.LocalPosition + Vector3.up * 0.5f, "Teleported to " + remote.DisplayName,
+                        () => who != null ? who.LocalPosition + Vector3.up * 0.5f : player.transform.position);
                 }
                 GUI.enabled = true;
                 GUILayout.EndHorizontal();
@@ -197,8 +235,26 @@ namespace Belay.Dev
             Teleport(player, target, $"Teleported {Vector3.Distance(player.transform.position, target):0} m");
         }
 
-        private static void Teleport(ENT_Player player, Vector3 target, string what)
+        // A teleport to somewhere the map isn't built yet waits at the top of the map while it builds.
+        private static System.Func<Vector3> pendingTarget;
+        private static string pendingWhat;
+        private static float pendingUntil;
+        private static float pendingNextStep;
+
+        private static void Teleport(ENT_Player player, Vector3 target, string what, System.Func<Vector3> follow = null, bool force = false)
         {
+            M_Level top = World.WorldCatchUp.TopLevel();
+            if (!force && World.WorldCatchUp.LevelAt(target) == null && top != null && target.y > World.WorldCatchUp.TopOf(top))
+            {
+                pendingTarget = follow ?? (() => target);
+                pendingWhat = what;
+                pendingUntil = Time.unscaledTime + 30f;
+                pendingNextStep = 0f;
+                lastAction = "Building the map up to there...";
+                Plugin.Log.LogInfo("[Dev] Building the map on before teleporting: " + what);
+                return;
+            }
+            pendingTarget = null;
             player.Teleport(target);
             player.ResetFallingHeight();
             player.AddIgnoreFallDamageTime(5f);

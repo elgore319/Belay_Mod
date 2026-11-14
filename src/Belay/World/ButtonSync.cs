@@ -225,7 +225,10 @@ namespace Belay.World
             var path = new StringBuilder();
             for (Transform cursor = t; cursor != null && cursor != root; cursor = cursor.parent)
             {
-                path.Insert(0, "/" + cursor.GetSiblingIndex() + cursor.name);
+                // A scene-root object's place among the roots differs per PC (things unparent themselves
+                // at different times, like the Hadal diver), so roots go by name only.
+                bool sceneRoot = root == null && cursor.parent == null;
+                path.Insert(0, "/" + (sceneRoot ? "" : cursor.GetSiblingIndex().ToString()) + cursor.name);
             }
             if (root == null)
             {
