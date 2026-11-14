@@ -671,7 +671,39 @@ namespace Belay.World
                 Plugin.Log.LogInfo("Shortcut opened for the team: " + id);
                 return;
             }
-            Plugin.Log.LogWarning("The team opened a shortcut that isn't loaded here: " + id);
+            if (!notLoadedYet.ContainsKey(id))
+            {
+                Plugin.Log.LogWarning("The team opened a shortcut that isn't loaded here yet (opens when it loads): " + id);
+            }
+            notLoadedYet[id] = starter;
+        }
+
+        /// <summary>Shortcuts the team opened before this PC had built that part of the map.</summary>
+        private static readonly Dictionary<string, string> notLoadedYet = new Dictionary<string, string>();
+        private float nextNotLoadedTry;
+
+        private void RetryNotLoaded()
+        {
+            if (notLoadedYet.Count == 0 || Time.unscaledTime < nextNotLoadedTry)
+            {
+                return;
+            }
+            nextNotLoadedTry = Time.unscaledTime + 2f;
+            foreach (var pair in new List<KeyValuePair<string, string>>(notLoadedYet))
+            {
+                if (Opened.Contains(pair.Key))
+                {
+                    notLoadedYet.Remove(pair.Key);
+                    continue;
+                }
+                generatorCache.Remove(pair.Key);
+                if (FindGenerator(pair.Key) != null)
+                {
+                    notLoadedYet.Remove(pair.Key);
+                    Plugin.Log.LogInfo("Caught up on a shortcut the team opened: " + pair.Key);
+                    Open(pair.Key, pair.Value);
+                }
+            }
         }
 
         private void SendVote(bool inFavour)
@@ -730,6 +762,7 @@ namespace Belay.World
                 ShortcutDoors.Clear();
                 Approved.Clear();
                 normalBlocked.Clear();
+                notLoadedYet.Clear();
                 wantsOpen.Clear();
                 queue.Clear();
                 earlyVotes.Clear();
@@ -750,6 +783,7 @@ namespace Belay.World
                 showVote = false; // the host went quiet
             }
             KeepOffNormalPath();
+            RetryNotLoaded();
         }
 
         private void OnGUI()

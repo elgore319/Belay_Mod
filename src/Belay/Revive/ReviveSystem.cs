@@ -535,6 +535,7 @@ namespace Belay.Revive
             Spectating = false;
             player.Revive();
             player.GetTagger()?.RemoveTag("Dead");
+            World.TeethSync.CleanUpAfterRevive(player);
             Vector3 spot = WorldSpace.ToLocal(sharedSpawn);
             EnsureLevelAt(spot);
             player.Teleport(spot);
@@ -543,6 +544,8 @@ namespace Belay.Revive
             RunFlowNotice(NetSession.NameOf(reviver) + " revived you");
         }
 
+        private static float lastNoLevelWarning = -100f;
+
         /// <summary>
         /// Make the level at this spot the active one (switching map branch if needed) so its terrain
         /// is loaded before we put someone there. While dead, the game stopped tracking where you are,
@@ -550,25 +553,17 @@ namespace Belay.Revive
         /// </summary>
         internal static void EnsureLevelAt(Vector3 worldPos)
         {
-            M_Level best = null;
-            float bestDist = float.MaxValue;
-            foreach (M_Level level in FindObjectsByType<M_Level>(FindObjectsInactive.Include, FindObjectsSortMode.None))
-            {
-                if (level == null) continue;
-                Vector3 local = level.transform.worldToLocalMatrix.MultiplyPoint(worldPos);
-                Bounds b = level.GetLocalBounds();
-                b.Expand(4f);
-                if (!b.Contains(local)) continue;
-                float d = (b.center - local).sqrMagnitude;
-                if (d < bestDist)
-                {
-                    bestDist = d;
-                    best = level;
-                }
-            }
+            M_Level best = World.WorldCatchUp.LevelAt(worldPos);
             if (best == null)
             {
-                Plugin.Log.LogWarning("No level found at the revive spot");
+                // Not built here yet (the teammate walked past a spot that holds the building back):
+                // build on until it is.
+                World.WorldCatchUp.Nudge(worldPos);
+                if (Time.unscaledTime - lastNoLevelWarning > 30f)
+                {
+                    lastNoLevelWarning = Time.unscaledTime;
+                    Plugin.Log.LogWarning("No level built at the revive spot yet, building on");
+                }
                 return;
             }
             try
