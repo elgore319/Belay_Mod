@@ -8,7 +8,7 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Teeth (the thing that hunts the team up the Habitation shaft) is one creature that the host runs and
+    /// Teeth (the thing that hunts the team up the Habitation shaft) and the Face are creatures that the host runs and
     /// the other PCs copy (EnemyMotion). The game points it at the local player once, when it spawns, so in
     /// co-op it only ever went after the host, and kept "chasing" the host's body after the host died.
     /// On the host it now goes after the nearest living player. Each PC's copy still does the biting, so
@@ -34,25 +34,52 @@ namespace Belay.World
                 return;
             }
             nextRetarget = Time.unscaledTime + RetargetEvery;
-            DEN_Teeth teeth = DEN_Teeth.instance;
-            if (teeth == null || teeth.dead)
-            {
-                return;
-            }
             try
             {
-                Retarget(teeth);
+                DEN_Teeth teeth = DEN_Teeth.instance;
+                if (teeth != null && !teeth.dead)
+                {
+                    Transform pick = Nearest(teeth.transform.position, teeth.target);
+                    if (pick != null && pick != teeth.target)
+                    {
+                        teeth.target = pick;
+                        Plugin.Log.LogInfo("Teeth is after " + Who(pick));
+                    }
+                }
+                // The Face (the long creature in the walls) is pointed at the local player the same way.
+                if (DEN_Face.faceInstances != null)
+                {
+                    foreach (DEN_Face face in DEN_Face.faceInstances)
+                    {
+                        if (face == null || face.dead)
+                        {
+                            continue;
+                        }
+                        Transform pick = Nearest(face.transform.position, face.target);
+                        if (pick != null && pick != face.target)
+                        {
+                            face.SetTarget(pick);
+                            Plugin.Log.LogInfo("The Face is after " + Who(pick));
+                        }
+                    }
+                }
             }
             catch (System.Exception e)
             {
-                Plugin.Log.LogWarning("Couldn't point Teeth at the team: " + e.Message);
+                Plugin.Log.LogWarning("Couldn't point a hunter at the team: " + e.Message);
                 nextRetarget = Time.unscaledTime + 10f;
             }
         }
 
-        private static void Retarget(DEN_Teeth teeth)
+        private static string Who(Transform t)
         {
-            Vector3 at = teeth.transform.position;
+            ENT_Player me = ENT_Player.playerObject;
+            return me != null && t == me.transform ? "you" : t.GetComponent<RemoteBody>()?.Owner?.DisplayName ?? "a teammate";
+        }
+
+        /// <summary>The nearest living player (you or a teammate), sticking with the current one unless another is clearly closer.</summary>
+        private static Transform Nearest(Vector3 at, Transform current)
+        {
             var candidates = new List<Transform>();
             ENT_Player me = ENT_Player.playerObject;
             if (me != null && !me.dead)
@@ -69,13 +96,11 @@ namespace Belay.World
             }
             if (candidates.Count == 0)
             {
-                return;
+                return null;
             }
-            Transform current = teeth.target;
             bool currentValid = current != null && candidates.Contains(current);
-            float currentDist = currentValid ? Vector3.Distance(at, current.position) : float.MaxValue;
             Transform best = currentValid ? current : null;
-            float bestDist = currentValid ? currentDist - SwitchMargin : float.MaxValue;
+            float bestDist = currentValid ? Vector3.Distance(at, current.position) - SwitchMargin : float.MaxValue;
             foreach (Transform t in candidates)
             {
                 float d = Vector3.Distance(at, t.position);
@@ -85,11 +110,7 @@ namespace Belay.World
                     best = t;
                 }
             }
-            if (best != null && best != current)
-            {
-                teeth.target = best;
-                Plugin.Log.LogInfo("Teeth is after " + (me != null && best == me.transform ? "you" : best.GetComponent<RemoteBody>()?.Owner?.DisplayName ?? "a teammate"));
-            }
+            return best;
         }
 
         /// <summary>
