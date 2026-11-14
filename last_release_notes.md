@@ -1,6 +1,5 @@
-## Belay 0.6.32
+## Belay 0.6.33
 
-- **Revive at terminals without a save program.** Some terminals, like the one at the Pipeworks shortcut, have no save program, so there was nowhere to revive a downed teammate. In co-op, sitting at one of those while a teammate is down now offers the revive (same roach cost, paid by you).
-- **No more vote overlay.** Shortcut votes no longer pop up on everyone's screen, and the F1/F2 vote keys are gone. Voting only happens at the SHORTCUT VOTE terminal.
+- **Death messages.** When anyone in the lobby dies, everyone sees who it was and how they died near the top of the screen, using the game's own death lines (for example "EATEN ALIVE" or "FUSED INTO THE MASS"). They fade out after a few seconds. Bot deaths show the same way.
 
 Everyone in the lobby should update.

@@ -259,7 +259,7 @@ namespace Belay.Bot
         /// Something other than a teammate hurt this bot (an enemy, a trap, a projectile). Bots have their
         /// own health and die like a player, then wait for a revive.
         /// </summary>
-        public bool Hurt(SteamId id, float amount, string what)
+        public bool Hurt(SteamId id, float amount, string what, string deathType = null)
         {
             BotPlayer bot = Bots.Find(b => b.Id == id);
             if (bot == null || bot.Dead || amount <= 0f)
@@ -270,20 +270,20 @@ namespace Belay.Bot
             Plugin.Log.LogInfo($"{bot.Name} took {amount:F1} damage from {what} ({Mathf.Max(0f, bot.Health):F1} left)");
             if (bot.Health <= 0f)
             {
-                Kill(bot);
+                Kill(bot, deathType);
             }
             return true;
         }
 
         public bool IsBot(SteamId id) => Bots.Exists(b => b.Id == id);
 
-        public void Kill(BotPlayer bot)
+        public void Kill(BotPlayer bot, string deathType = null)
         {
             if (!bot.Dead)
             {
                 bot.Dead = true;
                 bot.State.Dead = true;
-                Run.RunFlow.Instance?.ShowNotice(bot.Name + " died");
+                UI.DeathFeed.Instance?.Show(bot.Id, deathType);
                 Push(bot);
             }
         }
@@ -655,7 +655,7 @@ namespace Belay.Bot
             float gooY = WorldSpace.ToShared(((Component)goo).transform.position).y;
             if (bot.State.Position.y < gooY)
             {
-                Kill(bot);
+                Kill(bot, "deathfloor");
             }
         }
 
@@ -689,7 +689,7 @@ namespace Belay.Bot
                 if (death != null && death.isActiveAndEnabled && HitsPlayers(death.triggerTags))
                 {
                     Plugin.Log.LogInfo($"{bot.Name} hit an instant-death zone ({col.name})");
-                    Kill(bot);
+                    Kill(bot, death.type);
                     bot.Hazards.Clear();
                     return;
                 }
