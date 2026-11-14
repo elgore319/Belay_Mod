@@ -80,6 +80,12 @@ namespace Belay.Players
             }
         }
 
+        /// <summary>Shows an item action (a hammer swing, setting a piton...) on this teammate's arm.</summary>
+        public void PlayAction(int hand, PlayerAction action)
+        {
+            avatar?.PlayAction(hand, action);
+        }
+
         /// <summary>
         /// Where the body should be on this PC. A teammate riding an elevator is placed on our own copy of
         /// it, so they stand on its floor here even if it's a little ahead or behind theirs.

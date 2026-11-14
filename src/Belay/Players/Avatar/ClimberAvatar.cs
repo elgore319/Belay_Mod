@@ -85,6 +85,21 @@ namespace Belay.Players.Avatar
         private float crouchAmount;
         private Vector3 wallPush;
         private float frontWall = 1f;
+        private readonly PlayerAction[] actions = new PlayerAction[2];
+        private readonly float[] actionStart = new float[2];
+        private readonly ActionAnimations.Sample[] actionPose = new ActionAnimations.Sample[2];
+        private readonly string[] actionItem = new string[2];
+
+        /// <summary>Plays an item action (a hammer swing, setting a piton...) on one arm.</summary>
+        public void PlayAction(int hand, PlayerAction action)
+        {
+            if (hand < 0 || hand > 1)
+            {
+                return;
+            }
+            actions[hand] = action;
+            actionStart[hand] = Time.unscaledTime;
+        }
 
         /// <summary>Where the rope clips in: the harness belay loop.</summary>
         public Vector3 RopeAnchor { get; private set; }
@@ -152,6 +167,30 @@ namespace Belay.Players.Avatar
             bool crouched = false)
         {
             bool hanging = leftGrip || rightGrip;
+            float actionLean = 0f;
+            for (int i = 0; i < 2; i++)
+            {
+                // Putting the item away (or swapping it) ends a charge; a toss plays out after the item has left.
+                string item = i == 0 ? leftItem : rightItem;
+                if (item != actionItem[i])
+                {
+                    actionItem[i] = item;
+                    if (actions[i] == PlayerAction.Charge)
+                    {
+                        actions[i] = PlayerAction.None;
+                    }
+                }
+                bool busy = inventoryOpen || (i == 0 ? leftGrip : rightGrip);
+                float elapsed = Time.unscaledTime - actionStart[i];
+                if (busy || !ActionAnimations.Playing(actions[i], elapsed))
+                {
+                    actions[i] = PlayerAction.None;
+                    actionPose[i] = default;
+                    continue;
+                }
+                actionPose[i] = ActionAnimations.Evaluate(actions[i], elapsed);
+                actionLean += actionPose[i].Lean * actionPose[i].Weight;
+            }
             Vector3 flat = new Vector3(velocity.x, 0, velocity.z);
             float speed = flat.magnitude;
             bool airborne = !hanging && Mathf.Abs(velocity.y) > 2.5f;
@@ -224,7 +263,8 @@ namespace Belay.Players.Avatar
             {
                 lean -= 10f;
             }
-            Quaternion torsoTarget = yawRotation * Quaternion.Euler(Mathf.Clamp(lean, -20f, 20f) + 60f * c, 0, roll);
+            lean += Mathf.Clamp(actionLean, -10f, 16f);
+            Quaternion torsoTarget = yawRotation * Quaternion.Euler(Mathf.Clamp(lean, -20f, 24f) + 60f * c, 0, roll);
             torsoRotation = posed ? Quaternion.Slerp(torsoRotation, torsoTarget, follow) : torsoTarget;
 
             Vector3 pelvis = position + Vector3.up * (AvatarDesign.PelvisHeight * Scale - FeetDrop + bob - 0.5f * c)
@@ -484,6 +524,19 @@ namespace Belay.Players.Avatar
             }
             hand = Vector3.Lerp(restHand, hand, reachBlend[index]);
 
+            // An item action (swing, piton, toss...) takes the hand along its motion, aimed where the player looks.
+            ActionAnimations.Sample action = actionPose[index];
+            float wristBend = 0f;
+            if (action.Weight > 0f && !grip && !holdingPack)
+            {
+                Quaternion aim = Quaternion.Slerp(Quaternion.Euler(0f, look.eulerAngles.y, 0f), look, 0.6f);
+                Vector3 offset = aim * (new Vector3(side * action.Hand.x, action.Hand.y, action.Hand.z) * Scale);
+                Vector3 mouth = eye + Vector3.up * -0.1f;
+                Vector3 actionHand = (action.AtMouth ? mouth : shoulder) + offset;
+                hand = Vector3.Lerp(hand, actionHand, action.Weight);
+                wristBend = action.Wrist * action.Weight;
+            }
+
             Vector3 toHand = hand - shoulder;
             Vector3 dir = toHand.sqrMagnitude > 1e-6f ? toHand.normalized : torsoRotation * Vector3.forward;
             // The synced point is where the palm closes on the hold; the wrist sits just behind it.
@@ -497,6 +550,16 @@ namespace Belay.Players.Avatar
             Vector3 forearmDir = elbowToWrist.sqrMagnitude > 1e-6f ? elbowToWrist.normalized : dir;
             Vector3 back = Vector3.Lerp(up, -(torsoRotation * Vector3.forward), Mathf.Abs(Vector3.Dot(forearmDir, up)));
             Quaternion handRotation = SafeLook(forearmDir, back);
+            if (action.Weight > 0f && action.ThumbUp && !grip && !holdingPack)
+            {
+                // Hammer grip: roll the thumb (the side the item's handle comes out of) up, then bend
+                // the wrist sideways so the head swings through the strike.
+                handRotation *= Quaternion.Euler(0f, 0f, -side * 90f * action.Weight) * Quaternion.Euler(0f, side * wristBend, 0f);
+            }
+            else if (wristBend != 0f)
+            {
+                handRotation *= Quaternion.Euler(wristBend, 0f, 0f);
+            }
             // A hand holding an item is a closed fist around it, even when it isn't on a hold.
             Transform shown = grip || holdsItem ? fist : open;
             Transform hidden = grip || holdsItem ? open : fist;

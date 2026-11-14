@@ -36,6 +36,7 @@ namespace Belay.Players
             NetSession.Instance.OnPlayerState += HandleState;
             NetSession.Instance.OnPlayerLeft += RemoveRemote;
             NetSession.Instance.OnLobbyChanged += PruneRemotes;
+            ActionSync.Register();
         }
 
         private void Update()
