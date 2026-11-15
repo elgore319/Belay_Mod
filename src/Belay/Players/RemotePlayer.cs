@@ -18,6 +18,15 @@ namespace Belay.Players
         public PlayerState Latest;
         public float LastReceived;
 
+        /// <summary>
+        /// How long a silent teammate still counts as part of the run. Loading a level can freeze a PC for
+        /// several seconds, and players who really leave are removed when Steam says so.
+        /// </summary>
+        public const float PresenceTimeout = 15f;
+
+        /// <summary>Heard from recently enough to hold doors, the elevator, the mass and the run for.</summary>
+        public bool Present => Time.unscaledTime - LastReceived <= PresenceTimeout;
+
         private ClimberAvatar avatar;
         private Vector3 leftHand;
         private Vector3 rightHand;

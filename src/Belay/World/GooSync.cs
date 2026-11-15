@@ -14,6 +14,13 @@ namespace Belay.World
     {
         private const float SendInterval = 0.25f;
 
+        /// <summary>
+        /// Faster than this (m/s) between two updates is a scripted jump or a teleport, not climbing.
+        /// Clients don't extrapolate those: running a 50 m jump forward for another second put their mass
+        /// far above the host's, on top of the lowest climber.
+        /// </summary>
+        private const float MaxStreamedSpeed = 40f;
+
         public static GooSync Instance { get; private set; }
 
         private float sendTimer;
@@ -31,8 +38,9 @@ namespace Belay.World
         private float diagStartY = float.NaN;
         private float diagDistanceSum;
         private int diagFrames;
+        private float diagPace = 1f;
 
-        public void NoteHostFrame(float gooY, float lowestDistance)
+        public void NoteHostFrame(float gooY, float lowestDistance, float pace)
         {
             float shared = WorldSpace.ToShared(new Vector3(0f, gooY, 0f)).y;
             if (float.IsNaN(diagStartY))
@@ -40,6 +48,7 @@ namespace Belay.World
                 diagStartY = shared;
             }
             diagDistanceSum += lowestDistance;
+            diagPace = pace;
             diagFrames++;
             diagTimer -= Time.deltaTime;
             if (diagTimer > 0f)
@@ -50,7 +59,7 @@ namespace Belay.World
             DEN_DeathFloor goo = DEN_DeathFloor.instance;
             Plugin.Log.LogInfo($"[Mass] climbed {(shared - diagStartY) / span:F2} m/s over {span:F0}s, "
                 + $"lowest climber {diagDistanceSum / Mathf.Max(diagFrames, 1):F1} m above it on average, "
-                + $"base speed {(goo != null ? goo.GetCurrentSpeed() : 0f):F2}, active {(goo != null && goo.IsActive())}");
+                + $"base speed {(goo != null ? goo.GetCurrentSpeed() : 0f):F2}, active {(goo != null && goo.IsActive())}, level pace x{diagPace:F2}");
             diagTimer = 15f;
             diagStartY = shared;
             diagDistanceSum = 0f;
@@ -87,6 +96,10 @@ namespace Belay.World
             if (!float.IsNaN(lastHeight) && Time.time > lastHeightTime)
             {
                 velocity = (height - lastHeight) / (Time.time - lastHeightTime);
+                if (Mathf.Abs(velocity) > MaxStreamedSpeed)
+                {
+                    velocity = 0f;
+                }
             }
             lastHeight = height;
             lastHeightTime = Time.time;
@@ -116,7 +129,7 @@ namespace Belay.World
             {
                 return null;
             }
-            float shared = hostHeight + hostVelocity * Mathf.Min(Time.time - hostStateTime, 1f);
+            float shared = hostHeight + hostVelocity * Mathf.Min(Time.time - hostStateTime, 0.5f);
             return WorldSpace.ToLocal(new Vector3(0f, shared, 0f)).y;
         }
 
@@ -126,18 +139,67 @@ namespace Belay.World
         /// </summary>
         public static float LowestPlayerHeight()
         {
+            return LowestPlayerPosition().y;
+        }
+
+        /// <summary>Host: the lowest living player's position, local space (see <see cref="LowestPlayerHeight"/>).</summary>
+        public static Vector3 LowestPlayerPosition()
+        {
             float gooY = DEN_DeathFloor.instance != null ? ((Component)DEN_DeathFloor.instance).transform.position.y : float.MinValue;
-            float own = ENT_Player.playerObject.transform.position.y;
-            float lowest = ENT_Player.playerObject.dead || own < gooY - 1f ? float.MaxValue : own;
+            Vector3 own = ENT_Player.playerObject.transform.position;
+            bool found = !(ENT_Player.playerObject.dead || own.y < gooY - 1f);
+            Vector3 lowest = own;
             foreach (RemotePlayer remote in PlayerSync.Instance.Remotes.Values)
             {
-                if (remote != null && !remote.Latest.Dead && Time.unscaledTime - remote.LastReceived < 2f
-                    && remote.LocalPosition.y >= gooY - 1f)
+                if (remote != null && !remote.Latest.Dead && remote.Present
+                    && remote.LocalPosition.y >= gooY - 1f && (!found || remote.LocalPosition.y < lowest.y))
                 {
-                    lowest = Mathf.Min(lowest, remote.LocalPosition.y);
+                    lowest = remote.LocalPosition;
+                    found = true;
                 }
             }
-            return lowest == float.MaxValue ? own : lowest;
+            return lowest;
+        }
+
+        private static float LevelMassMult(M_Level level)
+        {
+            if (level == null)
+            {
+                return 1f;
+            }
+            return level.massSpeedMult * (level.subRegion != null ? level.subRegion.massSpeedMult : 1f);
+        }
+
+        /// <summary>
+        /// Host: the game paces the mass by the level the host is in. In a lobby it chases the lowest
+        /// climber, so it should go at their level's pace: a host up in a faster region made the mass race
+        /// through the slower levels the others were still climbing. Returns lowest's pace / host's pace.
+        /// </summary>
+        public static float LevelPaceRatio(Vector3 lowest)
+        {
+            try
+            {
+                if (!WorldLoader.initialized || !WorldLoader.isLoaded || WorldLoader.instance == null)
+                {
+                    return 1f;
+                }
+                WorldLoader.LevelInfo hostLevel = WorldLoader.instance.GetCurrentLevel();
+                WorldLoader.LevelInfo lowLevel = WorldLoader.GetClosestLevelToPosition(lowest);
+                if (hostLevel == null || lowLevel == null || hostLevel == lowLevel)
+                {
+                    return 1f;
+                }
+                float hostMult = LevelMassMult(hostLevel.GetLevel());
+                if (hostMult < 0.01f)
+                {
+                    return 1f;
+                }
+                return Mathf.Clamp(LevelMassMult(lowLevel.GetLevel()) / hostMult, 0.1f, 10f);
+            }
+            catch (System.Exception)
+            {
+                return 1f;
+            }
         }
     }
 
@@ -236,7 +298,14 @@ namespace Belay.World
                 // The game rubberbands by distance to the host; rescale it so it's distance to the lowest climber.
                 float gooY = ((Component)__instance).transform.position.y;
                 float hostDistance = Mathf.Abs(gooY - ENT_Player.playerObject.transform.position.y);
-                float lowestDistance = Mathf.Abs(gooY - GooSync.LowestPlayerHeight());
+                Vector3 lowestPos = GooSync.LowestPlayerPosition();
+                float lowestDistance = Mathf.Abs(gooY - lowestPos.y);
+                float pace = GooSync.LevelPaceRatio(lowestPos);
+                if (pace != 1f)
+                {
+                    savedFrameMult = ___speedMultFrameStorage;
+                    ___speedMultFrameStorage *= pace;
+                }
                 if (hostDistance > 0.5f)
                 {
                     float mult = lowestDistance / hostDistance;
@@ -247,12 +316,15 @@ namespace Belay.World
                     }
                     else if (hostDistance > 300f && lowestDistance <= 300f)
                     {
-                        savedFrameMult = ___speedMultFrameStorage;
+                        if (float.IsNaN(savedFrameMult))
+                        {
+                            savedFrameMult = ___speedMultFrameStorage;
+                        }
                         ___speedMultFrameStorage *= 0.25f;
                     }
                     ___rubberbandMult = __state * mult;
                 }
-                GooSync.Instance?.NoteHostFrame(gooY, lowestDistance);
+                GooSync.Instance?.NoteHostFrame(gooY, lowestDistance, pace);
             }
             else
             {

@@ -231,7 +231,7 @@ namespace Belay.Revive
             foreach (SteamId id in NetSession.Instance.MemberOrder())
             {
                 if (PlayerSync.Instance.Remotes.TryGetValue(id, out RemotePlayer remote) && remote != null
-                    && !remote.Latest.Dead && Time.unscaledTime - remote.LastReceived < 3f)
+                    && !remote.Latest.Dead && remote.Present)
                 {
                     alive.Add(remote);
                 }
