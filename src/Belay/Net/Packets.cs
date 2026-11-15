@@ -41,6 +41,7 @@ namespace Belay.Net
         EnemyKilled = 71,
         EnemyStates = 72,
         EnemyHit = 73,
+        EnemyOwner = 74,
         ProgressProfile = 80,
         PlayerAction = 85,
         PlayerDied = 86,
@@ -53,6 +54,10 @@ namespace Belay.Net
         PropShattered = 105,
         ItemInserted = 106,
         ProjectileFired = 107,
+        PlayerGrabbed = 108,
+        EnemyShot = 109,
+        SpawnerRequest = 110,
+        SpawnerDelegate = 111,
     }
 
     public static class Channels

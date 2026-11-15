@@ -24,7 +24,7 @@ namespace Belay.Net
     public class NetSession : MonoBehaviour
     {
         public const int MaxPlayers = 8;
-        public const string ProtocolVersion = "belay-17";
+        public const string ProtocolVersion = "belay-18";
 
         // Lobby data keys
         public const string KeyTag = "belay";
@@ -520,9 +520,9 @@ namespace Belay.Net
         }
 
         /// <summary>Packets a client sends that the host passes on to every other client.</summary>
-        private static readonly HashSet<PacketType> RelayedByHost = new HashSet<PacketType> { PacketType.DoorOpen, PacketType.ButtonPress, PacketType.HoldInteract, PacketType.LeverAngle, PacketType.HandTouch, PacketType.ItemPickup, PacketType.ItemDrop, PacketType.RopePull, PacketType.ZoneEntered, PacketType.Knockback, PacketType.PropKill, PacketType.EnemyHurt, PacketType.EnemyKilled, PacketType.EnemyHit, PacketType.HandholdBroke, PacketType.PropShattered, PacketType.ItemInserted, PacketType.ProjectileFired, PacketType.PlayerAction, PacketType.PlayerDied };
+        private static readonly HashSet<PacketType> RelayedByHost = new HashSet<PacketType> { PacketType.DoorOpen, PacketType.ButtonPress, PacketType.HoldInteract, PacketType.LeverAngle, PacketType.HandTouch, PacketType.ItemPickup, PacketType.ItemDrop, PacketType.RopePull, PacketType.ZoneEntered, PacketType.Knockback, PacketType.PropKill, PacketType.EnemyHurt, PacketType.EnemyKilled, PacketType.EnemyHit, PacketType.HandholdBroke, PacketType.PropShattered, PacketType.ItemInserted, PacketType.ProjectileFired, PacketType.PlayerGrabbed, PacketType.SpawnerFired, PacketType.PlayerAction, PacketType.PlayerDied };
         /// <summary>Frequent state the host passes on without delivery guarantees (a newer copy follows soon).</summary>
-        private static readonly HashSet<PacketType> RelayedUnreliable = new HashSet<PacketType> { PacketType.PropState };
+        private static readonly HashSet<PacketType> RelayedUnreliable = new HashSet<PacketType> { PacketType.PropState, PacketType.EnemyStates, PacketType.EnemyShot };
 
         private readonly Dictionary<PacketType, Action<SteamId, BinaryReader>> handlers =
             new Dictionary<PacketType, Action<SteamId, BinaryReader>>();
