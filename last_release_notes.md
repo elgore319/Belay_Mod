@@ -1,6 +1,7 @@
-## Belay 0.7.3
+## Belay 0.7.4
 
-- **Everyone gets the same world events.** Weather, blizzards, event spawns and other random events used to be rolled separately on each PC, so teammates got different ones. Now the host rolls and everyone gets the host's events.
-- **Spawns that go off when you get close now match.** Spawn points, enemy waves and tick egg sacs used to go off on each PC separately, when that PC's own player got near, with different numbers and spots. Now the host decides (counting any teammate who gets close), and the same things appear in the same places for everyone. A PC that hasn't loaded that part of the map yet catches up when it does.
+- **More enemies hunt the whole team.** Drones, bloodbugs and the rat king used to go only after the host. Now they go after whoever is nearest.
+- **Personal creatures are yours.** The mask, the remains, the ladder nightmare and ticks react to you: whether you're looking at them, your fall, your face. Each player now gets their own instead of a copy of the host's, so they behave the way they do in single player.
+- **Hits that do more than damage are shared.** Knocking over a turret, stunning a phage, scaring off a tracker, driving back or blowing up the vent thing, and hitting the Hunter now happen on every teammate's screen too.
 
-Everyone in the lobby must update (older versions can't join a 0.7.3 lobby).
+Everyone in the lobby should update.

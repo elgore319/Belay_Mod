@@ -520,7 +520,7 @@ namespace Belay.Net
         }
 
         /// <summary>Packets a client sends that the host passes on to every other client.</summary>
-        private static readonly HashSet<PacketType> RelayedByHost = new HashSet<PacketType> { PacketType.DoorOpen, PacketType.ButtonPress, PacketType.HoldInteract, PacketType.LeverAngle, PacketType.HandTouch, PacketType.ItemPickup, PacketType.ItemDrop, PacketType.RopePull, PacketType.ZoneEntered, PacketType.Knockback, PacketType.PropKill, PacketType.EnemyHurt, PacketType.EnemyKilled, PacketType.PlayerAction, PacketType.PlayerDied };
+        private static readonly HashSet<PacketType> RelayedByHost = new HashSet<PacketType> { PacketType.DoorOpen, PacketType.ButtonPress, PacketType.HoldInteract, PacketType.LeverAngle, PacketType.HandTouch, PacketType.ItemPickup, PacketType.ItemDrop, PacketType.RopePull, PacketType.ZoneEntered, PacketType.Knockback, PacketType.PropKill, PacketType.EnemyHurt, PacketType.EnemyKilled, PacketType.EnemyHit, PacketType.PlayerAction, PacketType.PlayerDied };
         /// <summary>Frequent state the host passes on without delivery guarantees (a newer copy follows soon).</summary>
         private static readonly HashSet<PacketType> RelayedUnreliable = new HashSet<PacketType> { PacketType.PropState };
 
