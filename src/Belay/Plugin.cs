@@ -18,7 +18,7 @@ namespace Belay
     {
         public const string Guid = "elgore319.belay";
         public const string Name = "Belay";
-        public const string Version = "0.7.11";
+        public const string Version = "0.7.12";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
@@ -97,6 +97,7 @@ namespace Belay
             gameObject.AddComponent<LevelCheck>();
             gameObject.AddComponent<ReviveSystem>();
             gameObject.AddComponent<BelayMenu>();
+            gameObject.AddComponent<GameMenuEntry>();
             gameObject.AddComponent<DeathFeed>();
             gameObject.AddComponent<Diagnostics.FocusLog>();
             if (Net.LoopbackLink.LaunchedAsClient)
