@@ -1,7 +1,7 @@
-## Belay 0.7.4
+## Belay 0.7.5
 
-- **More enemies hunt the whole team.** Drones, bloodbugs and the rat king used to go only after the host. Now they go after whoever is nearest.
-- **Personal creatures are yours.** The mask, the remains, the ladder nightmare and ticks react to you: whether you're looking at them, your fall, your face. Each player now gets their own instead of a copy of the host's, so they behave the way they do in single player.
-- **Hits that do more than damage are shared.** Knocking over a turret, stunning a phage, scaring off a tracker, driving back or blowing up the vent thing, and hitting the Hunter now happen on every teammate's screen too.
+- **Crumbling handholds break for everyone.** When a handhold gives way under one player, it's gone for the whole team, and anyone else hanging on it drops too.
+- **Glass shatters for everyone.** Glass and other breakable props now break on every teammate's screen.
+- **Item slots go off for everyone.** Putting an item into a slot in the level (to open or power something) now triggers it for the whole team. Slots on terminals stay personal.
 
 Everyone in the lobby should update.
