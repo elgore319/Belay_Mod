@@ -1,7 +1,9 @@
-## Belay 0.7.22
+## Belay 0.7.23
 
-- **Closing the pause menu no longer frees your camera at a terminal or during a cutscene.** Since 0.7.20 the co-op pause menu locks your camera while the game keeps running. Closing it always unlocked the camera, even when something else had it locked, such as sitting at a terminal or being held in a cutscene. Now it only unlocks the camera if the menu was what locked it. The console keeps its lock the same way.
+Climbing bots (F7 > Bot) now use items, react to creatures, and can climb with any teammate.
 
-I also went over tonight's other changes (teammate animations, the BELAY menu entry, co-op items, bot climbing, pause and carrying) and didn't find anything else that needed fixing. Not tested in a real co-op run yet.
-
-No network changes, so it works with teammates on 0.7.21, but everyone should update.
+- **Items**: a bot picks up loose items it walks past and carries up to 4. Pickups count for everyone, like a player's. One-off items (everyone's own copy) and story pickups are left for you. Use "Take" on the Bot tab to move an item from the bot's bag to yours, pack-mule style. Turn off "Picks up items" if you'd rather it didn't.
+- **Food**: the bot eats when it's hurt or its grip is running out mid-climb. Food heals it and refills its grip the same way it does yours, and you can see it eating.
+- **Death drops**: when a bot dies, everything it carried falls where it died, and anyone can pick it up.
+- **Creatures**: enemies already go after bots and can hurt them. Now a bot that sees a creature within about 10 m hurries on at its fastest pace. If one gets right up to it while it's on its feet, it swings at it. It leaves roaches alone.
+- **Climbs with**: if there are other players in the lobby, you can pick who each bot climbs with. It follows that teammate's route, and if they go down it goes to a terminal to revive them.
