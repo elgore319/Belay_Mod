@@ -155,6 +155,7 @@ namespace Belay.World
                 Plugin.Log.LogInfo($"Teammate used a hold control that isn't loaded here ({kind}): {id}");
                 return;
             }
+            DoorSync.NoteControl(b);
             ButtonSync.Applying = true;
             try
             {
