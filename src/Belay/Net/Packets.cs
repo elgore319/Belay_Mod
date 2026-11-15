@@ -49,6 +49,9 @@ namespace Belay.Net
         SpawnerFired = 101,
         WaveSpawned = 102,
         TickSackBurst = 103,
+        HandholdBroke = 104,
+        PropShattered = 105,
+        ItemInserted = 106,
     }
 
     public static class Channels
