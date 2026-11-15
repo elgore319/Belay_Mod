@@ -1,9 +1,5 @@
-## Belay 0.7.14
+## Belay 0.7.15
 
-More bug fixes found by going through the code. None of these have been tested in a real co-op run yet.
+- **New co-op item: the Plunger Gun.** In co-op runs, vending machines can now sell a Plunger Gun (3 roaches, from your own wallet). It fires like the grapple gun, but the cup sticks where it lands and a climbable cord hangs down from it, on everyone's screen. Anyone on the team can grab the cord and climb it, so one good shot gets the whole group past a gap or overhang. The gun is used up by the shot. Missed shots come back like the grapple. Cords last 10 minutes, and at most 8 hang at once.
 
-- **Shortcut votes don't wait on dead players.** A dead player can't get to a terminal to vote, but the vote still counted them, so any vote with someone down ran out its whole timer. Votes now count living players only.
-- **Vent hands, phages and Trackers don't freeze when their player leaves.** These creatures run on the closest player's PC. If that player left or died with nobody else nearby, the creature froze on every PC. The host now takes it back.
-- **A chase-killer stays around while a teammate is loading.** If the host was dead and the last living teammate's game froze while loading a level, the chase-killer gave up and vanished. It now waits 15 seconds, the same as everything else since 0.7.13.
-
-No network changes, so it works with teammates on 0.7.13, but everyone should update.
+Everyone in the lobby should update (network version changed).

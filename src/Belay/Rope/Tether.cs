@@ -189,7 +189,7 @@ namespace Belay.Rope
         {
             foreach (ENT_Player.Hand hand in player.hands)
             {
-                if (hand != null && hand.IsHolding() && !(hand.currentInteract is RopeHold))
+                if (hand != null && hand.IsHolding() && !(hand.currentInteract is RopeHold hold && hold.Rope != null && !hold.Rope.Hanging))
                 {
                     return true;
                 }

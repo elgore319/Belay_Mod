@@ -85,6 +85,28 @@ namespace Belay.Rope
             return rope;
         }
 
+        /// <summary>
+        /// A rope that hangs from a fixed point (a plunger cup) instead of joining two players: the top is
+        /// pinned to the anchor, the bottom hangs free. Anyone can climb it.
+        /// </summary>
+        public static TeamRope CreateHanging(Vector3 anchorShared, float length)
+        {
+            var go = new GameObject("Belay_HangingRope");
+            DontDestroyOnLoad(go);
+            var rope = go.AddComponent<TeamRope>();
+            rope.hanging = true;
+            rope.AnchorShared = anchorShared;
+            rope.Build(length);
+            return rope;
+        }
+
+        private bool hanging;
+
+        /// <summary>For a hanging rope: its fixed top, in shared (offset-free) space.</summary>
+        public Vector3 AnchorShared { get; private set; }
+
+        public bool Hanging => hanging;
+
         public bool Joins(SteamId a, SteamId b) => EndA == a && EndB == b;
 
         public bool AttachedTo(SteamId id) => EndA == id || EndB == id;
@@ -217,17 +239,34 @@ namespace Belay.Rope
             return true;
         }
 
-        private bool IsLocal(int end) => (end == 0 ? EndA : EndB) == NetSession.LocalId;
+        /// <summary>Where an end is pinned. A hanging rope's bottom end is free, so it has none.</summary>
+        private bool TryEndAt(int end, out Vector3 point)
+        {
+            if (hanging)
+            {
+                point = end == 0 ? WorldSpace.ToLocal(AnchorShared) : default;
+                return end == 0 && WorldSpace.Ready;
+            }
+            return TryEnd(end == 0 ? EndA : EndB, out point);
+        }
+
+        private bool IsLocal(int end) => !hanging && (end == 0 ? EndA : EndB) == NetSession.LocalId;
 
         // ------------------------------------------------------------------ simulation
 
         /// <summary>Runs one physics step. Returns false (and hides the rope) when an end is missing.</summary>
         public bool Step(float dt, bool visible)
         {
-            if (!TryEnd(EndA, out Vector3 a) || !TryEnd(EndB, out Vector3 b))
+            bool freeEnd = hanging;
+            Vector3 b = default;
+            if (!TryEndAt(0, out Vector3 a) || !freeEnd && !TryEndAt(1, out b))
             {
                 SetLive(false, false);
                 return false;
+            }
+            if (freeEnd)
+            {
+                b = initialized ? pos[count - 1] : a + Vector3.down * Length;
             }
             SetLive(true, visible);
 
@@ -237,7 +276,7 @@ namespace Belay.Rope
                 Shift(Vector3.up * (offset - lastOffset));
             }
             lastOffset = offset;
-            if (!initialized || (a - lastA).sqrMagnitude > 64f || (b - lastB).sqrMagnitude > 64f)
+            if (!initialized || (a - lastA).sqrMagnitude > 64f || !freeEnd && (b - lastB).sqrMagnitude > 64f)
             {
                 Reset(a, b);
             }
@@ -260,11 +299,12 @@ namespace Belay.Rope
                 invMass[i] = i == held ? HeldInverseMass : 1f;
             }
             invMass[0] = 0f;
-            invMass[count - 1] = 0f;
+            invMass[count - 1] = freeEnd ? 1f : 0f;
+            int moving = freeEnd ? count : count - 1;
 
             Vector3 swing = held >= 0 ? SwingInput(player) : Vector3.zero;
             float g = Gravity * dt * dt;
-            for (int i = 1; i < count - 1; i++)
+            for (int i = 1; i < moving; i++)
             {
                 Vector3 velocity = (pos[i] - prev[i]) * Damping;
                 prev[i] = pos[i];
@@ -275,7 +315,10 @@ namespace Belay.Rope
                 }
             }
             pos[0] = a;
-            pos[count - 1] = b;
+            if (!freeEnd)
+            {
+                pos[count - 1] = b;
+            }
 
             if (held > 0 && held < count - 1)
             {
@@ -283,7 +326,7 @@ namespace Belay.Rope
                 // Our own harness doesn't count: the rope between it and our hands is slack.
                 for (int end = 0; end < 2; end++)
                 {
-                    heldPivots[end] = IsLocal(end) ? -1 : PivotIndex(held, pos[held], end == 0 ? 0 : count - 1);
+                    heldPivots[end] = IsLocal(end) || freeEnd && end == 1 ? -1 : PivotIndex(held, pos[held], end == 0 ? 0 : count - 1);
                 }
             }
             for (int it = 0; it < Iterations; it++)
@@ -392,7 +435,8 @@ namespace Belay.Rope
 
         private void Collide()
         {
-            for (int i = 1; i < count - 1; i++)
+            int moving = hanging ? count : count - 1;
+            for (int i = 1; i < moving; i++)
             {
                 Vector3 move = pos[i] - safe[i];
                 float d = move.magnitude;
@@ -653,8 +697,8 @@ namespace Belay.Rope
             {
                 points[i] = Vector3.LerpUnclamped(drawFrom[i], pos[i], alpha);
             }
-            if (TryEnd(EndA, out Vector3 a)) points[0] = a;
-            if (TryEnd(EndB, out Vector3 b)) points[count - 1] = b;
+            if (TryEndAt(0, out Vector3 a)) points[0] = a;
+            if (TryEndAt(1, out Vector3 b)) points[count - 1] = b;
 
             for (int i = 0; i < count - 1; i++)
             {
