@@ -43,7 +43,8 @@ namespace Belay.Patches
             int seed;
             unchecked
             {
-                seed = net.Seed * 486187739 + ___idCounter * 16777619 + 0x2F1;
+                // A branch built later on one PC than another still gets the same levels.
+                seed = World.ShortcutSync.BuildSeed ?? (net.Seed * 486187739 + ___idCounter * 16777619 + 0x2F1);
             }
             if (seed + offset == -1)
             {
