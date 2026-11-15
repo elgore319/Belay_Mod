@@ -34,7 +34,7 @@ namespace Belay.Items
                 Template = io => io.itemData.handItemAsset is HandItem_Shoot_Grapple,
                 SetupHand = hand => hand.gameObject.AddComponent<PlungerShot>(),
                 Price = 3,
-                Chance = 0.8f,
+                Chance = 0.5f,
             });
         }
 

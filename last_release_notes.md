@@ -1,8 +1,10 @@
-## Belay 0.7.16
+## Belay 0.7.17
 
-Two co-op fixes. Neither has been tested in a real co-op run yet.
+Three more co-op items. Like the Plunger Gun, they're sold in vending machines during co-op runs and paid from your own wallet.
 
-- **Two players grabbing the same item at the same time no longer both get it.** The host now decides who got there first, and the other player's copy goes away. Items that are one per player (the only one of their kind in a level) still give everyone their own.
-- **If the host quits mid-run, held doors and shortcut votes carry on.** Every player now knows who has passed each held door, so whoever becomes host keeps holding the door until everyone is through, then shuts it. A shortcut vote that was running keeps the votes already cast and finishes on the new host. Shortcuts that were still queued for a vote get asked again at the next terminal.
+- **Anchor Bolt (2 roaches).** Hammer it into a wall like a piton, and it's a handhold for the whole team. It also works like climbing protection: climb past it and you clip in (a rope runs from the bolt to your harness). If you fall after that, the rope catches you just below the bolt instead of letting you drop. Step off onto a floor below it, or wander far away, and you unclip.
+- **Chalk Bag (2 roaches).** It does nothing in your own hands. Throw or drop it to a teammate, and when they catch it, both their hands' grip refills and the bag is used up.
+- **Signal Flare (2 roaches).** Throw it, and a moment later it lights up where it is. For 30 seconds everyone sees a red glow and a red beam over that spot, through walls. It's one use.
+- Vending machines now offer the four co-op items less often each, so they don't crowd out the game's own items.
 
-This changes the network format, so everyone needs 0.7.16 to play together. Games update themselves at launch.
+Everyone in the lobby should update (network version changed).
