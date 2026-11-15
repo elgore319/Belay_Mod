@@ -72,10 +72,7 @@ namespace Belay.Items
         private void Awake()
         {
             Instance = this;
-            PlungerGun.Define();
-            AnchorBolt.Define();
-            ChalkBag.Define();
-            SignalFlare.Define();
+            Harpoon.Define();
         }
 
         private void Update()

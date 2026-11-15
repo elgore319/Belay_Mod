@@ -58,10 +58,9 @@ namespace Belay.Net
         EnemyShot = 109,
         SpawnerRequest = 110,
         SpawnerDelegate = 111,
-        PlungerStuck = 112,
+        HarpoonRope = 112,
         ItemTaken = 113,
         ItemDenied = 114,
-        FlareLit = 115,
         AreaRequest = 116,
         AreaDelegate = 117,
         // 118 was TeamPause (removed); keep the number unused.
