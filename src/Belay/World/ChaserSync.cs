@@ -122,7 +122,7 @@ namespace Belay.World
             }
             foreach (Players.RemotePlayer remote in Players.PlayerSync.Instance.Remotes.Values)
             {
-                if (remote != null && !remote.Latest.Dead && Time.unscaledTime - remote.LastReceived <= 3f)
+                if (remote != null && !remote.Latest.Dead && remote.Present)
                 {
                     return false;
                 }

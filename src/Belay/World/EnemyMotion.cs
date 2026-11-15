@@ -283,7 +283,13 @@ namespace Belay.World
                         Consider(remote.SteamId.Value, remote.LocalPosition);
                     }
                 }
-                if (best == current || bestDist == float.MaxValue)
+                if (bestDist == float.MaxValue && current != NetSession.LocalId.Value)
+                {
+                    // Whoever ran it left or died and nobody else is around: the host takes it back, so it
+                    // doesn't freeze on every PC waiting for a player who's gone.
+                    best = NetSession.LocalId.Value;
+                }
+                else if (best == current || bestDist == float.MaxValue)
                 {
                     if (!owners.ContainsKey(e)) owners[e] = current;
                     continue;
