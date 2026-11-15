@@ -1,7 +1,5 @@
-## Belay 0.7.5
+## Belay 0.7.6
 
-- **Crumbling handholds break for everyone.** When a handhold gives way under one player, it's gone for the whole team, and anyone else hanging on it drops too.
-- **Glass shatters for everyone.** Glass and other breakable props now break on every teammate's screen.
-- **Item slots go off for everyone.** Putting an item into a slot in the level (to open or power something) now triggers it for the whole team. Slots on terminals stay personal.
+- **See what your teammates shoot and throw.** Spears, rebar, grenades and grapple shots now fly on everyone's screen, on the same path as the real one. What you see is only for show: the real shot does its damage on the thrower's PC, and that damage is already shared.
 
 Everyone in the lobby should update.
