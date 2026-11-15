@@ -44,6 +44,10 @@ namespace Belay.Net
         PlayerAction = 85,
         PlayerDied = 86,
         RunWon = 90,
+        EventStarted = 100,
+        SpawnerFired = 101,
+        WaveSpawned = 102,
+        TickSackBurst = 103,
     }
 
     public static class Channels
