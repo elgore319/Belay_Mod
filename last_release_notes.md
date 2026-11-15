@@ -1,6 +1,6 @@
-## Belay 0.7.2
+## Belay 0.7.3
 
-- **Doors on a voted-down path shut themselves.** Some doors in the game start out open, so locking them used to leave them standing open. Now a locked door that's open swings shut on its own (with its own sound) as soon as nobody is standing in the doorway, and stays shut.
-- Doors on the losing side that are pulled or set open in steps can't be opened that way either.
+- **Everyone gets the same world events.** Weather, blizzards, event spawns and other random events used to be rolled separately on each PC, so teammates got different ones. Now the host rolls and everyone gets the host's events.
+- **Spawns that go off when you get close now match.** Spawn points, enemy waves and tick egg sacs used to go off on each PC separately, when that PC's own player got near, with different numbers and spots. Now the host decides (counting any teammate who gets close), and the same things appear in the same places for everyone. A PC that hasn't loaded that part of the map yet catches up when it does.
 
-Everyone in the lobby should update.
+Everyone in the lobby must update (older versions can't join a 0.7.3 lobby).
