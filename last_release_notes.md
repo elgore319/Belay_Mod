@@ -1,9 +1,6 @@
-## Belay 0.7.1
+## Belay 0.7.2
 
-- **Shortcut votes are blocked by the level itself.** When the team turns a shortcut down, its own doors, hatches and lifts stay shut. You can still ride a shortcut elevator, but the door at the far end never opens. Belay finds these parts by following the level's own wiring from whatever starts the shortcut, so it catches far more of them than before.
-- **Picking the shortcut shuts the normal way.** The exit doors stay closed and the elevators and lifts at the exit don't move.
-- **No more red barriers.** Where a way has nothing the game could keep shut, it's sealed with a plate that matches the walls around it.
-- Cranked and hand-pushed doors on the losing side won't budge either.
-- Fixed: a vote decided while part of the map wasn't built yet on your PC now still locks that part once it loads.
+- **Doors on a voted-down path shut themselves.** Some doors in the game start out open, so locking them used to leave them standing open. Now a locked door that's open swings shut on its own (with its own sound) as soon as nobody is standing in the doorway, and stays shut.
+- Doors on the losing side that are pulled or set open in steps can't be opened that way either.
 
 Everyone in the lobby should update.

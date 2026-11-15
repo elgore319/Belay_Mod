@@ -842,6 +842,7 @@ namespace Belay.World
             {
                 showVote = false; // the host went quiet
             }
+            ShortcutDoors.Tick();
             KeepOffNormalPath();
             RetryNotLoaded();
         }
