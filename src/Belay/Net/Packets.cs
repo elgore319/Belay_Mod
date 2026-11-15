@@ -64,7 +64,7 @@ namespace Belay.Net
         FlareLit = 115,
         AreaRequest = 116,
         AreaDelegate = 117,
-        TeamPause = 118,
+        // 118 was TeamPause (removed); keep the number unused.
     }
 
     public static class Channels

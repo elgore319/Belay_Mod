@@ -1,5 +1,4 @@
 using Belay.Net;
-using Belay.UI;
 using HarmonyLib;
 using UnityEngine;
 
@@ -8,9 +7,7 @@ namespace Belay.World
     /// <summary>
     /// In a co-op run the pause menu no longer stops the game. Opening it only takes your hands off the
     /// controls (the way the game's console does) while the world, the mass and your teammates carry on,
-    /// so one player pausing can't freeze things for the team. The pause menu has a "Pause for everyone"
-    /// button instead: that one stops the game on every PC (a real pause, menu open for all) until anyone
-    /// presses "Resume for everyone".
+    /// so one player pausing can't freeze things for the team.
     /// </summary>
     public class CoopPause : MonoBehaviour
     {
@@ -18,9 +15,6 @@ namespace Belay.World
 
         /// <summary>Our pause menu is open but the game keeps running.</summary>
         public static bool SoftPaused { get; private set; }
-
-        /// <summary>Someone paused the game for the whole team.</summary>
-        public static bool TeamPaused { get; private set; }
 
         /// <summary>The pause menu is up, whether or not the game is actually stopped.</summary>
         public static bool InPauseMenu => CL_GameManager.gMan != null && (CL_GameManager.gMan.isPaused || SoftPaused);
@@ -38,19 +32,6 @@ namespace Belay.World
             Instance = this;
         }
 
-        private void Start()
-        {
-            NetSession.Instance.On(PacketType.TeamPause, (origin, r) =>
-            {
-                bool on = r.ReadBoolean();
-                if (origin != NetSession.LocalId)
-                {
-                    Plugin.Log.LogInfo((on ? "Paused for everyone by " : "Resumed for everyone by ") + NetSession.NameOf(origin));
-                    Apply(on);
-                }
-            });
-        }
-
         private void Update()
         {
             CL_GameManager gMan = CL_GameManager.gMan;
@@ -58,55 +39,6 @@ namespace Belay.World
             {
                 EndSoft();
             }
-            if (TeamPaused && (NetSession.Instance == null || !NetSession.Instance.InLobby || !CL_GameManager.IsInGame()))
-            {
-                TeamPaused = false;
-            }
-        }
-
-        /// <summary>The button in the pause menu.</summary>
-        public static void SetTeamPause(bool on)
-        {
-            if (!InCoop)
-            {
-                return;
-            }
-            Plugin.Log.LogInfo(on ? "Paused for everyone" : "Resumed for everyone");
-            Apply(on);
-            NetSession.Instance.Send(PacketType.TeamPause, w => w.Write(on));
-        }
-
-        private static void Apply(bool on)
-        {
-            CL_GameManager gMan = CL_GameManager.gMan;
-            TeamPaused = on && InCoop;
-            if (gMan == null || !CL_GameManager.IsInGame())
-            {
-                return;
-            }
-            if (TeamPaused)
-            {
-                if (SoftPaused)
-                {
-                    EndSoft();
-                    HardPause(gMan);
-                }
-                else if (!gMan.isPaused)
-                {
-                    gMan.Pause();
-                }
-            }
-            else if (gMan.isPaused || SoftPaused)
-            {
-                gMan.UnPause();
-            }
-        }
-
-        private static void HardPause(CL_GameManager gMan)
-        {
-            gMan.isPaused = true;
-            CL_GameManager.SetTimescale(0f);
-            AudioListener.pause = true;
         }
 
         /// <summary>Right after the game opened its pause menu: keep the world running.</summary>
@@ -157,31 +89,6 @@ namespace Belay.World
         {
             unpausedFrame = Time.frameCount;
         }
-
-        private void OnGUI()
-        {
-            if (!InCoop || !InPauseMenu)
-            {
-                return;
-            }
-            GUISkin previous = GUI.skin;
-            if (BelayTheme.Skin != null)
-            {
-                GUI.skin = BelayTheme.Skin;
-            }
-            try
-            {
-                var rect = new Rect(Screen.width / 2f - 150f, Screen.height - 70f, 300f, 44f);
-                if (GUI.Button(rect, TeamPaused ? "RESUME FOR EVERYONE" : "PAUSE FOR EVERYONE"))
-                {
-                    SetTeamPause(!TeamPaused);
-                }
-            }
-            finally
-            {
-                GUI.skin = previous;
-            }
-        }
     }
 
     [HarmonyPatch]
@@ -200,18 +107,10 @@ namespace Belay.World
         [HarmonyPostfix]
         private static void PausePostfix(CL_GameManager __instance)
         {
-            if (CoopPause.InCoop && !CoopPause.TeamPaused && __instance.isPaused)
+            if (CoopPause.InCoop && __instance.isPaused)
             {
                 CoopPause.Soften(__instance);
             }
-        }
-
-        // While the team is paused, closing your own menu would start your game again alone.
-        [HarmonyPatch(typeof(CL_GameManager), nameof(CL_GameManager.UnPause))]
-        [HarmonyPrefix]
-        private static bool UnPausePrefix()
-        {
-            return !CoopPause.TeamPaused;
         }
 
         [HarmonyPatch(typeof(CL_GameManager), nameof(CL_GameManager.UnPause))]
