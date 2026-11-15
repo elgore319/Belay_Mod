@@ -238,9 +238,23 @@ namespace Belay.World
             return ids;
         }
 
+        /// <summary>
+        /// Who the vote waits for: living teammates. A dead player can't get to a terminal to vote, so
+        /// counting them made every vote with someone down run out its whole timer. If everyone is dead,
+        /// everyone counts (the run is ending anyway).
+        /// </summary>
         private List<SteamId> Voters()
         {
-            return NetSession.Instance.MemberIds();
+            List<SteamId> all = NetSession.Instance.MemberIds();
+            List<SteamId> living = all.Where(id =>
+            {
+                if (id == NetSession.LocalId)
+                {
+                    return ENT_Player.playerObject == null || !ENT_Player.playerObject.dead;
+                }
+                return !PlayerSync.Instance.Remotes.TryGetValue(id, out RemotePlayer remote) || remote == null || !remote.Latest.Dead;
+            }).ToList();
+            return living.Count > 0 ? living : all;
         }
 
         private bool Waiting(string id)
