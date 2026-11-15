@@ -113,7 +113,7 @@ namespace Belay.World
             var batch = new List<(AIGameEntity e, float d)>();
             foreach (AIGameEntity e in EnemySync.Instance.Known())
             {
-                if (!e.gameObject.activeInHierarchy)
+                if (!e.gameObject.activeInHierarchy || EnemyTargets.Personal(e))
                 {
                     continue;
                 }
