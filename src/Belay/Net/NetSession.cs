@@ -24,7 +24,7 @@ namespace Belay.Net
     public class NetSession : MonoBehaviour
     {
         public const int MaxPlayers = 8;
-        public const string ProtocolVersion = "belay-16";
+        public const string ProtocolVersion = "belay-24";
 
         // Lobby data keys
         public const string KeyTag = "belay";
@@ -236,6 +236,7 @@ namespace Belay.Net
             }
             lobby.Leave();
             CurrentLobby = null;
+            memberCache = null;
             Status = "Not connected";
             OnLobbyChanged?.Invoke();
         }
@@ -274,13 +275,23 @@ namespace Belay.Net
             {
                 return Loopback.ClientConnected ? new List<SteamId>(Loopback.Members) : new List<SteamId>();
             }
-            List<SteamId> ids = Members.Select(m => m.Id).ToList();
-            if (IsHost && Loopback.PeerAlive)
+            // Asked for many times a frame (doors, goo, rope, votes, every relayed packet); reading the
+            // Steam lobby each time cost a Steam call per member. The answer is the same within a frame.
+            if (memberCacheFrame != Time.frameCount || memberCache == null)
             {
-                ids.Add(LoopbackLink.ClientId);
+                List<SteamId> ids = Members.Select(m => m.Id).ToList();
+                if (IsHost && Loopback.PeerAlive)
+                {
+                    ids.Add(LoopbackLink.ClientId);
+                }
+                memberCache = ids;
+                memberCacheFrame = Time.frameCount;
             }
-            return ids;
+            return new List<SteamId>(memberCache);
         }
+
+        private List<SteamId> memberCache;
+        private int memberCacheFrame = -1;
 
         /// <summary>Members in join order, used to decide who is roped to whom. Local test bots come last.</summary>
         public List<SteamId> MemberOrder()
@@ -417,12 +428,13 @@ namespace Belay.Net
             string hostVersion = lobby.GetData(KeyModVersion);
             if (lobby.GetData(KeyVersion) != ProtocolVersion)
             {
-                Status = "Version mismatch: host runs " + (string.IsNullOrEmpty(hostVersion) ? lobby.GetData(KeyVersion) : "Belay " + hostVersion);
+                Status = "Version mismatch: host runs " + (string.IsNullOrEmpty(hostVersion) ? lobby.GetData(KeyVersion) : "Tethered " + hostVersion);
                 lobby.Leave();
                 WarnVersion(hostVersion, "the host", joined: false);
                 return;
             }
             CurrentLobby = lobby;
+            memberCache = null;
             versionWarned.Clear();
             lobby.SetMemberData(KeyMods, UI.ModManager.LoadedModList());
             lobby.SetMemberData(KeyModVersion, Plugin.Version);
@@ -446,12 +458,12 @@ namespace Belay.Net
         private void WarnVersion(string theirs, string who, bool joined)
         {
             bool theyAreNewer = !string.IsNullOrEmpty(theirs) && UI.Updater.Compare(theirs, Plugin.Version) > 0;
-            string them = string.IsNullOrEmpty(theirs) ? "an older Belay" : "Belay " + theirs;
+            string them = string.IsNullOrEmpty(theirs) ? "an older Tethered" : "Tethered " + theirs;
             string head = joined ? "Version mismatch: " : "Can't join: ";
             string fix = theyAreNewer
                 ? "Updating, then restart."
                 : char.ToUpperInvariant(who[0]) + who.Substring(1) + " needs to restart to update.";
-            Plugin.Log.LogWarning($"Belay version mismatch: {who} has {them}, you have {Plugin.Version}");
+            Plugin.Log.LogWarning($"Tethered version mismatch: {who} has {them}, you have {Plugin.Version}");
             Run.RunFlow.Instance?.ShowNotice($"{head}{who} has {them}, you have {Plugin.Version}. {fix}", 12f);
             if (theyAreNewer && Plugin.AutoUpdate.Value)
             {
@@ -475,6 +487,7 @@ namespace Belay.Net
 
         private void HandleMembersChanged(Lobby lobby)
         {
+            memberCache = null;
             if (CurrentLobby.HasValue && lobby.Id == CurrentLobby.Value.Id)
             {
                 CheckMemberVersions(lobby);
@@ -489,6 +502,7 @@ namespace Belay.Net
             {
                 return;
             }
+            memberCache = null;
             SteamNetworking.CloseP2PSessionWithUser(friend.Id);
             OnPlayerLeft?.Invoke(friend.Id);
             HandleMembersChanged(lobby);
@@ -520,9 +534,9 @@ namespace Belay.Net
         }
 
         /// <summary>Packets a client sends that the host passes on to every other client.</summary>
-        private static readonly HashSet<PacketType> RelayedByHost = new HashSet<PacketType> { PacketType.DoorOpen, PacketType.ButtonPress, PacketType.HoldInteract, PacketType.LeverAngle, PacketType.HandTouch, PacketType.ItemPickup, PacketType.ItemDrop, PacketType.RopePull, PacketType.ZoneEntered, PacketType.Knockback, PacketType.PropKill, PacketType.EnemyHurt, PacketType.EnemyKilled };
+        private static readonly HashSet<PacketType> RelayedByHost = new HashSet<PacketType> { PacketType.DoorOpen, PacketType.ButtonPress, PacketType.HoldInteract, PacketType.LeverAngle, PacketType.HandTouch, PacketType.ItemDrop, PacketType.DoorRequestClose, PacketType.RopePull, PacketType.ZoneEntered, PacketType.Knockback, PacketType.PropKill, PacketType.EnemyHurt, PacketType.EnemyKilled, PacketType.EnemyHit, PacketType.HandholdBroke, PacketType.PropShattered, PacketType.ItemInserted, PacketType.ProjectileFired, PacketType.PlayerGrabbed, PacketType.SpawnerFired, PacketType.PlayerAction, PacketType.PlayerDied, PacketType.RunWon, PacketType.ObjectPlaced, PacketType.ObjectHammered, PacketType.ObjectBroken, PacketType.ItemSettled, PacketType.HarpoonRope, PacketType.WaveSpawned, PacketType.TickSackBurst };
         /// <summary>Frequent state the host passes on without delivery guarantees (a newer copy follows soon).</summary>
-        private static readonly HashSet<PacketType> RelayedUnreliable = new HashSet<PacketType> { PacketType.PropState };
+        private static readonly HashSet<PacketType> RelayedUnreliable = new HashSet<PacketType> { PacketType.PropState, PacketType.EnemyStates, PacketType.EnemyShot };
 
         private readonly Dictionary<PacketType, Action<SteamId, BinaryReader>> handlers =
             new Dictionary<PacketType, Action<SteamId, BinaryReader>>();

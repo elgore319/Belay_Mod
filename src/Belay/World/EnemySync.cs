@@ -42,6 +42,7 @@ namespace Belay.World
         {
             NetSession.Instance.On(PacketType.EnemyHurt, HandleHurt);
             NetSession.Instance.On(PacketType.EnemyKilled, HandleKilled);
+            NetSession.Instance.On(PacketType.EnemyHit, HandleHit);
         }
 
         internal static bool Live => Instance != null && NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready && !Applying;
@@ -185,6 +186,66 @@ namespace Belay.World
             });
         }
 
+        /// <summary>
+        /// For enemies whose hit does more than take health (a turret knocked over, a phage stunned, a
+        /// tracker scared off, the vent thing driven back): the hit itself is replayed on every PC.
+        /// </summary>
+        internal void OnLocalHit(AIGameEntity enemy, Damageable.DamageInfo info)
+        {
+            Entry e = Register(enemy);
+            float amount = info.amount;
+            string type = info.type ?? "";
+            Vector3 at = WorldSpace.ToShared(info.position);
+            NetSession.Instance.Send(PacketType.EnemyHit, w =>
+            {
+                WriteWho(w, e);
+                w.Write(amount);
+                w.Write(type);
+                w.WriteVector(at);
+            });
+        }
+
+        private void HandleHit(SteamId origin, BinaryReader r)
+        {
+            string kind = r.ReadString();
+            Vector3 spawn = r.ReadVector();
+            Vector3 now = r.ReadVector();
+            float amount = r.ReadSingle();
+            string type = r.ReadString();
+            Vector3 at = r.ReadVector();
+            if (!WorldSpace.Ready || origin == NetSession.LocalId)
+            {
+                return;
+            }
+            AIGameEntity enemy = Find(kind, spawn, now);
+            if (enemy == null || enemy.dead)
+            {
+                return;
+            }
+            var info = new Damageable.DamageInfo
+            {
+                amount = amount,
+                type = type,
+                position = WorldSpace.ToLocal(at),
+                tags = new List<string>(),
+                // Something to run from: the hit's spot is the teammate, but the game wants an entity.
+                sourceEntity = ENT_Player.playerObject,
+            };
+            Applying = true;
+            try
+            {
+                enemy.Damage(info);
+            }
+            catch (System.Exception e)
+            {
+                Plugin.Log.LogWarning($"Couldn't replay a teammate's hit on {enemy.name}: {e.Message}");
+            }
+            finally
+            {
+                Applying = false;
+            }
+        }
+
         // ---------------------------------------------------------------- Teammates
 
         private void HandleHurt(SteamId origin, BinaryReader r)
@@ -314,6 +375,45 @@ namespace Belay.World
                 {
                     Plugin.Log.LogWarning($"Enemy death not shared ({__instance.name}): {e.Message}");
                 }
+            }
+        }
+    }
+
+    /// <summary>Enemies whose Damage doesn't go through GameEntity.Damage: their hits are replayed on every PC.</summary>
+    [HarmonyPatch]
+    internal static class EnemyHitOverridePatches
+    {
+        private static IEnumerable<System.Reflection.MethodBase> TargetMethods()
+        {
+            var args = new[] { typeof(Damageable.DamageInfo) };
+            yield return AccessTools.Method(typeof(DEN_Turret), nameof(DEN_Turret.Damage), args);
+            yield return AccessTools.Method(typeof(DEN_Phage), nameof(DEN_Phage.Damage), args);
+            yield return AccessTools.Method(typeof(DEN_Tracker), nameof(DEN_Tracker.Damage), args);
+            yield return AccessTools.Method(typeof(DEN_VentThing), nameof(DEN_VentThing.Damage), args);
+            yield return AccessTools.Method(typeof(DEN_Hunter), nameof(DEN_Hunter.Damage), args);
+        }
+
+        [HarmonyPrefix]
+        private static void Prefix(GameEntity __instance, Damageable.DamageInfo info)
+        {
+            if (!EnemySync.Live || !EnemySync.Tracked(__instance) || __instance.dead || info == null)
+            {
+                return;
+            }
+            ENT_Player player = ENT_Player.playerObject;
+            bool fromMe = player != null && (info.sourceEntity == player
+                || (info.sourceObject != null && info.sourceObject == player.gameObject) || info.HasTag("player"));
+            if (!fromMe)
+            {
+                return;
+            }
+            try
+            {
+                EnemySync.Instance.OnLocalHit((AIGameEntity)__instance, info);
+            }
+            catch (System.Exception e)
+            {
+                Plugin.Log.LogWarning($"Hit not shared ({__instance.name}): {e.Message}");
             }
         }
     }

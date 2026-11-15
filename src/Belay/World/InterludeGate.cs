@@ -41,6 +41,13 @@ namespace Belay.World
             return level != null && (level.safeArea || level.name.ToLowerInvariant().Contains("interlude"));
         }
 
+        /// <summary>This spot is inside an interlude or breakroom (a room that waits for the team).</summary>
+        internal static bool InGatedRoom(Vector3 worldPos)
+        {
+            M_Level level = WorldCatchUp.LevelAt(worldPos);
+            return IsGatedRoom(level) && Inside(level, worldPos);
+        }
+
         private static bool Inside(M_Level level, Vector3 worldPos)
         {
             Vector3 local = level.transform.worldToLocalMatrix.MultiplyPoint(worldPos);
@@ -64,7 +71,7 @@ namespace Belay.World
             var missing = new List<string>();
             foreach (RemotePlayer remote in PlayerSync.Instance.Remotes.Values)
             {
-                if (remote == null || remote.Latest.Dead || Time.unscaledTime - remote.LastReceived > 3f)
+                if (remote == null || remote.Latest.Dead || !remote.Present)
                 {
                     continue;
                 }
@@ -86,17 +93,21 @@ namespace Belay.World
 
         // ---------------------------------------------------------------- What a control does
 
-        internal enum GateKind { Free, Room, Elevator }
+        internal enum GateKind { Free, Room, Elevator, Gathered }
 
         private static readonly Dictionary<int, GateKind> kinds = new Dictionary<int, GateKind>();
 
         /// <summary>How far from an elevator's button every teammate has to be before it goes (meters).</summary>
         private const float ElevatorReach = 8f;
 
+        /// <summary>How far from a Hadal diver button every living teammate has to be before it works (meters).</summary>
+        private const float GatherReach = 15f;
+
         /// <summary>
-        /// Doors and hatches never wait: anyone can open the way on, so a teammate who's behind can still
-        /// catch up. Elevators (and lifts) are where the team waits: they leave only once everyone is aboard.
-        /// Anything else in the room keeps waiting until the whole team is in the room.
+        /// Opening a door or hatch never waits: anyone can open the way on, so a teammate who's behind can
+        /// still catch up. Elevators (and lifts) are where the team waits: they leave only once everyone is
+        /// aboard. Anything that closes or seals a way behind the team, or moves the mass (an interlude's
+        /// lockdown button, for one), waits until every living teammate is in the room, like everything else.
         /// </summary>
         internal static GateKind Classify(Component control, M_Level level, params UnityEngine.Events.UnityEventBase[] events)
         {
@@ -121,9 +132,20 @@ namespace Belay.World
                 }
             }
             string all = string.Join(" ", words).ToLowerInvariant();
-            if (all.Contains("elevator") || all.Contains("lift"))
+            if (GathersTeam(all, level))
+            {
+                // The Hadal diver's buttons carry whoever is there off to the next area and strand anyone
+                // left behind, so they wait until every living teammate is gathered at them.
+                kind = GateKind.Gathered;
+            }
+            else if (all.Contains("elevator") || all.Contains("lift"))
             {
                 kind = GateKind.Elevator;
+            }
+            else if (SealsOrMovesMass(all))
+            {
+                // A lockdown sealed the hatch and raised the mass on a teammate still climbing below.
+                kind = GateKind.Room;
             }
             else if (all.Contains("door") || all.Contains("hatch") || all.Contains("shutter") || all.Contains("airlock"))
             {
@@ -136,6 +158,29 @@ namespace Belay.World
             kinds[key] = kind;
             Plugin.Log.LogInfo($"Interlude control {ButtonSync.ObjectId(control)}: {kind} ({all})");
             return kind;
+        }
+
+        /// <summary>
+        /// Buttons that carry whoever is there on to the next area and strand anyone left behind: the pair
+        /// right after the Teeth climb (Habitation pier entrance) and the Hadal diver's. These wait for the
+        /// whole team even outside interludes.
+        /// </summary>
+        private static bool GathersTeam(string all, M_Level level)
+        {
+            string levelName = level != null ? level.name.ToLowerInvariant() : "";
+            return levelName.Contains("pier_entrance") || all.Contains("hadal") || all.Contains("diver") || all.Contains("tram_interfacility");
+        }
+
+        /// <summary>Gathering buttons count everywhere, not only in interludes.</summary>
+        private static bool IsGatheringControl(Component control, M_Level level)
+        {
+            return Classify(control, level, EventsOf(control)) == GateKind.Gathered;
+        }
+
+        private static bool SealsOrMovesMass(string all)
+        {
+            return all.Contains("close") || all.Contains("shut") || all.Contains("seal") || all.Contains("lockdown")
+                || all.Contains("goo") || all.Contains("deathfloor") || all.Contains("death floor");
         }
 
         private static void AddPath(List<string> words, Transform t, M_Level level, int depth)
@@ -161,7 +206,7 @@ namespace Belay.World
                 return false;
             }
             M_Level level = control.GetComponentInParent<M_Level>();
-            if (!IsGatedRoom(level))
+            if (!IsGatedRoom(level) && !(control is CL_Button || control is CL_HoldButton ? IsGatheringControl(control, level) : false))
             {
                 return false;
             }
@@ -171,9 +216,10 @@ namespace Belay.World
                 return false;
             }
             Vector3 at = control.transform.position;
-            List<string> missing = kind == GateKind.Elevator
-                ? Missing(p => (p - at).sqrMagnitude <= ElevatorReach * ElevatorReach)
-                : Missing(level);
+            float reach = kind == GateKind.Elevator ? ElevatorReach : GatherReach;
+            List<string> missing = kind == GateKind.Room
+                ? Missing(level)
+                : Missing(p => (p - at).sqrMagnitude <= reach * reach);
             if (missing.Count == 0)
             {
                 return false;

@@ -26,7 +26,7 @@ namespace BelayUpdater
 
         public static void Patch(AssemblyDefinition assembly) { }
 
-        private const string DefaultRepo = "BrassWhuckle/Belay";
+        private const string DefaultRepo = "BrassWhuckle/Tethered";
         private const string ConfigName = "brasswhuckle.belay.cfg";
         private const string TestClientFlag = "-belay-testclient";
 
@@ -61,7 +61,7 @@ namespace BelayUpdater
                 : new string[0];
             if (found.Length != 1)
             {
-                log.LogInfo(found.Length == 0 ? "Belay isn't installed; nothing to update." : "Several Belay.dll files found; leaving them alone.");
+                log.LogInfo(found.Length == 0 ? "Tethered isn't installed; nothing to update." : "Several Belay.dll files found; leaving them alone.");
                 return;
             }
             string plugin = found[0];
@@ -103,7 +103,7 @@ namespace BelayUpdater
             File.WriteAllBytes(fresh, data);
             File.Copy(fresh, plugin, true);
             TryDelete(fresh);
-            log.LogInfo($"Updated Belay {current} -> {best}");
+            log.LogInfo($"Updated Tethered {current} -> {best}");
 
             // Belay reads this once and tells the player which version they're on now.
             string marker = Path.Combine(Path.Combine(Paths.CachePath, "Belay"), "updated.txt");

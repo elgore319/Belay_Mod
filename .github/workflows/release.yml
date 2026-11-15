@@ -3,7 +3,7 @@ name: Release
 # Publishes a GitHub release with the installer zip, a mod-only zip and Belay.dll
 # (which the in-game updater downloads).
 #
-# Public releases live in the team's repo, BrassWhuckle/Belay. This workflow first
+# Public releases live in the team's repo, BrassWhuckle/Tethered. This workflow first
 # copies the source (without .github/, release/ and the release notes file) to that
 # repo as one commit and publishes the release there, then publishes the same
 # release here. It signs in to the team repo as the team's GitHub App, so nothing
@@ -36,7 +36,7 @@ permissions:
   contents: write
 
 env:
-  ORG_REPO: BrassWhuckle/Belay
+  ORG_REPO: BrassWhuckle/Tethered
   HAS_ORG_APP: ${{ secrets.ORG_APP_ID != '' && secrets.ORG_APP_PRIVATE_KEY != '' }}
 
 jobs:
@@ -100,7 +100,7 @@ jobs:
           app-id: ${{ secrets.ORG_APP_ID }}
           private-key: ${{ secrets.ORG_APP_PRIVATE_KEY }}
           owner: BrassWhuckle
-          repositories: Belay
+          repositories: Tethered
 
       - name: Publish to the team repo
         if: env.HAS_ORG_APP == 'true'
@@ -128,7 +128,7 @@ jobs:
           git add -A
           if ! git diff --cached --quiet; then
             git -c user.name="${APP_SLUG}[bot]" -c user.email="${BOT_ID}+${APP_SLUG}[bot]@users.noreply.github.com" \
-              commit -q -m "Belay $VER"
+              commit -q -m "Tethered $VER"
             git push -q origin "HEAD:$BRANCH"
           fi
           SHA=$(git rev-parse HEAD)
@@ -137,7 +137,7 @@ jobs:
           [ "$PRE" = "true" ] && FLAGS+=(--prerelease)
           gh release create "$TAG" dist/*.zip dist/Belay.dll -R "$ORG_REPO" \
             --target "$SHA" \
-            --title "Belay $VER" \
+            --title "Tethered $VER" \
             --notes-file last_release_notes.md \
             "${FLAGS[@]}"
 
@@ -156,6 +156,6 @@ jobs:
           [ "$PRE" = "true" ] && FLAGS+=(--prerelease)
           gh release create "$TAG" dist/*.zip dist/Belay.dll \
             --target "$(git rev-parse HEAD)" \
-            --title "Belay ${{ steps.ver.outputs.version }}" \
+            --title "Tethered ${{ steps.ver.outputs.version }}" \
             --notes-file last_release_notes.md \
             "${FLAGS[@]}"

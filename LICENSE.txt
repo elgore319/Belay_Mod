@@ -21,8 +21,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-Belay is a fan-made mod. It is not made, endorsed or supported by the makers or
+Tethered is a fan-made mod. It is not made, endorsed or supported by the makers or
 publishers of White Knuckle. White Knuckle and its names, art and trademarks
-belong to their owners. Belay does not include the game; every player needs
+belong to their owners. Tethered does not include the game; every player needs
 their own copy. Third-party components bundled with the installer keep their
 own licenses (see THIRD-PARTY-NOTICES.txt).

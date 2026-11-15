@@ -62,6 +62,7 @@ namespace Belay.Revive
             NetSession net = NetSession.Instance;
             net.On(PacketType.ReviveRequest, HandleReviveRequest);
             net.On(PacketType.Revived, HandleRevived);
+            Run.WinSync.Listen();
             net.On(PacketType.RunOver, (origin, r) =>
             {
                 if (origin == NetSession.Instance.HostId)
@@ -76,8 +77,15 @@ namespace Belay.Revive
         private void Update()
         {
             Prompt = null;
+            if (!Active && runOver && gameOverCheckAt >= 0f && NetSession.Instance.InLobby)
+            {
+                // The world can stop counting as ready once the run ends; still make sure the screen shows.
+                CheckGameOverStarted();
+                return;
+            }
             if (!Active)
             {
+                pendingRevive = false;
                 Spectating = false;
                 runOver = false;
                 allDeadSince = -1f;
@@ -98,6 +106,12 @@ namespace Belay.Revive
                     spectateIndex++;
                 }
                 Prompt = "You died. A teammate can revive you at a save terminal, or by using a disk.  [" + Plugin.SpectateNextKey.Value + "] next player";
+            }
+
+            if (pendingRevive && Time.unscaledTime >= nextPendingTry)
+            {
+                nextPendingTry = Time.unscaledTime + 0.5f;
+                TryFinishRevive();
             }
 
             CheckRunOver();
@@ -217,7 +231,7 @@ namespace Belay.Revive
             foreach (SteamId id in NetSession.Instance.MemberOrder())
             {
                 if (PlayerSync.Instance.Remotes.TryGetValue(id, out RemotePlayer remote) && remote != null
-                    && !remote.Latest.Dead && Time.unscaledTime - remote.LastReceived < 3f)
+                    && !remote.Latest.Dead && remote.Present)
                 {
                     alive.Add(remote);
                 }
@@ -299,30 +313,97 @@ namespace Belay.Revive
         /// </summary>
         private void CheckGameOverStarted()
         {
-            if (!runOver || forcedGameOver || gameOverCheckAt < 0f || Time.unscaledTime < gameOverCheckAt)
+            if (!runOver || gameOverCheckAt < 0f || Time.unscaledTime < gameOverCheckAt)
             {
                 return;
             }
-            gameOverCheckAt = -1f;
-            if (CL_GameManager.runHasEnded)
+            if (ScoreScreenShowing())
             {
+                gameOverCheckAt = -1f;
                 return;
             }
-            forcedGameOver = true;
-            Plugin.Log.LogWarning("The game-over screen didn't start after the run ended; starting it directly");
-            try
+            CL_GameManager gMan = CL_GameManager.gMan;
+            if (gMan == null)
             {
-                CL_GameManager gMan = CL_GameManager.gMan;
-                var sequence = AccessTools.Method(typeof(CL_GameManager), "EndGameSequence");
-                if (gMan != null && sequence != null)
+                gameOverCheckAt = -1f;
+                return;
+            }
+            if (!CL_GameManager.runHasEnded && !forcedGameOver)
+            {
+                // The game's own death call returned early (it thought you were already dead, or went
+                // for a disk revive): start the end sequence directly and check again shortly.
+                forcedGameOver = true;
+                gameOverCheckAt = Time.unscaledTime + GameOverCheckDelay;
+                Plugin.Log.LogWarning("The game-over screen didn't start after the run ended; starting it directly");
+                try
                 {
+                    var sequence = AccessTools.Method(typeof(CL_GameManager), "EndGameSequence");
                     gMan.StartCoroutine((System.Collections.IEnumerator)sequence.Invoke(gMan, new object[] { false }));
                 }
+                catch (System.Exception e)
+                {
+                    Plugin.Log.LogWarning("Couldn't start the game-over screen: " + e.Message);
+                }
+                return;
+            }
+            // The end sequence started but stopped before the score screen (something in it threw, e.g.
+            // saving stats for a co-op run). Put the screen up ourselves, one step at a time.
+            gameOverCheckAt = -1f;
+            Plugin.Log.LogWarning("The game-over sequence stalled before the score screen; showing it directly");
+            StatManager stats = Traverse.Create(gMan).Field("statManager").GetValue<StatManager>();
+            Try("pause", () => gMan.isPaused = true);
+            Try("fade", () => gMan.uiMan.SetFadeTarget(1f));
+            Try("score screen", () => stats.ShowScoreScreen(false));
+            Try("cursor", () =>
+            {
+                Cursor.lockState = CursorLockMode.None;
+                CL_GameManager.showCursor = true;
+            });
+        }
+
+        private static void Try(string what, System.Action step)
+        {
+            try
+            {
+                step();
             }
             catch (System.Exception e)
             {
-                Plugin.Log.LogWarning("Couldn't start the game-over screen: " + e.Message);
+                Plugin.Log.LogWarning($"Game-over screen ({what}) failed: {e.Message}");
             }
+        }
+
+        private static bool ScoreScreenShowing()
+        {
+            try
+            {
+                CL_GameManager gMan = CL_GameManager.gMan;
+                StatManager stats = gMan != null ? Traverse.Create(gMan).Field("statManager").GetValue<StatManager>() : null;
+                if (stats == null)
+                {
+                    return false;
+                }
+                foreach (string field in new[] { "loseScreen", "winScreen" })
+                {
+                    Component screen = Traverse.Create(stats).Field(field).GetValue<Component>();
+                    if (screen != null && screen.gameObject.activeInHierarchy)
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch (System.Exception)
+            {
+            }
+            return false;
+        }
+
+        /// <summary>A teammate reached the ending: the run is over for everyone, dead or alive.</summary>
+        internal void OnRunWon()
+        {
+            runOver = true;
+            Spectating = false;
+            gameOverCheckAt = -1f;
         }
 
         private void EndRun()
@@ -406,6 +487,24 @@ namespace Belay.Revive
             }
             RequestRevive(target, SpotBehindLocalPlayer(), true);
             Plugin.Log.LogInfo("Disk revive requested for " + NetSession.NameOf(target));
+            return true;
+        }
+
+        /// <summary>
+        /// A climbing bot got to a terminal (or the room ahead) while you were down: it brings you back next
+        /// to itself, free. Bots only run on the host, which approves its own revives.
+        /// </summary>
+        internal static bool BotRevive(SteamId bot, SteamId target, Vector3 localSpawn)
+        {
+            if (!Active || Instance == null || !NetSession.Instance.IsHost || !DeadMembers().Contains(target))
+            {
+                return false;
+            }
+            if (Instance.recentRevives.TryGetValue(target, out float at) && Time.unscaledTime - at < 5f)
+            {
+                return false;
+            }
+            Instance.HostApproveRevive(target, bot, WorldSpace.ToShared(localSpawn), true);
             return true;
         }
 
@@ -522,17 +621,89 @@ namespace Belay.Revive
             {
                 return;
             }
+            // The revive spot may be somewhere this PC hasn't built yet (a teammate rode the Hadal diver or
+            // took a shortcut while you were dead): getting up there meant falling through nothing. Stay
+            // down until the ground there exists, then get up.
+            pendingRevive = true;
+            pendingSpawn = sharedSpawn;
+            pendingReviver = reviver;
+            pendingSince = Time.unscaledTime;
+            TryFinishRevive();
+        }
+
+        private bool pendingRevive;
+        private Vector3 pendingSpawn;
+        private SteamId pendingReviver;
+        private float pendingSince;
+        private float nextPendingTry;
+
+        /// <summary>How long a revive waits for the ground at its spot before it goes ahead anyway.</summary>
+        private const float ReviveWaitLimit = 45f;
+
+        private void TryFinishRevive()
+        {
+            if (!pendingRevive || !WorldSpace.Ready)
+            {
+                return;
+            }
             ENT_Player player = ENT_Player.playerObject;
+            if (player == null)
+            {
+                return;
+            }
+            if (!player.dead)
+            {
+                pendingRevive = false; // revived some other way meanwhile
+                return;
+            }
+            Vector3 spot = WorldSpace.ToLocal(pendingSpawn);
+            bool waitedTooLong = Time.unscaledTime - pendingSince > ReviveWaitLimit;
+            if (!GroundReady(spot) && !waitedTooLong)
+            {
+                EnsureLevelAt(spot);
+                return;
+            }
+            if (waitedTooLong && !GroundReady(spot))
+            {
+                Plugin.Log.LogWarning("The revive spot still isn't built here; getting up there anyway");
+            }
+            pendingRevive = false;
             Spectating = false;
             player.Revive();
             player.GetTagger()?.RemoveTag("Dead");
-            Vector3 spot = WorldSpace.ToLocal(sharedSpawn);
+            World.TeethSync.CleanUpAfterRevive(player);
             EnsureLevelAt(spot);
             player.Teleport(spot);
             player.ResetFallingHeight();
-            player.AddIgnoreFallDamageTime(3f);
-            RunFlowNotice(NetSession.NameOf(reviver) + " revived you");
+            player.AddIgnoreFallDamageTime(5f);
+            RunFlowNotice(NetSession.NameOf(pendingReviver) + " revived you");
         }
+
+        /// <summary>A built, switched-on level holds the spot and there's solid ground under it.</summary>
+        private static bool GroundReady(Vector3 spot)
+        {
+            M_Level level = World.WorldCatchUp.LevelAt(spot);
+            if (level == null)
+            {
+                return false;
+            }
+            if (!level.gameObject.activeInHierarchy)
+            {
+                EnsureLevelAt(spot);
+                return false;
+            }
+            foreach (RaycastHit hit in Physics.RaycastAll(spot + Vector3.up * 1f, Vector3.down, 30f, ~0, QueryTriggerInteraction.Ignore))
+            {
+                // The reviver is standing right there: their body isn't ground.
+                if (hit.collider != null && hit.collider.GetComponentInParent<RemoteBody>() == null)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static float lastNoLevelWarning = -100f;
 
         /// <summary>
         /// Make the level at this spot the active one (switching map branch if needed) so its terrain
@@ -541,25 +712,17 @@ namespace Belay.Revive
         /// </summary>
         internal static void EnsureLevelAt(Vector3 worldPos)
         {
-            M_Level best = null;
-            float bestDist = float.MaxValue;
-            foreach (M_Level level in FindObjectsByType<M_Level>(FindObjectsInactive.Include, FindObjectsSortMode.None))
-            {
-                if (level == null) continue;
-                Vector3 local = level.transform.worldToLocalMatrix.MultiplyPoint(worldPos);
-                Bounds b = level.GetLocalBounds();
-                b.Expand(4f);
-                if (!b.Contains(local)) continue;
-                float d = (b.center - local).sqrMagnitude;
-                if (d < bestDist)
-                {
-                    bestDist = d;
-                    best = level;
-                }
-            }
+            M_Level best = World.WorldCatchUp.LevelAt(worldPos);
             if (best == null)
             {
-                Plugin.Log.LogWarning("No level found at the revive spot");
+                // Not built here yet (the teammate walked past a spot that holds the building back):
+                // build on until it is.
+                World.WorldCatchUp.Nudge(worldPos);
+                if (Time.unscaledTime - lastNoLevelWarning > 30f)
+                {
+                    lastNoLevelWarning = Time.unscaledTime;
+                    Plugin.Log.LogWarning("No level built at the revive spot yet, building on");
+                }
                 return;
             }
             try
@@ -628,6 +791,7 @@ namespace Belay.Revive
             }
             __instance.localPlayer.KillEffects(type);
             ReviveSystem.Instance.OnLocalDeath(type);
+            UI.DeathFeed.LocalDied(type);
             return false;
         }
     }

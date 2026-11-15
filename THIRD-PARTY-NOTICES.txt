@@ -1,10 +1,10 @@
 THIRD-PARTY NOTICES
 
-The Belay installer (Belay-X.Y.Z-installer.zip) includes BepInEx 5.4.23.6
+The Tethered installer (Tethered-X.Y.Z-installer.zip) includes BepInEx 5.4.23.6
 for Windows x64, unmodified, exactly as published at
 https://github.com/BepInEx/BepInEx/releases/tag/v5.4.23.6
 BepInEx and the components it ships keep their own licenses, reproduced
-below. Belay's own license (LICENSE.txt) does not apply to them and does not
+below. Tethered's own license (LICENSE.txt) does not apply to them and does not
 limit your rights under them.
 
   Component                 Files                                   License
@@ -23,7 +23,7 @@ with your own build of UnityDoorstop.
 
 Belay.dll itself contains no third-party code. At runtime it uses BepInEx,
 HarmonyX and the game's own copies of Unity and Facepunch.Steamworks, none of
-which are redistributed with Belay.
+which are redistributed with Tethered.
 
 
 ================================================================================

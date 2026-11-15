@@ -74,6 +74,13 @@ namespace Belay.World
         private float shownEnds;
         private bool myVoteSent;
         private int runId;
+
+        // Everyone: the running vote as the host last described it, so a new host can carry it on.
+        private bool shownAtTerminal, shownAtVoteTerminal;
+        private ulong shownStarter;
+        private readonly HashSet<ulong> shownYesIds = new HashSet<ulong>();
+        private readonly HashSet<ulong> shownNoIds = new HashSet<ulong>();
+        private SteamId lastHost;
         private string myRequestId;
         private Vector3 myRequestPos;
 
@@ -123,7 +130,7 @@ namespace Belay.World
             }
             Plugin.Log.LogInfo((Approved.Contains(id) ? "Opening a shortcut the team picked: " : "Asking the team to take a shortcut: ") + id);
             // Some shortcuts start when you walk into them. If the team picks the normal path, you're
-            // put back where you were when you asked, on the right side of the barrier.
+            // put back where you were when you asked, on the right side of the block.
             myRequestId = id;
             myRequestPos = WorldSpace.ToShared(ENT_Player.playerObject.transform.position);
             Ask(new List<string> { id }, false);
@@ -238,9 +245,23 @@ namespace Belay.World
             return ids;
         }
 
+        /// <summary>
+        /// Who the vote waits for: living teammates. A dead player can't get to a terminal to vote, so
+        /// counting them made every vote with someone down run out its whole timer. If everyone is dead,
+        /// everyone counts (the run is ending anyway).
+        /// </summary>
         private List<SteamId> Voters()
         {
-            return NetSession.Instance.MemberIds();
+            List<SteamId> all = NetSession.Instance.MemberIds();
+            List<SteamId> living = all.Where(id =>
+            {
+                if (id == NetSession.LocalId)
+                {
+                    return ENT_Player.playerObject == null || !ENT_Player.playerObject.dead;
+                }
+                return !PlayerSync.Instance.Remotes.TryGetValue(id, out RemotePlayer remote) || remote == null || !remote.Latest.Dead;
+            }).ToList();
+            return living.Count > 0 ? living : all;
         }
 
         private bool Waiting(string id)
@@ -283,6 +304,36 @@ namespace Belay.World
             HostNext();
         }
 
+        /// <summary>
+        /// The host left mid-vote and this PC took over: carry on the vote everyone was looking at, with the
+        /// votes already cast. Shortcuts still queued behind it get asked again at the next terminal visit.
+        /// </summary>
+        private void TakeOverVote()
+        {
+            if (voteId != null || !showVote || string.IsNullOrEmpty(shownId) || IsDecided(shownId, out _))
+            {
+                return;
+            }
+            voteInfo = new Pending
+            {
+                Starter = new SteamId { Value = shownStarter },
+                Id = shownId,
+                AtTerminal = shownAtTerminal,
+                AtVoteTerminal = shownAtVoteTerminal,
+                Index = 1,
+                Total = 1,
+            };
+            voteId = shownId;
+            voteStarter = voteInfo.Starter;
+            yes.Clear();
+            no.Clear();
+            yes.UnionWith(shownYesIds);
+            no.UnionWith(shownNoIds);
+            voteEnds = Mathf.Max(shownEnds, Time.unscaledTime + 5f);
+            nextStateSend = 0f;
+            Plugin.Log.LogInfo($"Took over as host: carrying on the shortcut vote ({yes.Count} yes, {no.Count} no): {voteId}");
+        }
+
         private void CancelVote(string id)
         {
             queue.RemoveAll(p => p.Id == id);
@@ -305,6 +356,8 @@ namespace Belay.World
             generatorCache[id] = generator;
             Plugin.Log.LogInfo("Walked into a shortcut, opening it for the team: " + id);
             string me = NetSession.NameOf(NetSession.LocalId);
+            // Our player is right here, so build it now whatever happens with the team's copy.
+            Open(id, me, force: true);
             if (NetSession.Instance.IsHost)
             {
                 CancelVote(id);
@@ -312,9 +365,15 @@ namespace Belay.World
             }
             else
             {
-                Open(id, me);
                 Ask(new List<string> { id }, false);
             }
+        }
+
+        internal void OpenHere(UT_BranchGenerator generator)
+        {
+            string id = ButtonSync.ObjectId(generator);
+            generatorCache[id] = generator;
+            Open(id, NetSession.NameOf(NetSession.LocalId), force: true);
         }
 
         private void HostNext()
@@ -418,6 +477,11 @@ namespace Belay.World
                     int y = voters.Count(v => yes.Contains(v.Value));
                     int n = voters.Count(v => no.Contains(v.Value));
                     string id = voteId;
+                    bool sendAtTerminal = voteInfo.AtTerminal;
+                    bool atVoteTerminal = voteInfo.AtVoteTerminal;
+                    ulong starterId = voteStarter.Value;
+                    var yesIds = new List<ulong>(yes);
+                    var noIds = new List<ulong>(no);
                     NetSession.Instance.Send(PacketType.ShortcutVoteState, w =>
                     {
                         w.Write(id);
@@ -426,6 +490,13 @@ namespace Belay.World
                         w.Write(n);
                         w.Write(voters.Count);
                         w.Write(left);
+                        w.Write(sendAtTerminal);
+                        w.Write(atVoteTerminal);
+                        w.Write(starterId);
+                        w.Write(yesIds.Count);
+                        foreach (ulong v in yesIds) w.Write(v);
+                        w.Write(noIds.Count);
+                        foreach (ulong v in noIds) w.Write(v);
                     });
                     ShowState(id, title, y, n, voters.Count, left);
                 }
@@ -460,6 +531,15 @@ namespace Belay.World
             int n = r.ReadInt32();
             int voters = r.ReadInt32();
             float left = r.ReadSingle();
+            shownAtTerminal = r.ReadBoolean();
+            shownAtVoteTerminal = r.ReadBoolean();
+            shownStarter = r.ReadUInt64();
+            shownYesIds.Clear();
+            shownNoIds.Clear();
+            int yc = r.ReadInt32();
+            for (int i = 0; i < yc && i < 64; i++) shownYesIds.Add(r.ReadUInt64());
+            int nc = r.ReadInt32();
+            for (int i = 0; i < nc && i < 64; i++) shownNoIds.Add(r.ReadUInt64());
             ShowState(id, title, y, n, voters, left);
         }
 
@@ -494,17 +574,17 @@ namespace Belay.World
             if (outcome == Outcome.Approved)
             {
                 Approved.Add(id);
-                BlockNormalPath(FindGenerator(id));
+                UT_BranchGenerator approved = FindGenerator(id);
+                if (approved != null) BlockNormalPath(approved);
+                else lockLater[id] = false;
                 return;
             }
             if (outcome == Outcome.Normal)
             {
                 Opened.Add(id); // the vote is over: this shortcut stays shut for the run
                 UT_BranchGenerator g = FindGenerator(id);
-                if (g != null && !ShortcutDoors.LockSide(g, shortcutSide: true) && g.startTransform != null)
-                {
-                    PlaceBarrier(g.startTransform, g.currentLevel, "shortcut");
-                }
+                if (g != null) BlockShortcut(g);
+                else lockLater[id] = true;
                 Approved.Remove(id);
                 if (myRequestId == id && ENT_Player.playerObject != null && !ENT_Player.playerObject.dead)
                 {
@@ -544,7 +624,41 @@ namespace Belay.World
             return null;
         }
 
-        /// <summary>Generators whose normal path (the rest of their level) already has a barrier.</summary>
+        /// <summary>
+        /// Decided shortcuts whose level this PC hasn't built yet: locked once it loads (true = the
+        /// shortcut side, false = the normal path).
+        /// </summary>
+        private static readonly Dictionary<string, bool> lockLater = new Dictionary<string, bool>();
+
+        private static void BlockShortcut(UT_BranchGenerator g)
+        {
+            if (!ShortcutDoors.LockSide(g, shortcutSide: true) && g.startTransform != null)
+            {
+                PlaceBarrier(g.startTransform, g.currentLevel, "shortcut");
+            }
+        }
+
+        private void RetryLocks()
+        {
+            if (lockLater.Count == 0)
+            {
+                return;
+            }
+            foreach (var pair in new List<KeyValuePair<string, bool>>(lockLater))
+            {
+                generatorCache.Remove(pair.Key);
+                UT_BranchGenerator g = FindGenerator(pair.Key);
+                if (g == null)
+                {
+                    continue;
+                }
+                lockLater.Remove(pair.Key);
+                if (pair.Value) BlockShortcut(g);
+                else if (Approved.Contains(pair.Key)) BlockNormalPath(g);
+            }
+        }
+
+        /// <summary>Generators whose normal path (the rest of their level) is already blocked.</summary>
         private static readonly HashSet<string> normalBlocked = new HashSet<string>();
 
         private static void BlockNormalPath(UT_BranchGenerator g)
@@ -564,7 +678,7 @@ namespace Belay.World
 
         /// <summary>
         /// Once the team has picked a shortcut that hasn't opened yet, nobody may carry on up the normal path:
-        /// anyone who gets past the barrier into a later level of that branch is put back below it.
+        /// anyone who gets past the block into a later level of that branch is put back below it.
         /// </summary>
         private void KeepOffNormalPath()
         {
@@ -608,12 +722,12 @@ namespace Belay.World
             }
         }
 
-        private static Material barrierMaterial;
-
         /// <summary>
-        /// A solid, see-through red slab across a path, the same on every PC. It's laid across the
-        /// spot's "up" (paths climb upward from entrances and exits) and parented to the level so it
-        /// follows the world and goes away with it.
+        /// Only for a way with nothing the game could keep shut (no door, hatch or lift): seals it with a
+        /// plate that looks like the level around it. It's a solid slab laid across the spot's "up" (paths
+        /// climb upward from entrances and exits), dressed in the material of the nearest wall, floor or
+        /// ceiling, and parented to the level so it follows the world and goes away with it. Same on
+        /// every PC.
         /// </summary>
         private static void PlaceBarrier(Transform at, M_Level level, string what)
         {
@@ -622,39 +736,119 @@ namespace Belay.World
                 return;
             }
             GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            wall.name = "Belay_Barrier_" + what;
+            wall.name = "Belay_Seal_" + what;
             wall.transform.SetParent(level != null ? level.transform : at, true);
             wall.transform.position = at.position;
             wall.transform.rotation = at.rotation;
             wall.transform.localScale = Vector3.one;
             Vector3 lossy = wall.transform.lossyScale;
-            wall.transform.localScale = new Vector3(6f / Mathf.Max(0.01f, Mathf.Abs(lossy.x)), 0.4f / Mathf.Max(0.01f, Mathf.Abs(lossy.y)), 6f / Mathf.Max(0.01f, Mathf.Abs(lossy.z)));
-            if (barrierMaterial == null)
-            {
-                barrierMaterial = new Material(Shader.Find("Sprites/Default")) { color = new Color(0.9f, 0.15f, 0.1f, 0.45f) };
-            }
+            wall.transform.localScale = new Vector3(6f / Mathf.Max(0.01f, Mathf.Abs(lossy.x)), 0.5f / Mathf.Max(0.01f, Mathf.Abs(lossy.y)), 6f / Mathf.Max(0.01f, Mathf.Abs(lossy.z)));
             Renderer r = wall.GetComponent<Renderer>();
+            Material look = LevelMaterialNear(at.position, wall);
             if (r != null)
             {
-                r.sharedMaterial = barrierMaterial;
+                if (look != null)
+                {
+                    var m = new Material(look);
+                    // A cube's faces are 0-1 in UV: tile the texture so it keeps roughly the level's scale.
+                    if (m.HasProperty("_MainTex")) m.mainTextureScale = new Vector2(3f, 3f);
+                    r.sharedMaterial = m;
+                }
+                else
+                {
+                    r.enabled = false; // nothing to dress it in: still blocks, just isn't drawn
+                }
             }
-            Plugin.Log.LogInfo($"Blocked the {what} path at {at.name}");
+            Plugin.Log.LogInfo($"Sealed the {what} path at {at.name}" + (look != null ? $" ({look.name})" : " (no material found)"));
         }
 
-        private void Open(string id, string starter)
+        /// <summary>The opaque material of the closest level surface around a spot.</summary>
+        private static Material LevelMaterialNear(Vector3 at, GameObject self)
         {
-            if (Opened.Contains(id))
+            Vector3[] dirs = { Vector3.left, Vector3.right, Vector3.forward, Vector3.back, Vector3.down, Vector3.up };
+            float best = float.MaxValue;
+            Material found = null;
+            foreach (Vector3 d in dirs)
+            {
+                foreach (RaycastHit hit in Physics.RaycastAll(at, d, 12f, ~0, QueryTriggerInteraction.Ignore))
+                {
+                    if (hit.collider == null || hit.collider.gameObject == self || hit.distance >= best) continue;
+                    if (hit.collider.GetComponentInParent<ENT_Player>() != null || hit.collider.GetComponentInParent<Rigidbody>() != null) continue;
+                    Renderer rend = hit.collider.GetComponent<Renderer>() ?? hit.collider.GetComponentInParent<Renderer>();
+                    Material mat = rend != null ? rend.sharedMaterial : null;
+                    if (mat == null || mat.renderQueue >= 2450) continue; // skip glass, decals and see-through bits
+                    best = hit.distance;
+                    found = mat;
+                }
+            }
+            return found;
+        }
+
+        /// <summary>Opened branches this PC has actually built.</summary>
+        internal static readonly HashSet<string> BuiltHere = new HashSet<string>();
+        /// <summary>Opened by the team, but this PC's player isn't there yet.</summary>
+        private static readonly Dictionary<string, string> deferred = new Dictionary<string, string>();
+
+        /// <summary>Set while a branch is built, so the build is seeded from the shortcut, not from this PC's history.</summary>
+        internal static int? BuildSeed;
+
+        /// <summary>
+        /// Whether to build a branch here now. Building one switches the map over to it, which hides the
+        /// levels behind and (for the main way on, like the Nest entry) deletes them. That used to happen
+        /// on every PC the moment anyone walked in, so teammates still on their way had the map removed
+        /// under them and fell into the void. Now a PC builds it once its own player gets there (or is
+        /// dead and watching a teammate who is).
+        /// </summary>
+        private static bool ReadyHere(UT_BranchGenerator g)
+        {
+            ENT_Player player = ENT_Player.playerObject;
+            if (player == null || player.dead)
+            {
+                return true;
+            }
+            M_Level level = g.currentLevel != null ? g.currentLevel : g.GetComponentInParent<M_Level>();
+            WorldLoader loader = WorldLoader.instance;
+            M_Level current = loader != null ? loader.GetCurrentLevel()?.GetLevel() : null;
+            // In the branch's own level (the game counts it as current and you're inside it), or right at
+            // its trigger. Walking into the trigger builds it anyway; this is the fallback.
+            if (level != null && current == level && WorldCatchUp.LevelAt(player.transform.position) == level)
+            {
+                return true;
+            }
+            return Vector3.Distance(player.transform.position, g.transform.position) < 12f;
+        }
+
+        private static bool IsMainWayOn(UT_BranchGenerator g) => g.deleteRootBranch || g.deleteRootLevelAfterTeleporting || g.teleportPlayerIntoBranch;
+
+        private void Open(string id, string starter, bool force = false)
+        {
+            if (BuiltHere.Contains(id))
             {
                 return;
             }
+            Opened.Add(id);
+            Approved.Remove(id);
             UT_BranchGenerator g = FindGenerator(id);
             if (g != null)
             {
-                Opened.Add(id);
-                Approved.Remove(id);
-                // Block the normal way on, so nobody climbs into the part of the map the shortcut replaces.
-                BlockNormalPath(g);
+                if (!force && !ReadyHere(g))
+                {
+                    if (!deferred.ContainsKey(id))
+                    {
+                        Plugin.Log.LogInfo("The team opened a branch ahead of you; it builds here when you get there: " + id);
+                    }
+                    deferred[id] = starter;
+                    return;
+                }
+                deferred.Remove(id);
+                BuiltHere.Add(id);
+                if (!IsMainWayOn(g))
+                {
+                    // Block the normal way on, so nobody climbs into the part of the map the shortcut replaces.
+                    BlockNormalPath(g);
+                }
                 Applying = true;
+                BuildSeed = Seed(id);
                 try
                 {
                     Random.InitState(Seed(id));
@@ -667,11 +861,59 @@ namespace Belay.World
                 finally
                 {
                     Applying = false;
+                    BuildSeed = null;
                 }
                 Plugin.Log.LogInfo("Shortcut opened for the team: " + id);
                 return;
             }
-            Plugin.Log.LogWarning("The team opened a shortcut that isn't loaded here: " + id);
+            if (!notLoadedYet.ContainsKey(id))
+            {
+                Plugin.Log.LogWarning("The team opened a shortcut that isn't loaded here yet (opens when it loads): " + id);
+            }
+            notLoadedYet[id] = starter;
+        }
+
+        /// <summary>Shortcuts the team opened before this PC had built that part of the map.</summary>
+        private static readonly Dictionary<string, string> notLoadedYet = new Dictionary<string, string>();
+        private float nextNotLoadedTry;
+
+        private void RetryNotLoaded()
+        {
+            if ((notLoadedYet.Count == 0 && lockLater.Count == 0 && deferred.Count == 0) || Time.unscaledTime < nextNotLoadedTry)
+            {
+                return;
+            }
+            nextNotLoadedTry = Time.unscaledTime + 1f;
+            RetryLocks();
+            foreach (var pair in new List<KeyValuePair<string, string>>(deferred))
+            {
+                if (BuiltHere.Contains(pair.Key))
+                {
+                    deferred.Remove(pair.Key);
+                    continue;
+                }
+                UT_BranchGenerator g = FindGenerator(pair.Key);
+                if (g != null && ReadyHere(g))
+                {
+                    Plugin.Log.LogInfo("Reached a branch the team opened, building it here: " + pair.Key);
+                    Open(pair.Key, pair.Value, force: true);
+                }
+            }
+            foreach (var pair in new List<KeyValuePair<string, string>>(notLoadedYet))
+            {
+                if (BuiltHere.Contains(pair.Key) || deferred.ContainsKey(pair.Key))
+                {
+                    notLoadedYet.Remove(pair.Key);
+                    continue;
+                }
+                generatorCache.Remove(pair.Key);
+                if (FindGenerator(pair.Key) != null)
+                {
+                    notLoadedYet.Remove(pair.Key);
+                    Plugin.Log.LogInfo("Caught up on a shortcut the team opened: " + pair.Key);
+                    Open(pair.Key, pair.Value);
+                }
+            }
         }
 
         private void SendVote(bool inFavour)
@@ -727,59 +969,38 @@ namespace Belay.World
             {
                 runId = net.CurrentRun.RunId;
                 Opened.Clear();
+                BuiltHere.Clear();
+                deferred.Clear();
                 ShortcutDoors.Clear();
                 Approved.Clear();
                 normalBlocked.Clear();
+                notLoadedYet.Clear();
+                lockLater.Clear();
                 wantsOpen.Clear();
                 queue.Clear();
                 earlyVotes.Clear();
                 showVote = false;
                 voteId = null;
             }
+            if (net.IsHost && lastHost.Value != 0 && lastHost != net.HostId)
+            {
+                TakeOverVote();
+            }
+            lastHost = net.HostId;
             if (net.IsHost)
             {
                 HostCheck();
-            }
-            if (showVote && !myVoteSent)
-            {
-                if (Input.GetKeyDown(Plugin.VoteYesKey.Value)) SendVote(true);
-                else if (Input.GetKeyDown(Plugin.VoteNoKey.Value)) SendVote(false);
             }
             if (showVote && Time.unscaledTime > shownEnds + 5f)
             {
                 showVote = false; // the host went quiet
             }
+            ShortcutDoors.Tick();
             KeepOffNormalPath();
+            RetryNotLoaded();
         }
 
-        private void OnGUI()
-        {
-            if (!showVote)
-            {
-                return;
-            }
-            GUI.depth = -1000; // above other on-screen text
-            float left = Mathf.Max(0f, shownEnds - Time.unscaledTime);
-            string line1 = shownTitle;
-            string line2 = myVoteSent
-                ? $"Shortcut {shownYes}   Normal {shownNo}   of {shownVoters}   ({Mathf.CeilToInt(left)}s)"
-                : $"[{Plugin.VoteYesKey.Value}] Shortcut   [{Plugin.VoteNoKey.Value}] Normal path      Shortcut {shownYes}   Normal {shownNo}   of {shownVoters}   ({Mathf.CeilToInt(left)}s)";
-            // Big and high-contrast so it reads over a terminal screen too.
-            float w = Mathf.Min(Screen.width - 40f, 900f);
-            var rect = new Rect((Screen.width - w) / 2f, Screen.height * 0.12f, w, 96f);
-            GUI.color = new Color(0f, 0f, 0f, 0.85f);
-            GUI.DrawTexture(rect, Texture2D.whiteTexture);
-            GUI.color = new Color(1f, 0.8f, 0.2f, 1f);
-            GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width, 3f), Texture2D.whiteTexture);
-            GUI.DrawTexture(new Rect(rect.x, rect.yMax - 3f, rect.width, 3f), Texture2D.whiteTexture);
-            GUI.color = Color.white;
-            var title = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 22, fontStyle = FontStyle.Bold, wordWrap = true };
-            title.normal.textColor = new Color(1f, 0.85f, 0.3f);
-            var body = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 18 };
-            body.normal.textColor = Color.white;
-            GUI.Label(new Rect(rect.x + 10f, rect.y + 8f, rect.width - 20f, 40f), line1, title);
-            GUI.Label(new Rect(rect.x + 10f, rect.y + 52f, rect.width - 20f, 34f), line2, body);
-        }
+        // No on-screen vote overlay: voting only happens at the SHORTCUT VOTE terminal.
 
         internal static int Seed(string id)
         {
@@ -809,9 +1030,16 @@ namespace Belay.World
             {
                 return true;
             }
-            if (ShortcutSync.Opened.Contains(ButtonSync.ObjectId(__instance)))
+            string id = ButtonSync.ObjectId(__instance);
+            if (ShortcutSync.BuiltHere.Contains(id))
             {
-                // Already opened for the team: don't build a second branch.
+                // Already built here: don't build a second branch.
+                return false;
+            }
+            if (ShortcutSync.Opened.Contains(id))
+            {
+                // The team opened it and our player just got here: build our copy.
+                ShortcutSync.Instance.OpenHere(__instance);
                 return false;
             }
             ShortcutSync.Instance.OpenNow(__instance);

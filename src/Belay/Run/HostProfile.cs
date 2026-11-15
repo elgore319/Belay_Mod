@@ -188,7 +188,12 @@ namespace Belay.Run
             {
                 Plugin.Log.LogWarning($"Team progress snapshot is {text.Length} chars; trimming flags to fit lobby data");
                 text = text.Substring(0, MaxLength);
-                text = text.Substring(0, text.LastIndexOf('|'));
+                // Cut back to the last whole entry (if there's no separator left, keep the cut as is).
+                int lastBar = text.LastIndexOf('|');
+                if (lastBar > 0)
+                {
+                    text = text.Substring(0, lastBar);
+                }
             }
             return text;
         }

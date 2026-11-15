@@ -8,9 +8,11 @@ using UnityEngine;
 namespace Belay.Rope
 {
     /// <summary>
-    /// The co-op rope. Players are roped in a chain in lobby join order (1-2, 2-3, ...). Each client only
-    /// moves its own player: once you are farther than the rope length from a rope partner, you get
-    /// pulled back toward them, and if that partner is gripping a wall your fall is caught outright.
+    /// The co-op rope. Players are roped in a chain in lobby join order (1-2, 2-3, ...), and each rope is a
+    /// simulated <see cref="TeamRope"/> that drapes, catches on ledges and can be grabbed. Each client only
+    /// moves its own player: once more rope is out than you have (measured to the teammate, or to the edge
+    /// the rope runs over), you get pulled back, and if that teammate is gripping a wall your fall is
+    /// caught outright and you swing round the edge instead.
     /// </summary>
     public class Tether : MonoBehaviour
     {
@@ -55,8 +57,7 @@ namespace Belay.Rope
         /// <summary>True on frames where the rope just stopped a fall (UI flash, sounds later).</summary>
         public bool CaughtThisFrame { get; private set; }
 
-        private readonly Dictionary<SteamId, LineRenderer> ropes = new Dictionary<SteamId, LineRenderer>();
-        private Material ropeMaterial;
+        private readonly List<TeamRope> ropes = new List<TeamRope>();
 
         private void Awake()
         {
@@ -97,7 +98,7 @@ namespace Belay.Rope
                 PullStatus = NetSession.NameOf(pulledBy) + " is pulling you up" + (player.IsHanging() ? " (let go to be pulled)" : "");
                 return;
             }
-            if (!player.IsHanging())
+            if (!GrippingWall(player))
             {
                 return;
             }
@@ -143,37 +144,152 @@ namespace Belay.Rope
             return partners;
         }
 
-        private static void TryAddPartner(List<SteamId> order, int index, List<RemotePlayer> partners)
+        private void TryAddPartner(List<SteamId> order, int index, List<RemotePlayer> partners)
         {
             if (index < 0 || index >= order.Count)
             {
                 return;
             }
-            if (PlayerSync.Instance.Remotes.TryGetValue(order[index], out RemotePlayer remote)
-                && remote != null && !remote.Latest.Dead && Time.unscaledTime - remote.LastReceived < 2f)
+            RemotePlayer remote = LivePlayer(order[index]);
+            if (remote != null)
             {
                 partners.Add(remote);
+            }
+        }
+
+        /// <summary>A teammate who is alive and still sending updates, or null.</summary>
+        public RemotePlayer LivePlayer(SteamId id)
+        {
+            return PlayerSync.Instance != null && PlayerSync.Instance.Remotes.TryGetValue(id, out RemotePlayer remote)
+                && remote != null && !remote.Latest.Dead && Time.unscaledTime - remote.LastReceived < 2f
+                ? remote
+                : null;
+        }
+
+        /// <summary>A gripping hand that isn't on a rope: hanging from the rope itself holds nobody up.</summary>
+        public bool IsAnchor(RemotePlayer remote)
+        {
+            return remote.Latest.LeftHanging && !OnAnyRope(remote.HandPosition(0))
+                || remote.Latest.RightHanging && !OnAnyRope(remote.HandPosition(1));
+        }
+
+        private bool OnAnyRope(Vector3 hand)
+        {
+            foreach (TeamRope rope in ropes)
+            {
+                if (rope != null && rope.Touches(hand, 0.3f))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static bool GrippingWall(ENT_Player player)
+        {
+            foreach (ENT_Player.Hand hand in player.hands)
+            {
+                if (hand != null && hand.IsHolding() && !(hand.currentInteract is RopeHold hold && hold.Rope != null && !hold.Rope.Hanging))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private TeamRope RopeWith(SteamId partner)
+        {
+            foreach (TeamRope rope in ropes)
+            {
+                if (rope != null && rope.Live && rope.AttachedTo(partner) && rope.AttachedTo(NetSession.LocalId))
+                {
+                    return rope;
+                }
+            }
+            return null;
+        }
+
+        private static Vector3 Harness(ENT_Player player) => player.transform.position + Vector3.down * 0.4f;
+
+        /// <summary>One rope per neighbouring pair in the lobby order; everyone simulates (and can grab) all of them.</summary>
+        private void SyncRopes(bool on)
+        {
+            List<SteamId> order = on ? NetSession.Instance.MemberOrder() : new List<SteamId>();
+            float length = RopeLength;
+            for (int i = ropes.Count - 1; i >= 0; i--)
+            {
+                TeamRope rope = ropes[i];
+                int a = rope != null ? order.IndexOf(rope.EndA) : -1;
+                if (rope == null || a < 0 || a + 1 >= order.Count || order[a + 1] != rope.EndB)
+                {
+                    if (rope != null)
+                    {
+                        Destroy(rope.gameObject);
+                    }
+                    ropes.RemoveAt(i);
+                }
+            }
+            for (int i = 0; i + 1 < order.Count; i++)
+            {
+                bool found = false;
+                foreach (TeamRope rope in ropes)
+                {
+                    if (rope.Joins(order[i], order[i + 1]))
+                    {
+                        rope.SetLength(length);
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                {
+                    ropes.Add(TeamRope.Create(order[i], order[i + 1], length));
+                }
             }
         }
 
         private void FixedUpdate()
         {
             CaughtThisFrame = false;
-            if (!Enabled || !WorldSpace.Ready)
+            bool on = Enabled && WorldSpace.Ready;
+            SyncRopes(on);
+            if (!on)
             {
                 return;
             }
+            if (CL_GameManager.gMan != null && CL_GameManager.gMan.isPaused)
+            {
+                return;
+            }
+            bool visible = Plugin.ShowRope.Value;
+            foreach (TeamRope rope in ropes)
+            {
+                rope.Step(Time.fixedDeltaTime, visible);
+            }
+
             ENT_Player player = ENT_Player.playerObject;
             if (player.dead || player.IsHanging() || player.IsFlying())
             {
-                // Gripping players are the anchors; the game's own hang code owns their movement.
+                // Gripping players are the anchors (or are hanging on a rope, which carries them);
+                // the game's own hang code owns their movement.
                 return;
             }
+            Vector3 me = Harness(player);
 
             if (Time.unscaledTime < pulledUntil && PlayerSync.Instance.Remotes.TryGetValue(pulledBy, out RemotePlayer puller) && puller != null)
             {
-                // Being hauled up: rise toward the teammate holding the rope.
-                Vector3 to = puller.LocalPosition + Vector3.down * 1.2f - player.transform.position;
+                // Being hauled up: rise toward the teammate holding the rope, or the edge the rope runs over.
+                Vector3 target = puller.LocalPosition + Vector3.down * 1.2f;
+                TeamRope pullRope = RopeWith(pulledBy);
+                if (pullRope != null)
+                {
+                    pullRope.LocalPivot(me, out Vector3 pivot, out _, out bool wrapped);
+                    if (wrapped)
+                    {
+                        target = pivot + Vector3.up * 0.6f;
+                    }
+                }
+                Vector3 to = target - player.transform.position;
                 if (to.sqrMagnitude > 1f)
                 {
                     Vector3 dir = to.normalized;
@@ -187,27 +303,37 @@ namespace Belay.Rope
                 }
             }
 
-            float length = RopeLength;
             float dt = Time.fixedDeltaTime;
             foreach (RemotePlayer partner in RopePartners())
             {
-                Vector3 toPartner = partner.LocalPosition - player.transform.position;
-                float distance = toPartner.magnitude;
-                float overstretch = distance - length;
+                // The rope pulls toward the teammate, or toward the ledge it bends over: past that point you
+                // swing round it like a pendulum instead of being dragged through the rock.
+                Vector3 pivot = partner.RopeAnchor;
+                float available = RopeLength;
+                bool wrapped = false;
+                TeamRope rope = RopeWith(partner.SteamId);
+                if (rope != null)
+                {
+                    rope.LocalPivot(me, out pivot, out available, out wrapped);
+                }
+                Vector3 toPivot = pivot - me;
+                float distance = toPivot.magnitude;
+                float overstretch = distance - available;
                 if (overstretch <= 0f || distance < 0.01f)
                 {
                     continue;
                 }
-                Vector3 dir = toPartner / distance;
+                Vector3 dir = toPivot / distance;
                 Vector3 vel = player.GetVelocity();
-                float outward = -Vector3.Dot(vel, dir); // raw velocity units moving away from partner
+                float outward = -Vector3.Dot(vel, dir); // raw velocity units moving away from the pivot
 
-                bool hardStop = partner.IsHanging || overstretch > HardLimitExtra;
+                bool anchored = IsAnchor(partner);
+                bool hardStop = anchored || overstretch > HardLimitExtra;
                 if (hardStop && outward > 0f)
                 {
-                    // Cancel the outward part of our velocity: the rope goes taut.
+                    // Cancel the outward part of our velocity: the rope goes taut and the rest becomes swing.
                     player.AddForce(dir * (outward / ForceToVel));
-                    if (partner.IsHanging && outward * VelToMetersPerSecond > 4f)
+                    if (anchored && outward * VelToMetersPerSecond > 4f)
                     {
                         CaughtThisFrame = true;
                         player.ResetFallingHeight();
@@ -215,65 +341,9 @@ namespace Belay.Rope
                     }
                 }
 
-                // Spring back toward the partner so the rope reels you in instead of just pinning you.
-                float accel = SlackStiffness * overstretch * (partner.IsHanging ? 2f : 1f);
+                // Spring back toward the pivot so the rope reels you in instead of just pinning you.
+                float accel = SlackStiffness * overstretch * (anchored ? 2f : 1f);
                 player.AddForce(dir * (accel * dt / VelToMetersPerSecond / ForceToVel));
-            }
-        }
-
-        private void LateUpdate()
-        {
-            var active = new HashSet<SteamId>();
-            if (Enabled && WorldSpace.Ready && Plugin.ShowRope.Value)
-            {
-                ENT_Player player = ENT_Player.playerObject;
-                Vector3 from = player.transform.position + Vector3.down * 0.4f;
-                foreach (RemotePlayer partner in RopePartners())
-                {
-                    active.Add(partner.SteamId);
-                    DrawRope(partner, from, partner.RopeAnchor);
-                }
-            }
-            foreach (KeyValuePair<SteamId, LineRenderer> rope in ropes)
-            {
-                if (rope.Value != null)
-                {
-                    rope.Value.enabled = active.Contains(rope.Key);
-                }
-            }
-        }
-
-        private void DrawRope(RemotePlayer partner, Vector3 from, Vector3 to)
-        {
-            if (!ropes.TryGetValue(partner.SteamId, out LineRenderer line) || line == null)
-            {
-                if (ropeMaterial == null)
-                {
-                    ropeMaterial = new Material(Shader.Find("Sprites/Default"));
-                }
-                var go = new GameObject("Belay_Rope_" + partner.DisplayName);
-                DontDestroyOnLoad(go);
-                line = go.AddComponent<LineRenderer>();
-                line.material = ropeMaterial;
-                line.widthMultiplier = 0.04f;
-                line.positionCount = 12;
-                ropes[partner.SteamId] = line;
-            }
-
-            // Sag the rope when slack, straighten it as it nears full length.
-            float length = RopeLength;
-            float distance = Vector3.Distance(from, to);
-            float slack = Mathf.Clamp01(1f - distance / length);
-            float sag = slack * length * 0.25f;
-            float tension = 1f - slack;
-            Color color = Color.Lerp(new Color(0.85f, 0.75f, 0.55f), new Color(1f, 0.3f, 0.2f), tension * tension);
-            line.startColor = color;
-            line.endColor = color;
-            for (int i = 0; i < line.positionCount; i++)
-            {
-                float t = i / (float)(line.positionCount - 1);
-                Vector3 point = Vector3.Lerp(from, to, t) + Vector3.down * (sag * 4f * t * (1f - t));
-                line.SetPosition(i, point);
             }
         }
     }

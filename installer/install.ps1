@@ -1,5 +1,6 @@
-# Belay installer for White Knuckle.
-# Started by "Install Belay.bat" / "Uninstall Belay.bat". Works with Windows PowerShell 5.1.
+# Tethered (formerly Belay) installer for White Knuckle.
+# The plugin keeps its old file and folder names (plugins\Belay\Belay.dll) so updates keep working.
+# Started by "Install Tethered.bat" / "Uninstall Tethered.bat". Works with Windows PowerShell 5.1.
 param(
     [switch]$Uninstall,
     [string]$GameDir = ""
@@ -97,7 +98,7 @@ function Copy-Item-Safe($src, $dst) {
 }
 
 try {
-    Say "=== Belay for White Knuckle ===" "Cyan"
+    Say "=== Tethered for White Knuckle ===" "Cyan"
 
     if (-not (Test-GameDir $GameDir)) { $GameDir = Find-GameDir }
     if (-not $GameDir) { $GameDir = Ask-GameDir }
@@ -110,19 +111,19 @@ try {
     $belayDir = Join-Path $plugins "Belay"
 
     if ($Uninstall) {
-        # Belay's launch updater (a BepInEx patcher it installs itself).
+        # Tethered's launch updater (a BepInEx patcher it installs itself).
         $patcherDir = Join-Path $GameDir "BepInEx\patchers\Belay"
         if (Test-Path -LiteralPath $patcherDir) { Remove-Item -LiteralPath $patcherDir -Recurse -Force }
         if (Test-Path -LiteralPath $belayDir) {
             Remove-Item -LiteralPath $belayDir -Recurse -Force
-            Say "Belay removed. BepInEx and your other mods were left alone." "Green"
+            Say "Tethered removed. BepInEx and your other mods were left alone." "Green"
         } else {
-            Say "Belay isn't installed in this folder." "Yellow"
+            Say "Tethered isn't installed in this folder." "Yellow"
         }
         exit 0
     }
 
-    if (-not (Test-Path -LiteralPath $Payload)) { throw "The 'payload' folder is missing. Extract the whole zip first, then run Install Belay.bat again." }
+    if (-not (Test-Path -LiteralPath $Payload)) { throw "The 'payload' folder is missing. Extract the whole zip first, then run Install Tethered.bat again." }
     Get-ChildItem -LiteralPath $Payload -Recurse -File | Unblock-File -ErrorAction SilentlyContinue
 
     # 1. BepInEx (mod loader). Keep an existing install so other mods and settings are untouched.
@@ -142,34 +143,34 @@ try {
         }
     }
 
-    # 2. Belay itself.
-    Say "Installing Belay..."
+    # 2. Tethered itself (still Belay.dll on disk).
+    Say "Installing Tethered..."
     Copy-Item-Safe (Join-Path $Payload "BepInEx\plugins\Belay\Belay.dll") (Join-Path $belayDir "Belay.dll")
 
-    # 3. Other multiplayer mods conflict with Belay. Offer to switch them off (reversible).
+    # 3. Other multiplayer mods conflict with Tethered. Offer to switch them off (reversible).
     if (Test-Path -LiteralPath $plugins) {
         $others = Get-ChildItem -LiteralPath $plugins -Recurse -Filter "*.dll" -File |
                   Where-Object { $_.FullName -notlike "$belayDir*" -and $_.Name -match "multi ?player|WKMP|WKMultiMod" }
         foreach ($dll in $others) {
             Say ""
             Say "Found another multiplayer mod: $($dll.Name)" "Yellow"
-            $answer = Read-Host "It conflicts with Belay. Turn it off? (Y/n)"
+            $answer = Read-Host "It conflicts with Tethered. Turn it off? (Y/n)"
             if ($answer -notmatch '^[nN]') {
                 Move-Item -LiteralPath $dll.FullName -Destination ($dll.FullName + ".disabled") -Force
-                Say "Turned off. You can turn it back on from the Belay menu's Mods tab." "Green"
+                Say "Turned off. You can turn it back on from the Tethered menu's Mods tab." "Green"
             }
         }
     }
 
     Say ""
-    Say "Done! Belay is installed." "Green"
-    Say "Start White Knuckle and click 'Belay (F7)' in the bottom-right of the main menu."
-    Say "Host a lobby and invite friends through Steam. Everyone needs the same Belay version."
+    Say "Done! Tethered is installed." "Green"
+    Say "Start White Knuckle and pick TETHERED in the main menu (or press F7)."
+    Say "Host a lobby and invite friends through Steam. Everyone needs the same Tethered version."
     exit 0
 }
 catch {
     Say ""
     Say "Install failed: $($_.Exception.Message)" "Red"
-    Say "Nothing else was changed. You can also install by hand: see 'Belay README.txt'."
+    Say "Nothing else was changed. You can also install by hand: see README.txt."
     exit 1
 }

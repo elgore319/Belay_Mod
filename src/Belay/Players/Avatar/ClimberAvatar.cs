@@ -58,7 +58,8 @@ namespace Belay.Players.Avatar
         }
 
         private static Mesh packMesh, packLidMesh;
-        private static Mesh torsoMesh, headMesh, upperArmMesh, forearmMesh, thighMesh, shinMesh, bootMesh;
+        private static readonly Mesh[] headMeshes = new Mesh[AvatarDesign.HeadStyles];
+        private static Mesh torsoMesh, upperArmMesh, forearmMesh, thighMesh, shinMesh, bootMesh;
         private static Mesh fistLeft, fistRight, openLeft, openRight;
         private static Shader litShader;
 
@@ -69,12 +70,20 @@ namespace Belay.Players.Avatar
         private readonly Transform leftFist, rightFist, leftOpen, rightOpen;
         private readonly Transform pack, packLid;
         private readonly Material[] materials;
+        private readonly Color color;
+        private Outfit outfit;
         private readonly Material[] leftHandMaterials, rightHandMaterials;
         private readonly Light lamp;
         private float packOut;
         private readonly Vector3[] idleHandOffset = new Vector3[2];
         private readonly float[] reachBlend = new float[2];
-        private bool airborneNow;
+        // Animation blending: how far into the falling pose the body is (0..1), how long the feet have
+        // been back on the ground, and the knee dip left over from a landing.
+        private float airBlend;
+        private float groundedTime;
+        private float landDip;
+        private float fallSpeed;
+        private bool wasAirborne;
 
         private Quaternion torsoRotation = Quaternion.identity;
         private float bodyYaw;
@@ -85,6 +94,21 @@ namespace Belay.Players.Avatar
         private float crouchAmount;
         private Vector3 wallPush;
         private float frontWall = 1f;
+        private readonly PlayerAction[] actions = new PlayerAction[2];
+        private readonly float[] actionStart = new float[2];
+        private readonly ActionAnimations.Sample[] actionPose = new ActionAnimations.Sample[2];
+        private readonly string[] actionItem = new string[2];
+
+        /// <summary>Plays an item action (a hammer swing, setting a piton...) on one arm.</summary>
+        public void PlayAction(int hand, PlayerAction action)
+        {
+            if (hand < 0 || hand > 1)
+            {
+                return;
+            }
+            actions[hand] = action;
+            actionStart[hand] = Time.unscaledTime;
+        }
 
         /// <summary>Where the rope clips in: the harness belay loop.</summary>
         public Vector3 RopeAnchor { get; private set; }
@@ -95,6 +119,7 @@ namespace Belay.Players.Avatar
         public ClimberAvatar(Transform parent, Color color)
         {
             EnsureMeshes();
+            this.color = color;
             materials = MakeMaterials(color);
             leftHandMaterials = (Material[])materials.Clone();
             rightHandMaterials = (Material[])materials.Clone();
@@ -103,7 +128,7 @@ namespace Belay.Players.Avatar
             root.SetParent(parent, false);
 
             torso = Part("Torso", torsoMesh, materials);
-            head = Part("Head", headMesh, materials);
+            head = Part("Head", headMeshes[0], materials);
             pack = Part("Pack", packMesh, materials);
             packLid = Part("PackLid", packLidMesh, materials);
             leftArm = new Limb(Part("LeftUpperArm", upperArmMesh, materials), Part("LeftForearm", forearmMesh, materials),
@@ -134,6 +159,23 @@ namespace Belay.Players.Avatar
             lamp.shadows = LightShadows.None;
         }
 
+        /// <summary>Dresses the climber in a teammate's outfit choice. Cheap when nothing changed.</summary>
+        public void Wear(Outfit wanted)
+        {
+            if (wanted.Same(outfit))
+            {
+                return;
+            }
+            outfit = wanted;
+            head.GetComponent<MeshFilter>().sharedMesh = headMeshes[Mathf.Clamp(wanted.Headgear, 0, headMeshes.Length - 1)];
+            Paint(materials, AvatarDesign.Recipes(color, Swatch(wanted.Jacket), Swatch(wanted.Hat), Swatch(wanted.Pants), Swatch(wanted.Pack)));
+        }
+
+        private static Color? Swatch(int index)
+        {
+            return index > 0 && index < Outfits.Colors.Length ? Outfits.Colors[index].Color : (Color?)null;
+        }
+
         public void SetVisible(bool visible)
         {
             if (root.gameObject.activeSelf != visible)
@@ -152,11 +194,54 @@ namespace Belay.Players.Avatar
             bool crouched = false)
         {
             bool hanging = leftGrip || rightGrip;
+            float actionLean = 0f;
+            for (int i = 0; i < 2; i++)
+            {
+                // Putting the item away (or swapping it) ends a charge; a toss plays out after the item has left.
+                string item = i == 0 ? leftItem : rightItem;
+                if (item != actionItem[i])
+                {
+                    actionItem[i] = item;
+                    if (actions[i] == PlayerAction.Charge)
+                    {
+                        actions[i] = PlayerAction.None;
+                    }
+                }
+                bool busy = inventoryOpen || (i == 0 ? leftGrip : rightGrip);
+                float elapsed = Time.unscaledTime - actionStart[i];
+                if (busy || !ActionAnimations.Playing(actions[i], elapsed))
+                {
+                    actions[i] = PlayerAction.None;
+                    actionPose[i] = default;
+                    continue;
+                }
+                actionPose[i] = ActionAnimations.Evaluate(actions[i], elapsed);
+                actionLean += actionPose[i].Lean * actionPose[i].Weight;
+            }
             Vector3 flat = new Vector3(velocity.x, 0, velocity.z);
             float speed = flat.magnitude;
-            bool airborne = !hanging && Mathf.Abs(velocity.y) > 2.5f;
+            // Airborne starts at a clear vertical speed and ends only once it has mostly died away, so
+            // a bumpy run down a slope or the top of a jump doesn't flick between poses.
+            bool airborne = !hanging && Mathf.Abs(velocity.y) > (wasAirborne ? 1.2f : 2.5f);
             bool grounded = !hanging && !airborne;
             float follow = posed ? 1f - Mathf.Exp(-10f * dt) : 1f;
+            if (airborne)
+            {
+                fallSpeed = Mathf.Max(fallSpeed, -velocity.y);
+            }
+            else if (wasAirborne && grounded && posed)
+            {
+                // Touchdown: the knees soak up the landing, more after a longer drop.
+                landDip = Mathf.Max(landDip, Mathf.Clamp((fallSpeed - 2f) * 0.018f, 0f, 0.12f));
+            }
+            if (!airborne)
+            {
+                fallSpeed = 0f;
+            }
+            wasAirborne = airborne;
+            airBlend = posed ? Mathf.MoveTowards(airBlend, airborne ? 1f : 0f, dt / 0.18f) : (airborne ? 1f : 0f);
+            groundedTime = grounded ? groundedTime + dt : 0f;
+            landDip = Mathf.MoveTowards(landDip, 0f, dt * 0.45f);
 
             // Crouching halves the game's capsule (the camera drops 0.75 m), so the avatar kneels down
             // with it instead of sticking its head through vent ceilings.
@@ -224,10 +309,11 @@ namespace Belay.Players.Avatar
             {
                 lean -= 10f;
             }
-            Quaternion torsoTarget = yawRotation * Quaternion.Euler(Mathf.Clamp(lean, -20f, 20f) + 60f * c, 0, roll);
+            lean += Mathf.Clamp(actionLean, -10f, 16f);
+            Quaternion torsoTarget = yawRotation * Quaternion.Euler(Mathf.Clamp(lean, -20f, 24f) + 60f * c, 0, roll);
             torsoRotation = posed ? Quaternion.Slerp(torsoRotation, torsoTarget, follow) : torsoTarget;
 
-            Vector3 pelvis = position + Vector3.up * (AvatarDesign.PelvisHeight * Scale - FeetDrop + bob - 0.5f * c)
+            Vector3 pelvis = position + Vector3.up * (AvatarDesign.PelvisHeight * Scale - FeetDrop + bob - 0.5f * c - landDip)
                 - forward * (0.12f * c);
             torso.SetPositionAndRotation(pelvis, torsoRotation);
             RopeAnchor = pelvis + torsoRotation * (new Vector3(0, -AvatarDesign.HarnessLoopDrop - 0.02f, 0.13f) * Scale);
@@ -277,12 +363,12 @@ namespace Belay.Players.Avatar
             ApplyHandSkin(1, rightHandSkin, rightHandMaterials, rightFist, rightOpen);
             bool leftHolds = Hold(0, inventoryOpen ? null : leftItem, leftFist);
             bool rightHolds = Hold(1, inventoryOpen ? null : rightItem, rightFist);
-            airborneNow = airborne;
+            float flailArms = Mathf.Clamp01((Mathf.Abs(velocity.y) - 2.5f) / 6f);
             Quaternion look = Quaternion.Euler(Mathf.Clamp(signedPitch, -89f, 89f), yaw, 0);
             Vector3 eye = position + Vector3.up * (0.45f - 0.75f * c);
             bool holdingPack = packOut > 0.01f;
-            PoseArm(0, leftArm, -1f, pelvis, leftHand, leftGrip, leftHolds, holdingPack, eye, look, dt, leftFist, leftOpen);
-            PoseArm(1, rightArm, 1f, pelvis, rightHand, rightGrip, rightHolds, holdingPack, eye, look, dt, rightFist, rightOpen);
+            PoseArm(0, leftArm, -1f, pelvis, leftHand, leftGrip, leftHolds, holdingPack, eye, look, dt, leftFist, leftOpen, flailArms);
+            PoseArm(1, rightArm, 1f, pelvis, rightHand, rightGrip, rightHolds, holdingPack, eye, look, dt, rightFist, rightOpen, flailArms);
 
             // Legs.
             float ground = position.y - FeetDrop + AvatarDesign.AnkleHeight * Scale;
@@ -313,12 +399,18 @@ namespace Belay.Players.Avatar
                 }
                 else
                 {
-                    float kick = Mathf.Sin(Time.time * 9f) * 0.08f;
+                    // Legs kick harder the faster the fall.
+                    float flail = Mathf.Clamp(Mathf.Abs(velocity.y) / 6f, 0.5f, 1.5f);
+                    float kick = Mathf.Sin(Time.time * 9f) * 0.08f * flail;
                     targetLeft = hipLeft + Vector3.down * (legLength * 0.8f) + forward * (0.15f + kick) - right * 0.08f + swing;
                     targetRight = hipRight + Vector3.down * (legLength * 0.85f) + forward * (0.05f - kick) + right * 0.08f + swing;
                 }
             }
-            float footFollow = grounded ? 1f : 1f - Mathf.Exp(-8f * dt);
+            // Planted feet track their steps exactly, except just after landing or letting go of the
+            // wall, when they swing down to the floor instead of teleporting there.
+            float footFollow = grounded
+                ? (groundedTime > 0.2f ? 1f : 1f - Mathf.Exp(-18f * dt))
+                : 1f - Mathf.Exp(-8f * dt);
             leftFoot = posed ? Vector3.Lerp(leftFoot, targetLeft, footFollow) : targetLeft;
             rightFoot = posed ? Vector3.Lerp(rightFoot, targetRight, footFollow) : targetRight;
 
@@ -444,7 +536,7 @@ namespace Belay.Players.Avatar
         /// means it has moved away from where it usually sits relative to the view.
         /// </summary>
         private void PoseArm(int index, Limb arm, float side, Vector3 pelvis, Vector3 hand, bool grip, bool holdsItem, bool holdingPack,
-            Vector3 eye, Quaternion look, float dt, Transform fist, Transform open)
+            Vector3 eye, Quaternion look, float dt, Transform fist, Transform open, float flail)
         {
             Vector3 shoulder = pelvis + torsoRotation * (new Vector3(side * AvatarDesign.ShoulderWidth, AvatarDesign.ShoulderHeight - 0.02f, 0) * Scale);
             float reach = (AvatarDesign.UpperArm + AvatarDesign.Forearm) * Scale;
@@ -468,10 +560,13 @@ namespace Belay.Players.Avatar
             float target = grip || holdingPack ? 1f : reaching;
             reachBlend[index] = posed ? Mathf.MoveTowards(reachBlend[index], target, dt * (target > reachBlend[index] ? 6f : 3f)) : target;
 
-            // Relaxed: hanging by the side, a little forward, swinging opposite the legs; raised when falling.
-            Vector3 rest = airborneNow
-                ? new Vector3(side * 0.28f, -0.25f, 0.12f)
-                : new Vector3(side * 0.07f, -0.5f, 0.06f + Mathf.Sin(walkPhase + (side > 0 ? 0f : Mathf.PI)) * 0.14f * walkAmount);
+            // Relaxed: hanging by the side, a little forward, swinging opposite the legs; raised when
+            // falling (higher and wider on a long drop), blended so the arms lift and settle gradually.
+            Vector3 walkRest = new Vector3(side * 0.07f, -0.5f, 0.06f + Mathf.Sin(walkPhase + (side > 0 ? 0f : Mathf.PI)) * 0.14f * walkAmount);
+            Vector3 fallRest = new Vector3(side * (0.28f + 0.08f * flail), -0.25f + 0.15f * flail, 0.12f)
+                + new Vector3(0f, Mathf.Sin(Time.time * 7f + side) * 0.05f * flail, 0f);
+            float a = airBlend * airBlend * (3f - 2f * airBlend);
+            Vector3 rest = Vector3.Lerp(walkRest, fallRest, a);
             Vector3 restHand = shoulder + torsoRotation * (rest * Scale);
             if (!grip && !holdingPack)
             {
@@ -484,6 +579,19 @@ namespace Belay.Players.Avatar
             }
             hand = Vector3.Lerp(restHand, hand, reachBlend[index]);
 
+            // An item action (swing, piton, toss...) takes the hand along its motion, aimed where the player looks.
+            ActionAnimations.Sample action = actionPose[index];
+            float wristBend = 0f;
+            if (action.Weight > 0f && !grip && !holdingPack)
+            {
+                Quaternion aim = Quaternion.Slerp(Quaternion.Euler(0f, look.eulerAngles.y, 0f), look, 0.6f);
+                Vector3 offset = aim * (new Vector3(side * action.Hand.x, action.Hand.y, action.Hand.z) * Scale);
+                Vector3 mouth = eye + Vector3.up * -0.1f;
+                Vector3 actionHand = (action.AtMouth ? mouth : shoulder) + offset;
+                hand = Vector3.Lerp(hand, actionHand, action.Weight);
+                wristBend = action.Wrist * action.Weight;
+            }
+
             Vector3 toHand = hand - shoulder;
             Vector3 dir = toHand.sqrMagnitude > 1e-6f ? toHand.normalized : torsoRotation * Vector3.forward;
             // The synced point is where the palm closes on the hold; the wrist sits just behind it.
@@ -493,10 +601,24 @@ namespace Belay.Players.Avatar
             Vector3 up = torsoRotation * Vector3.up;
             Vector3 elbowToWrist = arm.Solve(shoulder, wrist, pole, up, grip) - arm.Joint;
 
-            // Back of the hand faces up when reaching forward and away from the wall when reaching up.
+            // Back of the hand faces up when reaching forward, away from the wall when reaching up, and
+            // out to the side when the arm hangs down (palms toward the thighs, thumbs forward).
             Vector3 forearmDir = elbowToWrist.sqrMagnitude > 1e-6f ? elbowToWrist.normalized : dir;
-            Vector3 back = Vector3.Lerp(up, -(torsoRotation * Vector3.forward), Mathf.Abs(Vector3.Dot(forearmDir, up)));
+            float rise = Vector3.Dot(forearmDir, up);
+            Vector3 back = rise >= 0f
+                ? Vector3.Lerp(up, -(torsoRotation * Vector3.forward), rise)
+                : Vector3.Lerp(up, torsoRotation * Vector3.right * side, -rise);
             Quaternion handRotation = SafeLook(forearmDir, back);
+            if (action.Weight > 0f && action.ThumbUp && !grip && !holdingPack)
+            {
+                // Hammer grip: roll the thumb (the side the item's handle comes out of) up, then bend
+                // the wrist sideways so the head swings through the strike.
+                handRotation *= Quaternion.Euler(0f, 0f, -side * 90f * action.Weight) * Quaternion.Euler(0f, side * wristBend, 0f);
+            }
+            else if (wristBend != 0f)
+            {
+                handRotation *= Quaternion.Euler(wristBend, 0f, 0f);
+            }
             // A hand holding an item is a closed fist around it, even when it isn't on a hold.
             Transform shown = grip || holdsItem ? fist : open;
             Transform hidden = grip || holdsItem ? open : fist;
@@ -617,7 +739,11 @@ namespace Belay.Players.Avatar
             torsoMesh = Build("Belay_Torso", AvatarDesign.BuildTorso);
             packMesh = Build("Belay_Pack", AvatarDesign.BuildPack);
             packLidMesh = Build("Belay_PackLid", AvatarDesign.BuildPackLid);
-            headMesh = Build("Belay_Head", AvatarDesign.BuildHead);
+            for (int style = 0; style < headMeshes.Length; style++)
+            {
+                int which = style;
+                headMeshes[style] = Build("Belay_Head" + style, k => AvatarDesign.BuildHead(k, which));
+            }
             upperArmMesh = Build("Belay_UpperArm", AvatarDesign.BuildUpperArm);
             forearmMesh = Build("Belay_Forearm", AvatarDesign.BuildForearm);
             thighMesh = Build("Belay_Thigh", AvatarDesign.BuildThigh);
@@ -647,10 +773,29 @@ namespace Belay.Players.Avatar
                 litShader = probe.GetComponent<Renderer>().sharedMaterial.shader;
                 Object.Destroy(probe);
             }
-            PixelTextures.Recipe[] recipes = AvatarDesign.Recipes(color);
             var materials = new Material[Slot.Count];
             for (int i = 0; i < Slot.Count; i++)
             {
+                var material = new Material(litShader) { color = Color.white };
+                // Matte, like the game's characters; only the goggles and metal catch a little light.
+                float gloss = i == Slot.Visor ? 0.6f : i == Slot.Metal ? 0.35f : 0f;
+                if (material.HasProperty("_Glossiness"))
+                {
+                    material.SetFloat("_Glossiness", gloss);
+                }
+                materials[i] = material;
+            }
+            Paint(materials, AvatarDesign.Recipes(color));
+            return materials;
+        }
+
+        /// <summary>Gives every material slot a fresh texture from its recipe (the old one is freed).</summary>
+        private static void Paint(Material[] materials, PixelTextures.Recipe[] recipes)
+        {
+            for (int i = 0; i < Slot.Count; i++)
+            {
+                Material material = materials[i];
+                Texture old = material.mainTexture;
                 var texture = new Texture2D(PixelTextures.Size, PixelTextures.Size, TextureFormat.RGBA32, false)
                 {
                     name = "Belay_Avatar_" + i,
@@ -659,8 +804,7 @@ namespace Belay.Players.Avatar
                 };
                 texture.SetPixels32(PixelTextures.Generate(recipes[i], 101 + i * 7));
                 texture.Apply(false, true);
-
-                var material = new Material(litShader) { color = Color.white, mainTexture = texture };
+                material.mainTexture = texture;
                 // The game's levels are mostly self-lit textures in the dark, so plain lighting leaves the
                 // avatar near black. Give every surface a share of its own texture as glow.
                 if (material.HasProperty("_EmissionColor"))
@@ -670,15 +814,11 @@ namespace Belay.Players.Avatar
                     material.SetTexture("_EmissionMap", texture);
                     material.SetColor("_EmissionColor", i == Slot.Lamp ? recipes[i].Base * 2.5f : Color.white * SelfLight);
                 }
-                // Matte, like the game's characters; only the goggles and metal catch a little light.
-                float gloss = i == Slot.Visor ? 0.6f : i == Slot.Metal ? 0.35f : 0f;
-                if (material.HasProperty("_Glossiness"))
+                if (old != null)
                 {
-                    material.SetFloat("_Glossiness", gloss);
+                    Object.Destroy(old);
                 }
-                materials[i] = material;
             }
-            return materials;
         }
     }
 }

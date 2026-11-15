@@ -46,6 +46,11 @@ namespace Belay.Patches
             harmony.Patch(AccessTools.Method(typeof(M_Level), nameof(M_Level.OnSpawn)),
                 prefix: new HarmonyMethod(typeof(LevelRandomPatches), nameof(OnSpawnPrefix)));
 
+            // The Hadal diver builds its body (and the handholds on it) from random segments. It's a DEN_
+            // creature, so the scan below skips it: seed it here so everyone rides the same diver.
+            harmony.Patch(AccessTools.Method(typeof(DEN_HadalDiver), nameof(DEN_HadalDiver.GenerateDiver)),
+                prefix: new HarmonyMethod(typeof(LevelRandomPatches), nameof(ComponentPrefix)));
+
             var componentPrefix = new HarmonyMethod(typeof(LevelRandomPatches), nameof(ComponentPrefix));
             int patched = 0;
             foreach (MethodInfo method in FindRandomSetupMethods())

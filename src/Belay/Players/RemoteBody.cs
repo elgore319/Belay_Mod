@@ -20,6 +20,12 @@ namespace Belay.Players
 
         private Rigidbody body;
         private bool solid = true;
+        private float nextPhysicsScan;
+        private readonly HashSet<Collider> ignored = new HashSet<Collider>();
+        private static readonly Collider[] nearby = new Collider[64];
+
+        private const float ScanRadius = 3f;
+        private const float ScanInterval = 0.1f;
 
         /// <summary>Every live teammate body, to look up which teammate a collider belongs to.</summary>
         public static readonly List<RemoteBody> All = new List<RemoteBody>();
@@ -89,6 +95,41 @@ namespace Belay.Players
             Handhold.active = on;
         }
 
+        /// <summary>
+        /// A teammate's body is moved by the network, not by physics, so to the physics engine it is an
+        /// unstoppable wall. Anything here that physics moves (a swinging elevator car, loose debris) got
+        /// shoved and yanked around by it, on this PC only. Their own PC moves those things for them, so
+        /// here their body simply passes through anything physics-driven.
+        /// </summary>
+        private void FixedUpdate()
+        {
+            if (Collider == null || !Collider.enabled || Time.time < nextPhysicsScan)
+            {
+                return;
+            }
+            nextPhysicsScan = Time.time + ScanInterval;
+            int count = Physics.OverlapSphereNonAlloc(Collider.bounds.center, ScanRadius, nearby, ~0, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < count; i++)
+            {
+                Collider c = nearby[i];
+                Rigidbody rb = c != null ? c.attachedRigidbody : null;
+                if (rb == null || rb.isKinematic || rb == body || c.isTrigger || ignored.Contains(c) || c.GetComponent<RemoteBody>() != null)
+                {
+                    continue;
+                }
+                if (ENT_Player.playerObject != null && rb.transform.IsChildOf(ENT_Player.playerObject.transform))
+                {
+                    continue;
+                }
+                Physics.IgnoreCollision(Collider, c, true);
+                ignored.Add(c);
+            }
+            if (ignored.Count > 512)
+            {
+                ignored.RemoveWhere(x => x == null);
+            }
+        }
+
         public static RemoteBody Of(Collider c)
         {
             return c != null ? c.GetComponent<RemoteBody>() : null;
@@ -111,7 +152,7 @@ namespace Belay.Players
             {
                 // A local test bot has no PC of its own to get hurt on, so enemies and hazards hurt it here.
                 return Bot.TestBot.Instance != null && Bot.TestBot.Instance.IsBot(Owner.SteamId)
-                    && Bot.TestBot.Instance.Hurt(Owner.SteamId, info.amount, info.sourceObject != null ? info.sourceObject.name : "something");
+                    && Bot.TestBot.Instance.Hurt(Owner.SteamId, info.amount, info.sourceObject != null ? info.sourceObject.name : "something", info.type);
             }
             Vector3 dir = info.direction.sqrMagnitude > 0.01f ? info.direction.normalized
                 : Camera.main != null ? Camera.main.transform.forward : transform.forward;

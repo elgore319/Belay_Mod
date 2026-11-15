@@ -40,6 +40,15 @@ namespace Belay.World
         private int dropCounter;
         private int runId;
 
+        /// <summary>
+        /// Who got each shared item, as the host decided. Two players grabbing the same item at once both
+        /// took it on their own PC; the host gives it to whoever's grab reached it first and the other
+        /// player's copy goes away. Every PC keeps this so a new host knows it too.
+        /// </summary>
+        private readonly Dictionary<string, ulong> claims = new Dictionary<string, ulong>();
+        /// <summary>What the local player took, by id, until the host has decided who keeps it.</summary>
+        private readonly Dictionary<string, Item> takenHere = new Dictionary<string, Item>();
+
         internal static bool Applying;
 
         private void Awake()
@@ -49,7 +58,17 @@ namespace Belay.World
 
         private void Start()
         {
-            NetSession.Instance.On(PacketType.ItemPickup, (origin, r) => ApplyPickup(r.ReadString()));
+            NetSession.Instance.On(PacketType.ItemPickup, (origin, r) =>
+            {
+                string id = r.ReadString();
+                bool oneOff = r.ReadBoolean();
+                if (NetSession.Instance.IsHost)
+                {
+                    HostClaim(id, origin, oneOff);
+                }
+            });
+            NetSession.Instance.On(PacketType.ItemTaken, HandleTaken);
+            NetSession.Instance.On(PacketType.ItemDenied, HandleDenied);
             NetSession.Instance.On(PacketType.ItemDrop, HandleDrop);
             NetSession.Instance.On(PacketType.ItemSettled, HandleSettled);
         }
@@ -69,6 +88,8 @@ namespace Belay.World
                 levelCounts.Clear();
                 levelKeyOf.Clear();
                 looseSpawns.Clear();
+                claims.Clear();
+                takenHere.Clear();
             }
             UpdateSettling();
         }
@@ -281,10 +302,162 @@ namespace Belay.World
             {
                 return;
             }
+            bool oneOff = IsOneOff(obj, id);
             Forget(obj);
             RemoteCopies.Remove(obj);
             Plugin.Log.LogInfo($"Picked up {item.prefabName} ({id})");
-            NetSession.Instance.Send(PacketType.ItemPickup, w => w.Write(id));
+            if (!oneOff)
+            {
+                // A one-off is everyone's own copy, so nobody else's grab can take it from us.
+                takenHere[id] = item;
+            }
+            if (NetSession.Instance.IsHost)
+            {
+                HostClaim(id, NetSession.LocalId, oneOff);
+            }
+            else
+            {
+                NetSession.Instance.Send(PacketType.ItemPickup, w =>
+                {
+                    w.Write(id);
+                    w.Write(oneOff);
+                });
+            }
+        }
+
+        /// <summary>
+        /// A bot on this PC (only the host runs bots) picks up a world item: it goes away for everyone, the
+        /// same as a player's pickup. One-off items (everyone's own copy) are left for you. The world object
+        /// is kept, switched off, so the bot can drop it again or hand it to you.
+        /// </summary>
+        internal bool BotTake(Item_Object obj, SteamId bot)
+        {
+            if (!Live || !NetSession.Instance.IsHost || obj == null || !idOf.TryGetValue(obj, out string id)
+                || IsOneOff(obj, id) || claims.ContainsKey(id))
+            {
+                return false;
+            }
+            Forget(obj);
+            RemoteCopies.Remove(obj);
+            claims[id] = bot.Value;
+            ulong winner = bot.Value;
+            NetSession.Instance.Send(PacketType.ItemTaken, w =>
+            {
+                w.Write(id);
+                w.Write(winner);
+                w.Write(false);
+            });
+            obj.gameObject.SetActive(false);
+            // It travels with the bot now, so the level it came from unloading mustn't take it.
+            obj.transform.SetParent(null, true);
+            DontDestroyOnLoad(obj.gameObject);
+            Plugin.Log.LogInfo($"{NetSession.NameOf(bot)} picked up {obj.itemData?.prefabName} ({id})");
+            return true;
+        }
+
+        /// <summary>A bot drops an item it carried (it died, or you asked): it shows up for everyone, like your drops.</summary>
+        internal void BotDrop(Item item, Vector3 localPos, Vector3 velocity)
+        {
+            Item_Object obj = item?.GetDropObject();
+            if (obj == null)
+            {
+                return;
+            }
+            obj.transform.position = localPos;
+            obj.gameObject.SetActive(true);
+            Rigidbody rb = obj.GetComponent<Rigidbody>();
+            if (rb != null && !rb.isKinematic)
+            {
+                rb.linearVelocity = velocity;
+            }
+            if (Live)
+            {
+                OnLocalDrop(item);
+            }
+        }
+
+        /// <summary>Host: the first grab of a shared item keeps it; a later grab by someone else is undone.</summary>
+        private void HostClaim(string id, SteamId taker, bool oneOff)
+        {
+            if (!oneOff && claims.TryGetValue(id, out ulong owner) && owner != taker.Value)
+            {
+                string first = NetSession.NameOf(new SteamId { Value = owner });
+                Plugin.Log.LogInfo($"{NetSession.NameOf(taker)} grabbed {id} after {first}: theirs goes");
+                ulong loser = taker.Value;
+                NetSession.Instance.Send(PacketType.ItemDenied, w =>
+                {
+                    w.Write(id);
+                    w.Write(loser);
+                });
+                ApplyDenied(id, loser);
+                return;
+            }
+            ulong winner = taker.Value;
+            NetSession.Instance.Send(PacketType.ItemTaken, w =>
+            {
+                w.Write(id);
+                w.Write(winner);
+                w.Write(oneOff);
+            });
+            ApplyTaken(id, winner, oneOff);
+        }
+
+        private void HandleTaken(SteamId origin, System.IO.BinaryReader r)
+        {
+            string id = r.ReadString();
+            ulong winner = r.ReadUInt64();
+            bool oneOff = r.ReadBoolean();
+            if (origin == NetSession.Instance.HostId && !NetSession.Instance.IsHost)
+            {
+                ApplyTaken(id, winner, oneOff);
+            }
+        }
+
+        private void HandleDenied(SteamId origin, System.IO.BinaryReader r)
+        {
+            string id = r.ReadString();
+            ulong loser = r.ReadUInt64();
+            if (origin == NetSession.Instance.HostId && !NetSession.Instance.IsHost)
+            {
+                ApplyDenied(id, loser);
+            }
+        }
+
+        private void ApplyTaken(string id, ulong winner, bool oneOff)
+        {
+            if (!oneOff)
+            {
+                claims[id] = winner;
+            }
+            if (winner == NetSession.LocalId.Value)
+            {
+                takenHere.Remove(id);
+                return;
+            }
+            if (takenHere.ContainsKey(id))
+            {
+                // We grabbed it too, but later: the host sends us a denial for ours.
+                return;
+            }
+            ApplyPickup(id);
+        }
+
+        private void ApplyDenied(string id, ulong loser)
+        {
+            if (loser != NetSession.LocalId.Value)
+            {
+                return;
+            }
+            if (!takenHere.TryGetValue(id, out Item item))
+            {
+                return;
+            }
+            takenHere.Remove(id);
+            if (item != null && item.inventory != null && !item.hasBeenDestroyed)
+            {
+                Plugin.Log.LogInfo($"A teammate grabbed {item.prefabName} ({id}) first: it's theirs");
+                item.Destroy();
+            }
         }
 
         private void ApplyPickup(string id)

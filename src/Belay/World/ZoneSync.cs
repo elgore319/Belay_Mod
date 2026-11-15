@@ -93,6 +93,7 @@ namespace Belay.World
 
         private void Update()
         {
+            RetryMissed();
             if (waiting.Count == 0 || !Live)
             {
                 if (!Live) waiting.Clear();
@@ -139,18 +140,33 @@ namespace Belay.World
             zone.onEnter?.Invoke(who != null ? who : zone.transform);
         }
 
-        private void Apply(string id)
+        private static Dictionary<string, UT_TriggerZone> ZonesById()
         {
+            var map = new Dictionary<string, UT_TriggerZone>();
             foreach (UT_TriggerZone zone in FindObjectsByType<UT_TriggerZone>(FindObjectsSortMode.None))
             {
-                if (zone == null || ButtonSync.ObjectId(zone) != id)
+                if (zone != null)
                 {
-                    continue;
+                    string id = ButtonSync.ObjectId(zone);
+                    if (!map.ContainsKey(id))
+                    {
+                        map[id] = zone;
+                    }
                 }
+            }
+            return map;
+        }
+
+        private bool Apply(string id, bool catchingUp = false, Dictionary<string, UT_TriggerZone> zones = null)
+        {
+            // Retrying missed sequences passes one shared lookup instead of scanning every zone per id.
+            zones = zones ?? ZonesById();
+            if (zones.TryGetValue(id, out UT_TriggerZone zone) && zone != null)
+            {
                 var hasRun = Traverse.Create(zone).Field("hasRun");
                 if (hasRun.GetValue<bool>())
                 {
-                    return;
+                    return true;
                 }
                 waiting.Remove(zone);
                 // Pass our own player only if we're standing in the zone too; otherwise the zone itself,
@@ -173,9 +189,49 @@ namespace Belay.World
                     Applying = false;
                     ButtonSync.Applying = false;
                 }
+                return true;
+            }
+            if (!catchingUp)
+            {
+                Plugin.Log.LogInfo("Teammate started a room sequence that isn't loaded here (will replay when it loads): " + id);
+                missed[id] = Time.unscaledTime;
+            }
+            return false;
+        }
+
+        /// <summary>Room sequences that started before this level loaded here: replayed once it does.</summary>
+        private readonly Dictionary<string, float> missed = new Dictionary<string, float>();
+        private float nextRetry;
+
+        private void RetryMissed()
+        {
+            if (missed.Count == 0 || Time.unscaledTime < nextRetry)
+            {
                 return;
             }
-            Plugin.Log.LogInfo("Teammate started a room sequence that isn't loaded here: " + id);
+            nextRetry = Time.unscaledTime + 1f;
+            if (NetSession.Instance == null || !NetSession.Instance.InLobby || !CL_GameManager.IsInGame())
+            {
+                missed.Clear();
+                return;
+            }
+            if (!WorldSpace.Ready)
+            {
+                return;
+            }
+            Dictionary<string, UT_TriggerZone> zones = ZonesById();
+            foreach (var pair in new List<KeyValuePair<string, float>>(missed))
+            {
+                if (Time.unscaledTime - pair.Value > 900f)
+                {
+                    missed.Remove(pair.Key);
+                }
+                else if (Apply(pair.Key, catchingUp: true, zones))
+                {
+                    missed.Remove(pair.Key);
+                    Plugin.Log.LogInfo("Caught up on a teammate's earlier room sequence: " + pair.Key);
+                }
+            }
         }
     }
 
@@ -214,7 +270,7 @@ namespace Belay.World
             if (closeZone)
             {
                 // A door's close trigger: start the team's countdown instead of shutting it now.
-                return DoorSync.Instance.OnLocalCloseZone(__instance);
+                return DoorSync.Instance.OnLocalCloseZone(__instance, other.transform);
             }
             return ZoneSync.Instance.LocalEnter(__instance, other.transform, level);
         }

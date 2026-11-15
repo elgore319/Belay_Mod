@@ -13,9 +13,9 @@ using UnityEngine;
 namespace Belay.UI
 {
     /// <summary>
-    /// The Belay mod menu. It's drawn with IMGUI on its own (no game UI objects are created, moved or
-    /// patched, so other mods' menus are untouched), opens from a small "Belay" button on the main and
-    /// pause menus or the menu key, and only captures input while it is open.
+    /// The Belay mod menu. It's drawn with IMGUI on its own (no game UI objects are moved or patched,
+    /// so other mods' menus are untouched), opens from the "TETHERED" entry that <see cref="GameMenuEntry"/>
+    /// adds to the game's main and pause menus or from the menu key, and only captures input while it is open.
     /// </summary>
     public class BelayMenu : MonoBehaviour
     {
@@ -26,10 +26,13 @@ namespace Belay.UI
             Rules,
             Mods,
             Bot,
+            Outfit,
             Settings,
         }
 
-        private static readonly string[] TabLabels = { "Lobby", "Players", "Rules", "Mods", "Bot", "Settings" };
+        private static readonly string[] TabLabels = { "Lobby", "Players", "Rules", "Mods", "Bot", "Outfit", "Settings" };
+
+        private static BelayMenu instance;
 
         private bool open;
 
@@ -53,6 +56,20 @@ namespace Belay.UI
         private float catchFlash;
 
         private static readonly string[] PrivacyLabels = { "Public", "Friends", "Private" };
+
+        private void Awake()
+        {
+            instance = this;
+        }
+
+        /// <summary>Opens the window from the BELAY entry in the game's main or pause menu.</summary>
+        internal static void OpenFromGameMenu()
+        {
+            if (instance != null)
+            {
+                instance.SetOpen(true);
+            }
+        }
 
         private void Update()
         {
@@ -98,7 +115,7 @@ namespace Belay.UI
                 ModManager.Refresh();
                 // Stop mouse-look while clicking around, unless the game is paused anyway.
                 ENT_Player player = ENT_Player.playerObject;
-                if (player != null && CL_GameManager.gMan != null && !CL_GameManager.gMan.isPaused && !player.dead)
+                if (player != null && !World.CoopPause.InPauseMenu && !player.dead)
                 {
                     player.LockCamera();
                     lockedCamera = true;
@@ -132,7 +149,7 @@ namespace Belay.UI
             ENT_Player player = ENT_Player.playerObject;
             return Application.isFocused
                 && CL_GameManager.IsInGame()
-                && CL_GameManager.gMan != null && !CL_GameManager.gMan.isPaused
+                && !World.CoopPause.InPauseMenu
                 && !CL_GameManager.showCursor
                 && player != null && !player.dead
                 && !OS_Manager.inUse
@@ -165,7 +182,7 @@ namespace Belay.UI
                 DrawUpdatePopup();
                 if (open)
                 {
-                    window = GUILayout.Window(0x8E1A7, window, DrawWindow, "BELAY  v" + Plugin.Version);
+                    window = GUILayout.Window(0x8E1A7, window, DrawWindow, "TETHERED  v" + Plugin.Version);
                 }
             }
             finally
@@ -174,16 +191,19 @@ namespace Belay.UI
             }
         }
 
-        /// <summary>A small button in the corner of the main menu and the pause menu.</summary>
+        /// <summary>
+        /// The conflict warning on the main menu, and a small corner button kept only as a fallback for
+        /// when the BELAY entry couldn't be added to the game's own menu.
+        /// </summary>
         private void DrawMenuButton()
         {
             bool onMainMenu = !CL_GameManager.IsInGame();
-            bool paused = CL_GameManager.gMan != null && CL_GameManager.gMan.isPaused;
+            bool paused = World.CoopPause.InPauseMenu;
             if (open || (!onMainMenu && !paused))
             {
                 return;
             }
-            if (GUI.Button(new Rect(Screen.width - 150, Screen.height - 54, 140, 40), "BELAY (" + Plugin.MenuKey.Value + ")"))
+            if (!GameMenuEntry.Showing && GameMenuEntry.GaveUp && GUI.Button(new Rect(Screen.width - 150, Screen.height - 54, 140, 40), "TETHERED (" + Plugin.MenuKey.Value + ")"))
             {
                 SetOpen(true);
             }
@@ -191,7 +211,7 @@ namespace Belay.UI
             {
                 GUI.color = new UnityEngine.Color(1f, 0.45f, 0.4f);
                 GUI.Label(new Rect(Screen.width - 520, Screen.height - 90, 510, 40),
-                    "Another multiplayer mod (MultiPlayer Mod) is on and conflicts with Belay. Turn it off in Belay > Mods, then restart.");
+                    "Another multiplayer mod (MultiPlayer Mod) is on and conflicts with Tethered. Turn it off in Tethered > Mods, then restart.");
                 GUI.color = UnityEngine.Color.white;
             }
         }
@@ -207,14 +227,14 @@ namespace Belay.UI
             bool ready = up.State == Updater.UpdateState.Ready;
             if (!ready && up.State != Updater.UpdateState.Available) return;
             bool onMainMenu = !CL_GameManager.IsInGame();
-            bool paused = CL_GameManager.gMan != null && CL_GameManager.gMan.isPaused;
+            bool paused = World.CoopPause.InPauseMenu;
             if (!onMainMenu && !paused) return;
 
             var box = new Rect(Screen.width / 2f - 230f, 40f, 460f, 112f);
             GUI.Box(box, "");
             GUI.Label(new Rect(box.x + 16f, box.y + 12f, box.width - 32f, 50f), ready
-                ? "Belay " + up.LatestVersion + " is downloaded (you're on " + Plugin.Version + "). Restart the game to use it."
-                : "Belay " + up.LatestVersion + " is out (you're on " + Plugin.Version + ").");
+                ? "Tethered " + up.LatestVersion + " is downloaded (you're on " + Plugin.Version + "). Restart the game to use it."
+                : "Tethered " + up.LatestVersion + " is out (you're on " + Plugin.Version + ").");
             if (GUI.Button(new Rect(box.x + 16f, box.y + 64f, 200f, 36f), ready ? "Restart now" : "Update"))
             {
                 if (ready) Updater.RestartGame();
@@ -238,7 +258,7 @@ namespace Belay.UI
             {
                 return;
             }
-            string text = $"Belay: {net.MemberOrder().Count}/{NetSession.MaxPlayers} roped in";
+            string text = $"Tethered: {net.MemberOrder().Count}/{NetSession.MaxPlayers} roped in";
             string revivePrompt = ReviveSystem.Instance != null ? ReviveSystem.Instance.Prompt : null;
             if (revivePrompt != null)
             {
@@ -285,7 +305,7 @@ namespace Belay.UI
                     GUILayout.Label("Status: " + net.Status);
                     if (net.IsTestClient)
                     {
-                        GUILayout.Label("This window is a Belay test client. It joins the game running on this PC by itself; close it to stop.");
+                        GUILayout.Label("This window is a Tethered test client. It joins the game running on this PC by itself; close it to stop.");
                         if (net.InLobby)
                         {
                             GUILayout.Label($"Lobby: {net.GetLobbyData(NetSession.KeyName)}");
@@ -317,6 +337,9 @@ namespace Belay.UI
                     break;
                 case Tab.Bot:
                     Bot.TestBot.Instance?.DrawTab();
+                    break;
+                case Tab.Outfit:
+                    DrawOutfitTab();
                     break;
                 case Tab.Settings:
                     DrawSettingsTab();
@@ -515,13 +538,75 @@ namespace Belay.UI
             }
         }
 
+        /// <summary>How teammates see the local player's climber: headgear and clothing colors.</summary>
+        private void DrawOutfitTab()
+        {
+            Players.Avatar.Outfit outfit = Players.Avatar.Outfits.Local;
+            Players.Avatar.Outfit before = outfit;
+            GUILayout.Label("How teammates see your climber. Your gloves follow the hand skins you equip in the game.");
+            GUILayout.Space(8);
+
+            GUILayout.Label("Headgear");
+            outfit.Headgear = GUILayout.Toolbar(outfit.Headgear, Players.Avatar.Outfits.HeadgearNames, BelayTheme.Tab ?? GUI.skin.button);
+            GUILayout.Space(8);
+            outfit.Jacket = DrawOutfitColor("Jacket", outfit.Jacket, "Lobby color");
+            outfit.Hat = DrawOutfitColor("Helmet / beanie", outfit.Hat, "Lobby color");
+            outfit.Pants = DrawOutfitColor("Trousers", outfit.Pants, "Standard");
+            outfit.Pack = DrawOutfitColor("Backpack", outfit.Pack, "Standard");
+            GUILayout.Space(8);
+            if (GUILayout.Button("Back to the standard look", GUILayout.Width(240)))
+            {
+                outfit = default;
+            }
+            if (!outfit.Same(before))
+            {
+                Players.Avatar.Outfits.Local = outfit;
+            }
+            GUILayout.Space(6);
+            GUILayout.Label("Teammates need Tethered 0.7.21 or newer to see it. Test bots wear your outfit, so you can check it on one.",
+                BelayTheme.Hint ?? GUI.skin.label);
+        }
+
+        /// <summary>One clothing color: a row of swatches to click, with the standard look first.</summary>
+        private static int DrawOutfitColor(string label, int chosen, string standardName)
+        {
+            Players.Avatar.Outfits.Swatch[] colors = Players.Avatar.Outfits.Colors;
+            string name = chosen == 0 ? standardName : colors[Mathf.Clamp(chosen, 0, colors.Length - 1)].Name;
+            GUILayout.Label(label + ": " + name);
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button(chosen == 0 ? "[ " + standardName + " ]" : standardName, GUILayout.Width(130), GUILayout.Height(26)))
+            {
+                chosen = 0;
+            }
+            UnityEngine.Color old = GUI.color;
+            for (int i = 1; i < colors.Length; i++)
+            {
+                Rect box = GUILayoutUtility.GetRect(26, 26, GUILayout.Width(26), GUILayout.Height(26));
+                if (i == chosen)
+                {
+                    GUI.color = UnityEngine.Color.white;
+                    GUI.DrawTexture(box, Texture2D.whiteTexture);
+                }
+                GUI.color = colors[i].Color;
+                Rect inner = i == chosen ? new Rect(box.x + 3, box.y + 3, box.width - 6, box.height - 6) : new Rect(box.x + 1, box.y + 1, box.width - 2, box.height - 2);
+                GUI.DrawTexture(inner, Texture2D.whiteTexture);
+                GUI.color = old;
+                if (GUI.Button(box, GUIContent.none, GUIStyle.none))
+                {
+                    chosen = i;
+                }
+            }
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
+            GUILayout.Space(4);
+            return chosen;
+        }
+
         private void DrawSettingsTab()
         {
-            DrawKeyBinding("Open Belay menu", Plugin.MenuKey);
+            DrawKeyBinding("Open Tethered menu", Plugin.MenuKey);
             DrawKeyBinding("Next spectated player", Plugin.SpectateNextKey);
             DrawKeyBinding("Pull teammate up (rope)", Plugin.RopePullKey);
-            DrawKeyBinding("Vote: take the shortcut", Plugin.VoteYesKey);
-            DrawKeyBinding("Vote: normal path", Plugin.VoteNoKey);
             GUILayout.Space(6);
             Plugin.ShowRope.Value = GUILayout.Toggle(Plugin.ShowRope.Value, "Show rope");
             GUILayout.Label($"Network updates per second: {Plugin.SendRate.Value}");
@@ -535,7 +620,7 @@ namespace Belay.UI
         private void DrawUpdates()
         {
             var up = Updater.Instance;
-            GUILayout.Label("Updates (you have Belay " + Plugin.Version + ")");
+            GUILayout.Label("Updates (you have Tethered " + Plugin.Version + ")");
             Plugin.AutoUpdate.Value = GUILayout.Toggle(Plugin.AutoUpdate.Value, "Update automatically when the game starts");
             if (up == null) return;
             if (!string.IsNullOrEmpty(up.Message)) GUILayout.Label(up.Message);

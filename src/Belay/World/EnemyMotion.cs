@@ -47,7 +47,30 @@ namespace Belay.World
             public float NextFind;
         }
 
-        private readonly Dictionary<int, Follow> follows = new Dictionary<int, Follow>();
+        private readonly Dictionary<long, Follow> follows = new Dictionary<long, Follow>();
+
+        // Owners: a few creatures are wired to "the player" so deeply (the vent hand, the phage, the
+        // tracker) that only the PC of the player they're after can run them properly. The host hands each
+        // of those to the PC of the nearest living player; that PC runs it and streams it, everyone else
+        // (the host included) copies it. Everything else is run by the host.
+        private const float OwnerEvery = 0.5f;
+        private const float OwnerSwitchMargin = 5f;
+        private const float OwnerMinHold = 3f;
+        private readonly Dictionary<AIGameEntity, ulong> owners = new Dictionary<AIGameEntity, ulong>();
+        private readonly Dictionary<AIGameEntity, float> ownerSince = new Dictionary<AIGameEntity, float>();
+        private float nextOwnerCheck;
+
+        internal static bool Owned(AIGameEntity e) => e is DEN_VentThing || e is DEN_Phage || e is DEN_Tracker;
+
+        /// <summary>True when this PC runs (and streams) this enemy.</summary>
+        private bool RunsHere(AIGameEntity e)
+        {
+            if (owners.TryGetValue(e, out ulong owner) && owner != 0)
+            {
+                return owner == NetSession.LocalId.Value;
+            }
+            return NetSession.Instance.IsHost;
+        }
         private int runId;
 
         private void Awake()
@@ -58,6 +81,7 @@ namespace Belay.World
         private void Start()
         {
             NetSession.Instance.On(PacketType.EnemyStates, HandleStates);
+            NetSession.Instance.On(PacketType.EnemyOwner, HandleOwner);
         }
 
         private static bool Live => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready && EnemySync.Instance != null;
@@ -71,20 +95,23 @@ namespace Belay.World
                 ReleaseAll();
                 netIds.Clear();
                 lastSent.Clear();
+                owners.Clear();
+                ownerSince.Clear();
             }
             if (!Live)
             {
                 ReleaseAll();
                 return;
             }
-            if (net.IsHost)
+            if (net.IsHost && Time.unscaledTime >= nextOwnerCheck)
             {
-                ReleaseAll();
-                if (Time.unscaledTime >= nextSend)
-                {
-                    nextSend = Time.unscaledTime + SendInterval;
-                    SendStates();
-                }
+                nextOwnerCheck = Time.unscaledTime + OwnerEvery;
+                try { AssignOwners(); } catch (System.Exception e) { Plugin.Log.LogWarning("Enemy owners: " + e.Message); }
+            }
+            if (Time.unscaledTime >= nextSend)
+            {
+                nextSend = Time.unscaledTime + SendInterval;
+                SendStates();
             }
         }
 
@@ -113,7 +140,7 @@ namespace Belay.World
             var batch = new List<(AIGameEntity e, float d)>();
             foreach (AIGameEntity e in EnemySync.Instance.Known())
             {
-                if (!e.gameObject.activeInHierarchy)
+                if (!e.gameObject.activeInHierarchy || EnemyTargets.Personal(e) || !RunsHere(e))
                 {
                     continue;
                 }
@@ -226,24 +253,126 @@ namespace Belay.World
 
         // ---------------------------------------------------------------- Clients
 
-        private void HandleStates(SteamId origin, BinaryReader r)
+        // ---------------------------------------------------------------- Owners
+
+        private void AssignOwners()
         {
+            foreach (AIGameEntity e in EnemySync.Instance.Known())
+            {
+                if (!Owned(e) || !e.gameObject.activeInHierarchy)
+                {
+                    continue;
+                }
+                Vector3 pos = e.transform.position;
+                ulong current = owners.TryGetValue(e, out ulong o) ? o : NetSession.LocalId.Value;
+                float currentDist = float.MaxValue;
+                ulong best = current;
+                float bestDist = float.MaxValue;
+                ENT_Player me = ENT_Player.playerObject;
+                void Consider(ulong id, Vector3 at)
+                {
+                    float d = Vector3.Distance(pos, at);
+                    if (id == current) currentDist = d;
+                    if (d < bestDist) { bestDist = d; best = id; }
+                }
+                if (me != null && !me.dead) Consider(NetSession.LocalId.Value, me.transform.position);
+                foreach (RemotePlayer remote in PlayerSync.Instance.Remotes.Values)
+                {
+                    if (remote != null && !remote.Latest.Dead && !remote.Ghost && Time.unscaledTime - remote.LastReceived <= 3f && !NetSession.Instance.IsLocalBot(remote.SteamId))
+                    {
+                        Consider(remote.SteamId.Value, remote.LocalPosition);
+                    }
+                }
+                if (bestDist == float.MaxValue && current != NetSession.LocalId.Value)
+                {
+                    // Whoever ran it left or died and nobody else is around: the host takes it back, so it
+                    // doesn't freeze on every PC waiting for a player who's gone.
+                    best = NetSession.LocalId.Value;
+                }
+                else if (best == current || bestDist == float.MaxValue)
+                {
+                    if (!owners.ContainsKey(e)) owners[e] = current;
+                    continue;
+                }
+                bool held = ownerSince.TryGetValue(e, out float since) && Time.unscaledTime - since < OwnerMinHold;
+                if (currentDist != float.MaxValue && (held || bestDist > currentDist - OwnerSwitchMargin))
+                {
+                    continue; // the current one is about as close, or only just took over
+                }
+                SetOwner(e, best);
+                ulong pick = best;
+                Vector3 spawn = EnemySync.Instance.SpawnOf(e);
+                Vector3 now = WorldSpace.ToShared(pos);
+                string kind = EnemySync.KindOf(e);
+                NetSession.Instance.Send(PacketType.EnemyOwner, w =>
+                {
+                    w.Write(kind);
+                    w.WriteVector(spawn);
+                    w.WriteVector(now);
+                    w.Write(pick);
+                });
+            }
+        }
+
+        private void SetOwner(AIGameEntity e, ulong owner)
+        {
+            owners[e] = owner;
+            ownerSince[e] = Time.unscaledTime;
+            Plugin.Log.LogInfo($"{EnemySync.KindOf(e)} is now run by {(owner == NetSession.LocalId.Value ? "this PC" : NetSession.NameOf(new SteamId { Value = owner }))}");
+            if (owner == NetSession.LocalId.Value)
+            {
+                // It's ours now: stop copying it and let our own copy act.
+                foreach (Follow f in follows.Values)
+                {
+                    if (f.Enemy == e) Release(f);
+                }
+            }
+        }
+
+        private void HandleOwner(SteamId origin, BinaryReader r)
+        {
+            string kind = r.ReadString();
+            Vector3 spawn = r.ReadVector();
+            Vector3 now = r.ReadVector();
+            ulong owner = r.ReadUInt64();
             if (origin != NetSession.Instance.HostId || NetSession.Instance.IsHost || !Live)
             {
                 return;
             }
+            AIGameEntity e = EnemySync.Instance.Find(kind, spawn, now);
+            if (e != null)
+            {
+                SetOwner(e, owner);
+            }
+        }
+
+        // ---------------------------------------------------------------- Copying
+
+        private void HandleStates(SteamId origin, BinaryReader r)
+        {
+            if (origin == NetSession.LocalId || !Live)
+            {
+                return;
+            }
+            // The host sends everything it runs; a teammate only sends the creatures it was handed.
+            bool fromHost = origin == NetSession.Instance.HostId;
             int count = r.ReadByte();
             for (int i = 0; i < count; i++)
             {
-                int id = r.ReadInt32();
+                int rawId = r.ReadInt32();
                 string kind = r.ReadString();
                 Vector3 spawn = r.ReadVector();
                 Vector3 now = r.ReadVector();
                 var rot = new Quaternion(r.ReadSingle(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+                long id = ((long)(origin.Value & 0xFFFFFFFF) << 32) | (uint)rawId;
                 if (!follows.TryGetValue(id, out Follow f))
                 {
                     f = new Follow();
                     follows[id] = f;
+                }
+                if (f.Enemy != null && (RunsHere(f.Enemy) || (!fromHost && (!owners.TryGetValue(f.Enemy, out ulong ow) || ow != origin.Value))))
+                {
+                    continue; // we run it ourselves, or this sender doesn't
                 }
                 if (f.Enemy == null)
                 {
@@ -259,7 +388,7 @@ namespace Belay.World
                     }
                     f.Enemy = found;
                     f.Body = found.GetComponent<Rigidbody>();
-                    Plugin.Log.LogInfo($"Following the host's {kind}");
+                    Plugin.Log.LogInfo($"Following {(fromHost ? "the host's" : NetSession.NameOf(origin) + "'s")} {kind}");
                 }
                 f.TargetShared = now;
                 f.TargetRot = rot;
@@ -281,12 +410,12 @@ namespace Belay.World
 
         private void LateUpdate()
         {
-            if (follows.Count == 0 || !Live || NetSession.Instance.IsHost)
+            if (follows.Count == 0 || !Live)
             {
                 return;
             }
             float dt = Mathf.Max(Time.deltaTime, 0.0001f);
-            List<int> done = null;
+            List<long> done = null;
             foreach (var pair in follows)
             {
                 Follow f = pair.Value;
@@ -294,14 +423,14 @@ namespace Belay.World
                 {
                     if (Time.unscaledTime - f.LastHeard > 10f)
                     {
-                        (done ?? (done = new List<int>())).Add(pair.Key);
+                        (done ?? (done = new List<long>())).Add(pair.Key);
                     }
                     continue;
                 }
-                if (f.Enemy.dead || Time.unscaledTime - f.LastHeard > FollowTimeout)
+                if (f.Enemy.dead || Time.unscaledTime - f.LastHeard > FollowTimeout || RunsHere(f.Enemy))
                 {
                     Release(f);
-                    (done ?? (done = new List<int>())).Add(pair.Key);
+                    (done ?? (done = new List<long>())).Add(pair.Key);
                     continue;
                 }
                 if (f.Body != null && !f.Body.isKinematic)
@@ -322,7 +451,7 @@ namespace Belay.World
             }
             if (done != null)
             {
-                foreach (int id in done)
+                foreach (long id in done)
                 {
                     follows.Remove(id);
                 }

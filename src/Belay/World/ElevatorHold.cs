@@ -69,7 +69,7 @@ namespace Belay.World
             bool anyoneAboard = meAboard;
             foreach (RemotePlayer remote in PlayerSync.Instance.Remotes.Values)
             {
-                if (remote != null && !remote.Latest.Dead && Time.unscaledTime - remote.LastReceived <= 3f && aboard(remote.LocalPosition))
+                if (remote != null && !remote.Latest.Dead && remote.Present && aboard(remote.LocalPosition))
                 {
                     anyoneAboard = true;
                 }

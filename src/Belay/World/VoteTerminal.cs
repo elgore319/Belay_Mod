@@ -253,7 +253,7 @@ namespace Belay.World
             if (emptyDisk == null)
             {
                 emptyDisk = ScriptableObject.CreateInstance<OS_DiskData>();
-                emptyDisk.name = "Belay Vote";
+                emptyDisk.name = "Tethered Vote";
                 emptyDisk.diskName = "VOTE";
                 emptyDisk.id = "belay-vote";
                 emptyDisk.type = OS_DiskData.DiskDataType.standard;
@@ -311,7 +311,7 @@ namespace Belay.World
             }
             if (index >= ids.Count)
             {
-                Show(os, "SHORTCUT VOTE\n\nVote sent. The result shows at the top of everyone's screen.", "OK", null, null, null);
+                Show(os, "SHORTCUT VOTE\n\nVote sent.", "OK", null, null, null);
                 return;
             }
             string id = ids[index];
@@ -343,7 +343,7 @@ namespace Belay.World
             catch (System.Exception e)
             {
                 Plugin.Log.LogWarning("Couldn't show the vote on the terminal: " + e.Message);
-                Run.RunFlow.Instance?.ShowNotice("Couldn't show the vote on this terminal. Use the vote keys instead.", 5f);
+                
             }
         }
 

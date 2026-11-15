@@ -66,6 +66,7 @@ namespace Belay.World
             NetSession net = NetSession.Instance;
             net.On(PacketType.DoorOpen, (origin, r) => ApplyOpen(r.ReadString()));
             net.On(PacketType.DoorRequestClose, (origin, r) => HostPass(r.ReadString(), origin));
+            net.OnLobbyChanged += NoteHostChange;
             net.On(PacketType.DoorCountdown, HandleCountdown);
             net.On(PacketType.DoorClose, HandleClose);
             net.OnLobbyChanged += () =>
@@ -115,6 +116,7 @@ namespace Belay.World
 
         private void ClearAll()
         {
+            extrasRun.Clear();
             countdowns.Clear();
             passed.Clear();
             sentPass.Clear();
@@ -138,7 +140,7 @@ namespace Belay.World
             }
             foreach (RemotePlayer remote in PlayerSync.Instance.Remotes.Values)
             {
-                if (remote == null || remote.Latest.Dead || Time.unscaledTime - remote.LastReceived > 3f)
+                if (remote == null || remote.Latest.Dead || !remote.Present)
                 {
                     continue;
                 }
@@ -199,31 +201,262 @@ namespace Belay.World
                 return true;
             }
             string id = DoorId(door);
+            if (ByPlayerControl(door))
+            {
+                // Someone worked a lever, button or crank that shuts this door (an airlock). Every PC
+                // replays that control itself, so each one shuts its own copy now. Holding it open
+                // until "everyone passed" meant an airlock could never cycle.
+                countdowns.Remove(id);
+                passed.Remove(id);
+                return true;
+            }
             LocalPass(id);
             return false;
         }
 
+        // ---------------------------------------------------------------- Doors worked by a control
+
+        /// <summary>Depth of game control code (buttons, holds, levers, hand panels) running right now.</summary>
+        internal static int ControlDepth;
+        private static float lastControlTime = float.MinValue;
+        private static Vector3 lastControlPos;
+        /// <summary>A door shut this soon after a control was worked this close to it counts as shut by that control (timed airlocks).</summary>
+        private const float ControlWindow = 12f;
+        private const float ControlRange = 20f;
+
+        internal static void NoteControl(Component control)
+        {
+            if (control == null)
+            {
+                return;
+            }
+            lastControlTime = Time.time;
+            lastControlPos = control.transform.position;
+        }
+
+        private static bool ByPlayerControl(UT_Door door)
+        {
+            if (ZoneSync.Applying)
+            {
+                return false; // a teammate's room trigger, not a control
+            }
+            if (ControlDepth > 0 || ButtonSync.Applying)
+            {
+                return true;
+            }
+            return Time.time - lastControlTime < ControlWindow
+                && Vector3.Distance(((Component)door).transform.position, lastControlPos) < ControlRange;
+        }
+
         /// <summary>The local player walked into a door's close zone. Returns false to hold the zone back.</summary>
-        internal bool OnLocalCloseZone(UT_TriggerZone zone)
+        internal bool OnLocalCloseZone(UT_TriggerZone zone, Transform who)
         {
             string id = ZoneId(zone);
             zoneCache[id] = zone;
+            if (extrasRun.Add(zone) && !IsGooZone(zone))
+            {
+                RunPart(zone, who, entering: true);
+            }
             LocalPass(id);
             return false;
+        }
+
+        // ---------------------------------------------------------------- Zones that move the mass
+
+        private static readonly HashSet<UT_TriggerZone> gooZones = new HashSet<UT_TriggerZone>();
+
+        /// <summary>
+        /// A zone that moves or wakes the mass (like the hallway before the Mother: the first player into the
+        /// next room set the mass off behind them, onto everyone still in the hallway). The whole zone waits
+        /// until every living player has walked through it, then fires for everyone at once, with no countdown.
+        /// </summary>
+        internal static bool IsGooZone(UT_TriggerZone zone) => zone != null && IsCloseZone(zone) && gooZones.Contains(zone);
+
+        private static bool IsGooTarget(Object target)
+        {
+            if (target is UT_GooController || target is DEN_DeathFloor || target is UT_GooTakeover || target is UT_GooSpeedZone)
+            {
+                return true;
+            }
+            if (target is GameObject go)
+            {
+                string n = go.name.ToLowerInvariant();
+                return n.Contains("goo") || n.Contains("mass") || go.GetComponentInChildren<UT_GooTakeover>(true) != null
+                    || go.GetComponentInChildren<UT_GooController>(true) != null;
+            }
+            return false;
+        }
+
+        // ---------------------------------------------------------------- Splitting close zones
+
+        /// <summary>Close zones whose non-door work already ran on this PC.</summary>
+        private static readonly HashSet<UT_TriggerZone> extrasRun = new HashSet<UT_TriggerZone>();
+
+        private static readonly string[] DoorWords = { "door", "bulkhead", "blast", "hatch", "vent", "gate", "shutter", "airlock" };
+
+        /// <summary>
+        /// Whether a zone listener works the door itself (held until everyone is through) or is the rest of
+        /// what walking in does: loading the next segment, unloading the levels behind, starting a branch,
+        /// achievements. The rest used to wait for the door too, which is why some transitions took ages
+        /// and why the nest's own branch was built late.
+        /// </summary>
+        private static bool IsDoorListener(Object target, string method)
+        {
+            if (target == null)
+            {
+                return true;
+            }
+            if (target is UT_Door || target is Animator)
+            {
+                return true;
+            }
+            if (target is M_Level || target is UT_WorldLoaderController || target is UT_BranchGenerator)
+            {
+                return false;
+            }
+            string m = (method ?? "").ToLowerInvariant();
+            if (m.Contains("close") || m.Contains("shut") || m.Contains("lock"))
+            {
+                return true;
+            }
+            Transform t = target is Component c ? c.transform : target is GameObject g ? g.transform : null;
+            for (int depth = 0; t != null && depth < 3; t = t.parent, depth++)
+            {
+                string n = t.name.ToLowerInvariant();
+                foreach (string w in DoorWords)
+                {
+                    if (n.Contains(w)) return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Listeners that change the map itself (which level counts as current, unloading the levels behind,
+        /// building a branch). These only ever run on a PC when its own player walks into the zone: run
+        /// for someone still behind, they removed the floor under them.
+        /// </summary>
+        private static bool IsWorldListener(Object target)
+        {
+            return target is M_Level || target is UT_WorldLoaderController || target is UT_BranchGenerator;
+        }
+
+        private enum Part { Door, Unload, World, Other }
+
+        private static Part PartOf(Object target, string method)
+        {
+            if (IsDoorListener(target, method))
+            {
+                return Part.Door;
+            }
+            if (IsWorldListener(target))
+            {
+                string m = (method ?? "").ToLowerInvariant();
+                return m.Contains("unload") || m.Contains("delete") || m.Contains("clear") || m.Contains("restart") || m.Contains("sendtoworldloader")
+                    ? Part.Unload : Part.World;
+            }
+            return Part.Other;
+        }
+
+        /// <summary>
+        /// Run part of a close zone's listeners:
+        ///  - our player walked in: everything but the door and the unloading (level loading, branches, achievements);
+        ///  - shutting, and our player walked in earlier: the door, then the unloading (everyone is past it now);
+        ///  - shutting, and our player never walked in: the door and the harmless rest, never anything
+        ///    that changes this PC's map under a player who may still be behind it.
+        /// </summary>
+        private static void RunPart(UT_TriggerZone zone, Transform who, bool entering, bool restDone = false, bool whole = false)
+        {
+            UnityEngine.Events.UnityEventBase ev = zone.onEnter;
+            if (ev == null)
+            {
+                return;
+            }
+            var muted = new List<int>();
+            var states = new List<UnityEngine.Events.UnityEventCallState>();
+            int kept = 0;
+            for (int i = 0; i < ev.GetPersistentEventCount(); i++)
+            {
+                Part part = PartOf(ev.GetPersistentTarget(i), ev.GetPersistentMethodName(i));
+                bool run = whole ? (restDone || part == Part.Door || part == Part.Other)
+                    : entering ? (part == Part.World || part == Part.Other)
+                    : restDone ? (part == Part.Door || part == Part.Unload)
+                    : (part == Part.Door || part == Part.Other);
+                if (run)
+                {
+                    kept++;
+                    continue;
+                }
+                muted.Add(i);
+                states.Add(ev.GetPersistentListenerState(i));
+                ev.SetPersistentListenerState(i, UnityEngine.Events.UnityEventCallState.Off);
+            }
+            if (kept == 0)
+            {
+                Restore(ev, muted, states);
+                return;
+            }
+            if (entering)
+            {
+                Plugin.Log.LogInfo($"Running the rest of a door trigger now ({kept} of {ev.GetPersistentEventCount()}): {ButtonSync.ObjectId(zone)}");
+            }
+            try
+            {
+                if (!entering)
+                {
+                    ButtonSync.RunShared(() => zone.onEnter.Invoke(who), zone.onEnter);
+                }
+                else
+                {
+                    zone.onEnter.Invoke(who);
+                }
+            }
+            catch (System.Exception e)
+            {
+                Plugin.Log.LogWarning($"A door trigger failed here ({ButtonSync.ObjectId(zone)}): {e.Message}");
+            }
+            finally
+            {
+                Restore(ev, muted, states);
+            }
+        }
+
+        private static void Restore(UnityEngine.Events.UnityEventBase ev, List<int> muted, List<UnityEngine.Events.UnityEventCallState> states)
+        {
+            for (int k = 0; k < muted.Count; k++)
+            {
+                ev.SetPersistentListenerState(muted[k], states[k]);
+            }
         }
 
         /// <summary>We went through a door's close trigger: tell the host (once) that we're past it.</summary>
         private void LocalPass(string id)
         {
             NetSession net = NetSession.Instance;
-            if (net.IsHost)
-            {
-                HostPass(id, NetSession.LocalId);
-            }
-            else if (sentPass.Add(id))
+            // Everyone hears who got through (the host passes clients' word on), so if the host leaves,
+            // whoever takes over still knows who the door is waiting for.
+            if (sentPass.Add(id))
             {
                 net.Send(PacketType.DoorRequestClose, w => w.Write(id));
             }
+            HostPass(id, NetSession.LocalId);
+        }
+
+        private SteamId lastHost;
+
+        /// <summary>
+        /// The host left and this PC took over: it already has every countdown and who passed, so the held
+        /// doors carry on from here.
+        /// </summary>
+        private void NoteHostChange()
+        {
+            NetSession net = NetSession.Instance;
+            SteamId host = net.InLobby ? net.HostId : default;
+            if (host != lastHost && lastHost.Value != 0 && net.IsHost && countdowns.Count > 0)
+            {
+                Plugin.Log.LogInfo($"Took over as host: carrying on {countdowns.Count} held door(s)");
+            }
+            lastHost = host;
         }
 
         internal void OnLocalOpen(UT_Door door)
@@ -236,18 +469,18 @@ namespace Belay.World
 
         // ---------------------------------------------------------------- Host
 
+        /// <summary>Every PC records who passed; only the host starts the countdown.</summary>
         private void HostPass(string id, SteamId who)
         {
-            if (!NetSession.Instance.IsHost)
-            {
-                return;
-            }
             if (!passed.TryGetValue(id, out HashSet<SteamId> through))
             {
                 passed[id] = through = new HashSet<SteamId>();
             }
             through.Add(who);
-            HostStartCountdown(id);
+            if (NetSession.Instance.IsHost)
+            {
+                HostStartCountdown(id);
+            }
         }
 
         private void HostStartCountdown(string id)
@@ -257,7 +490,7 @@ namespace Belay.World
             {
                 return;
             }
-            float delay = CloseDelay;
+            float delay = IsZone(id) && IsGooZone(FindZone(id)) ? 0f : CloseDelay;
             countdowns[id] = Time.unscaledTime + delay;
             if (IsZone(id)) FindZone(id); else Find(id);
             Plugin.Log.LogInfo($"Door closing for everyone in {delay:0} s: {id}");
@@ -367,7 +600,13 @@ namespace Belay.World
             try
             {
                 hasRun.SetValue(true);
-                ButtonSync.RunShared(() => zone.onEnter?.Invoke(who), zone.onEnter);
+                // The rest of the zone already ran here when this PC's player walked in; only the door is left.
+                bool restDone = extrasRun.Contains(zone);
+                RunPart(zone, who, entering: false, restDone: restDone, whole: IsGooZone(zone));
+                if (!zone.runOnce)
+                {
+                    extrasRun.Remove(zone);
+                }
             }
             catch (System.Exception e)
             {
@@ -450,6 +689,11 @@ namespace Belay.World
                     if (target is UT_Door && (method == nameof(UT_Door.Close) || method == nameof(UT_Door.Toggle)))
                     {
                         result = true;
+                    }
+                    if (IsGooTarget(target))
+                    {
+                        result = true;
+                        gooZones.Add(zone);
                     }
                 }
             }
@@ -549,6 +793,40 @@ namespace Belay.World
             {
                 DoorSync.Instance.OnLocalOpen(__instance);
             }
+        }
+    }
+
+    /// <summary>Marks when game control code runs, so a door it shuts closes at once (see DoorSync.ByPlayerControl).</summary>
+    [HarmonyPatch]
+    internal static class DoorControlPatches
+    {
+        private static System.Collections.Generic.IEnumerable<System.Reflection.MethodBase> TargetMethods()
+        {
+            yield return AccessTools.Method(typeof(CL_Button), nameof(CL_Button.Interact), new System.Type[0]);
+            yield return AccessTools.Method(typeof(CL_HoldButton), nameof(CL_HoldButton.Interact), new System.Type[0]);
+            yield return AccessTools.Method(typeof(CL_HoldButton), "Stop");
+            yield return AccessTools.Method(typeof(CL_HoldButton), nameof(CL_HoldButton.StopInteract));
+            yield return AccessTools.Method(typeof(CL_HoldButton), nameof(CL_HoldButton.Update));
+            yield return AccessTools.Method(typeof(CL_HoldLever), "ResolveSnapping");
+            yield return AccessTools.Method(typeof(UT_HandTrigger), "OnTriggerEnter");
+        }
+
+        [HarmonyPrefix]
+        private static void Prefix(Component __instance, System.Reflection.MethodBase __originalMethod)
+        {
+            DoorSync.ControlDepth++;
+            // Update and ResolveSnapping run every frame: only a real press counts for the timed window.
+            string name = __originalMethod.Name;
+            if (name != nameof(CL_HoldButton.Update) && name != "ResolveSnapping")
+            {
+                DoorSync.NoteControl(__instance);
+            }
+        }
+
+        [HarmonyFinalizer]
+        private static void Finalizer()
+        {
+            DoorSync.ControlDepth = Mathf.Max(0, DoorSync.ControlDepth - 1);
         }
     }
 }

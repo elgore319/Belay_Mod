@@ -56,7 +56,12 @@ namespace Belay.Players.Avatar
             return Color.HSVToRGB(h, Mathf.Clamp01(s * saturation), Mathf.Clamp01(v * value));
         }
 
-        public static PixelTextures.Recipe[] Recipes(Color player)
+        /// <summary>
+        /// Texture recipes for every material slot. The optional colors are outfit choices; without
+        /// them the jacket and headgear take the player's lobby color and the rest is standard.
+        /// </summary>
+        public static PixelTextures.Recipe[] Recipes(Color player, Color? jacket = null, Color? hat = null,
+            Color? pants = null, Color? pack = null)
         {
             PixelTextures.Recipe R(Color b, float grime, float speck, float contrast = 0.45f, Color? speckColor = null)
             {
@@ -67,19 +72,19 @@ namespace Belay.Players.Avatar
                 };
             }
             var r = new PixelTextures.Recipe[Slot.Count];
-            r[Slot.Jacket] = R(Muted(player), 0.3f, 0.06f);
-            r[Slot.JacketTrim] = R(Muted(player, 0.5f, 0.42f), 0.3f, 0.05f);
-            r[Slot.Pants] = R(new Color(0.27f, 0.23f, 0.26f), 0.3f, 0.03f);
+            r[Slot.Jacket] = R(jacket ?? Muted(player), 0.3f, 0.06f);
+            r[Slot.JacketTrim] = R(jacket.HasValue ? Muted(jacket.Value, 0.85f, 0.6f) : Muted(player, 0.5f, 0.42f), 0.3f, 0.05f);
+            r[Slot.Pants] = R(pants ?? new Color(0.27f, 0.23f, 0.26f), 0.3f, 0.03f);
             r[Slot.Webbing] = R(new Color(0.15f, 0.14f, 0.15f), 0.1f, 0.02f, 0.3f);
             r[Slot.Webbing].Stripes = true;
             r[Slot.Metal] = R(new Color(0.55f, 0.55f, 0.56f), 0.15f, 0.08f, 0.3f, RustColor);
-            r[Slot.Pack] = R(new Color(0.3f, 0.27f, 0.24f), 0.35f, 0.06f);
+            r[Slot.Pack] = R(pack ?? new Color(0.3f, 0.27f, 0.24f), 0.35f, 0.06f);
             r[Slot.Glove] = R(new Color(0.38f, 0.31f, 0.29f), 0.3f, 0.05f);
             r[Slot.Boot] = R(new Color(0.15f, 0.13f, 0.14f), 0.25f, 0.06f, 0.3f, RustColor * 0.7f);
             r[Slot.Visor] = R(new Color(0.06f, 0.06f, 0.08f), 0f, 0.03f, 0.15f, new Color(0.5f, 0.52f, 0.6f));
             r[Slot.Lamp] = new PixelTextures.Recipe { Base = new Color(1f, 0.94f, 0.78f), Flat = true };
             r[Slot.Buff] = R(new Color(0.2f, 0.18f, 0.2f), 0.2f, 0.04f);
-            r[Slot.Helmet] = R(Muted(player, 0.7f, 0.8f), 0.4f, 0.1f, 0.4f, RustColor);
+            r[Slot.Helmet] = R(hat ?? Muted(player, 0.7f, 0.8f), 0.4f, 0.1f, 0.4f, RustColor);
             r[Slot.Rope] = R(Color.Lerp(Muted(player, 0.5f, 0.9f), BoneColor, 0.5f), 0.15f, 0.08f);
             r[Slot.Pad] = R(BoneColor * 0.85f, 0.45f, 0.12f, 0.45f, RustColor);
             return r;
@@ -194,8 +199,17 @@ namespace Belay.Players.Avatar
             k.Use(Slot.Webbing).Box(new Vector3(0, 0.02f, 0.148f), new Vector3(0.05f, 0.05f, 0.012f));
         }
 
-        /// <summary>Head, helmet, goggles and headlamp. Origin at the base of the neck, +z is where they look.</summary>
+        /// <summary>Headgear styles for <see cref="BuildHead(MeshKit, int)"/>.</summary>
+        public const int HeadHelmet = 0, HeadBeanie = 1, HeadHood = 2, HeadBalaclava = 3, HeadStyles = 4;
+
+        /// <summary>Head with the standard hard-shell helmet.</summary>
         public static void BuildHead(MeshKit k)
+        {
+            BuildHead(k, HeadHelmet);
+        }
+
+        /// <summary>Head, headgear, goggles and headlamp. Origin at the base of the neck, +z is where they look.</summary>
+        public static void BuildHead(MeshKit k, int style)
         {
             // Neck gaiter and a face covered by a balaclava.
             k.Use(Slot.Buff);
@@ -208,16 +222,59 @@ namespace Belay.Players.Avatar
             k.Use(Slot.Pad).Block(new Vector3(0, 0.125f, 0.098f), 0.078f, 0.176f, 0.028f, 0.166f, 0.028f, 0.008f);
             k.Use(Slot.Visor).Block(new Vector3(0, 0.133f, 0.105f), 0.062f, 0.16f, 0.03f, 0.15f, 0.026f, 0.008f);
 
-            // Hard-shell helmet: rounded dome with a thick rim.
-            k.Use(Slot.Helmet);
-            k.Ellipsoid(new Vector3(0, 0.19f, 0.01f), new Vector3(0.124f, 0.105f, 0.14f), 4, 10, true);
-            k.Torus(new Vector3(0, 0.19f, 0.01f), Vector3.up, 0.128f, 0.014f, 10, 4);
-            k.Use(Slot.Webbing);
-            k.Box(new Vector3(-0.088f, 0.12f, 0.03f), new Vector3(0.012f, 0.12f, 0.016f));
-            k.Box(new Vector3(0.088f, 0.12f, 0.03f), new Vector3(0.012f, 0.12f, 0.016f));
+            float lampMount = 0.14f, lampDepth = 0.04f;
+            // The headlamp's strap, where there is no helmet to clip it to: center depth and radius.
+            float strapZ = 0f, strapRadius = 0f;
+            switch (style)
+            {
+                case HeadBeanie:
+                    // Knit cap pulled down over the ears, with a thick folded cuff.
+                    k.Use(Slot.Helmet);
+                    k.Ellipsoid(new Vector3(0, 0.175f, 0.012f), new Vector3(0.104f, 0.1f, 0.118f), 4, 10, true);
+                    k.Torus(new Vector3(0, 0.18f, 0.012f), Vector3.up, 0.106f, 0.02f, 10, 4);
+                    k.Ellipsoid(new Vector3(0, 0.275f, 0.0f), new Vector3(0.028f, 0.024f, 0.028f), 2, 6);
+                    lampMount = 0.125f;
+                    lampDepth = 0.06f;
+                    strapZ = 0.012f;
+                    strapRadius = 0.107f;
+                    break;
+                case HeadHood:
+                    // The jacket's hood pulled up: over the crown and down round the back of the head.
+                    k.Use(Slot.Jacket);
+                    k.Ellipsoid(new Vector3(0, 0.15f, -0.025f), new Vector3(0.122f, 0.125f, 0.135f), 4, 10, true);
+                    k.Block(new Vector3(0, 0.0f, -0.04f), 0.155f, 0.2f, 0.15f, 0.236f, 0.2f, 0.008f);
+                    k.Use(Slot.JacketTrim).Torus(new Vector3(0, 0.155f, 0.07f), Vector3.forward, 0.108f, 0.014f, 10, 4);
+                    lampMount = 0.115f;
+                    lampDepth = 0.08f;
+                    strapZ = -0.025f;
+                    strapRadius = 0.122f;
+                    break;
+                case HeadBalaclava:
+                    // Nothing on top: just the balaclava rounded over the skull.
+                    k.Use(Slot.Buff);
+                    k.Ellipsoid(new Vector3(0, 0.185f, 0.015f), new Vector3(0.08f, 0.05f, 0.09f), 3, 8, true);
+                    lampMount = 0.12f;
+                    lampDepth = 0.07f;
+                    strapZ = 0.015f;
+                    strapRadius = 0.088f;
+                    break;
+                default:
+                    // Hard-shell helmet: rounded dome with a thick rim.
+                    k.Use(Slot.Helmet);
+                    k.Ellipsoid(new Vector3(0, 0.19f, 0.01f), new Vector3(0.124f, 0.105f, 0.14f), 4, 10, true);
+                    k.Torus(new Vector3(0, 0.19f, 0.01f), Vector3.up, 0.128f, 0.014f, 10, 4);
+                    k.Use(Slot.Webbing);
+                    k.Box(new Vector3(-0.088f, 0.12f, 0.03f), new Vector3(0.012f, 0.12f, 0.016f));
+                    k.Box(new Vector3(0.088f, 0.12f, 0.03f), new Vector3(0.012f, 0.12f, 0.016f));
+                    break;
+            }
 
-            // Headlamp on the front of the helmet.
-            k.Use(Slot.Webbing).Box(new Vector3(0, 0.215f, 0.14f), new Vector3(0.075f, 0.05f, 0.04f));
+            // Headlamp on the front, in the same spot whatever is worn (the light source sits there).
+            if (strapRadius > 0f)
+            {
+                k.Use(Slot.Webbing).Torus(new Vector3(0, 0.208f, strapZ), Vector3.up, strapRadius, 0.009f, 10, 4);
+            }
+            k.Use(Slot.Webbing).Box(new Vector3(0, 0.215f, lampMount), new Vector3(0.075f, 0.05f, lampDepth));
             k.Use(Slot.Lamp).Tube(new Vector3(0, 0.215f, 0.157f), new Vector3(0, 0.215f, 0.166f), 0.019f, 0.019f, 8);
         }
 
