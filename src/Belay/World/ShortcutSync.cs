@@ -74,6 +74,13 @@ namespace Belay.World
         private float shownEnds;
         private bool myVoteSent;
         private int runId;
+
+        // Everyone: the running vote as the host last described it, so a new host can carry it on.
+        private bool shownAtTerminal, shownAtVoteTerminal;
+        private ulong shownStarter;
+        private readonly HashSet<ulong> shownYesIds = new HashSet<ulong>();
+        private readonly HashSet<ulong> shownNoIds = new HashSet<ulong>();
+        private SteamId lastHost;
         private string myRequestId;
         private Vector3 myRequestPos;
 
@@ -297,6 +304,36 @@ namespace Belay.World
             HostNext();
         }
 
+        /// <summary>
+        /// The host left mid-vote and this PC took over: carry on the vote everyone was looking at, with the
+        /// votes already cast. Shortcuts still queued behind it get asked again at the next terminal visit.
+        /// </summary>
+        private void TakeOverVote()
+        {
+            if (voteId != null || !showVote || string.IsNullOrEmpty(shownId) || IsDecided(shownId, out _))
+            {
+                return;
+            }
+            voteInfo = new Pending
+            {
+                Starter = new SteamId { Value = shownStarter },
+                Id = shownId,
+                AtTerminal = shownAtTerminal,
+                AtVoteTerminal = shownAtVoteTerminal,
+                Index = 1,
+                Total = 1,
+            };
+            voteId = shownId;
+            voteStarter = voteInfo.Starter;
+            yes.Clear();
+            no.Clear();
+            yes.UnionWith(shownYesIds);
+            no.UnionWith(shownNoIds);
+            voteEnds = Mathf.Max(shownEnds, Time.unscaledTime + 5f);
+            nextStateSend = 0f;
+            Plugin.Log.LogInfo($"Took over as host: carrying on the shortcut vote ({yes.Count} yes, {no.Count} no): {voteId}");
+        }
+
         private void CancelVote(string id)
         {
             queue.RemoveAll(p => p.Id == id);
@@ -440,6 +477,11 @@ namespace Belay.World
                     int y = voters.Count(v => yes.Contains(v.Value));
                     int n = voters.Count(v => no.Contains(v.Value));
                     string id = voteId;
+                    bool sendAtTerminal = voteInfo.AtTerminal;
+                    bool atVoteTerminal = voteInfo.AtVoteTerminal;
+                    ulong starterId = voteStarter.Value;
+                    var yesIds = new List<ulong>(yes);
+                    var noIds = new List<ulong>(no);
                     NetSession.Instance.Send(PacketType.ShortcutVoteState, w =>
                     {
                         w.Write(id);
@@ -448,6 +490,13 @@ namespace Belay.World
                         w.Write(n);
                         w.Write(voters.Count);
                         w.Write(left);
+                        w.Write(sendAtTerminal);
+                        w.Write(atVoteTerminal);
+                        w.Write(starterId);
+                        w.Write(yesIds.Count);
+                        foreach (ulong v in yesIds) w.Write(v);
+                        w.Write(noIds.Count);
+                        foreach (ulong v in noIds) w.Write(v);
                     });
                     ShowState(id, title, y, n, voters.Count, left);
                 }
@@ -482,6 +531,15 @@ namespace Belay.World
             int n = r.ReadInt32();
             int voters = r.ReadInt32();
             float left = r.ReadSingle();
+            shownAtTerminal = r.ReadBoolean();
+            shownAtVoteTerminal = r.ReadBoolean();
+            shownStarter = r.ReadUInt64();
+            shownYesIds.Clear();
+            shownNoIds.Clear();
+            int yc = r.ReadInt32();
+            for (int i = 0; i < yc && i < 64; i++) shownYesIds.Add(r.ReadUInt64());
+            int nc = r.ReadInt32();
+            for (int i = 0; i < nc && i < 64; i++) shownNoIds.Add(r.ReadUInt64());
             ShowState(id, title, y, n, voters, left);
         }
 
@@ -924,6 +982,11 @@ namespace Belay.World
                 showVote = false;
                 voteId = null;
             }
+            if (net.IsHost && lastHost.Value != 0 && lastHost != net.HostId)
+            {
+                TakeOverVote();
+            }
+            lastHost = net.HostId;
             if (net.IsHost)
             {
                 HostCheck();
