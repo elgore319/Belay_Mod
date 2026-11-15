@@ -59,6 +59,8 @@ namespace Belay.Net
         SpawnerRequest = 110,
         SpawnerDelegate = 111,
         PlungerStuck = 112,
+        ItemTaken = 113,
+        ItemDenied = 114,
     }
 
     public static class Channels

@@ -66,6 +66,7 @@ namespace Belay.World
             NetSession net = NetSession.Instance;
             net.On(PacketType.DoorOpen, (origin, r) => ApplyOpen(r.ReadString()));
             net.On(PacketType.DoorRequestClose, (origin, r) => HostPass(r.ReadString(), origin));
+            net.OnLobbyChanged += NoteHostChange;
             net.On(PacketType.DoorCountdown, HandleCountdown);
             net.On(PacketType.DoorClose, HandleClose);
             net.OnLobbyChanged += () =>
@@ -405,14 +406,30 @@ namespace Belay.World
         private void LocalPass(string id)
         {
             NetSession net = NetSession.Instance;
-            if (net.IsHost)
-            {
-                HostPass(id, NetSession.LocalId);
-            }
-            else if (sentPass.Add(id))
+            // Everyone hears who got through (the host passes clients' word on), so if the host leaves,
+            // whoever takes over still knows who the door is waiting for.
+            if (sentPass.Add(id))
             {
                 net.Send(PacketType.DoorRequestClose, w => w.Write(id));
             }
+            HostPass(id, NetSession.LocalId);
+        }
+
+        private SteamId lastHost;
+
+        /// <summary>
+        /// The host left and this PC took over: it already has every countdown and who passed, so the held
+        /// doors carry on from here.
+        /// </summary>
+        private void NoteHostChange()
+        {
+            NetSession net = NetSession.Instance;
+            SteamId host = net.InLobby ? net.HostId : default;
+            if (host != lastHost && lastHost.Value != 0 && net.IsHost && countdowns.Count > 0)
+            {
+                Plugin.Log.LogInfo($"Took over as host: carrying on {countdowns.Count} held door(s)");
+            }
+            lastHost = host;
         }
 
         internal void OnLocalOpen(UT_Door door)
@@ -425,18 +442,18 @@ namespace Belay.World
 
         // ---------------------------------------------------------------- Host
 
+        /// <summary>Every PC records who passed; only the host starts the countdown.</summary>
         private void HostPass(string id, SteamId who)
         {
-            if (!NetSession.Instance.IsHost)
-            {
-                return;
-            }
             if (!passed.TryGetValue(id, out HashSet<SteamId> through))
             {
                 passed[id] = through = new HashSet<SteamId>();
             }
             through.Add(who);
-            HostStartCountdown(id);
+            if (NetSession.Instance.IsHost)
+            {
+                HostStartCountdown(id);
+            }
         }
 
         private void HostStartCountdown(string id)
