@@ -44,6 +44,70 @@ namespace Belay.World
 
         internal static bool IsLocked(Component mover) => mover != null && lockedMovers.Contains(mover);
 
+        /// <summary>Don't swing a door shut on someone standing in it.</summary>
+        private const float ClearOfDoor = 3f;
+        private static float nextTick;
+        private static readonly AccessTools.FieldRef<UT_Door, bool> DoorIsOpen = AccessTools.FieldRefAccess<UT_Door, bool>("open");
+        internal static readonly AccessTools.FieldRef<UT_Door, float> DoorAmount = AccessTools.FieldRefAccess<UT_Door, float>("lerpAmount");
+
+        /// <summary>
+        /// A locked door that was already standing open (many start open) swings shut on its own, with its
+        /// own sound, as soon as nobody is in the doorway, and then stays shut. Every PC does this itself.
+        /// </summary>
+        internal static void Tick()
+        {
+            if (locked.Count == 0 || Time.unscaledTime < nextTick)
+            {
+                return;
+            }
+            nextTick = Time.unscaledTime + 0.25f;
+            locked.RemoveWhere(d => d == null);
+            foreach (UT_Door d in locked)
+            {
+                bool open;
+                try { open = DoorIsOpen(d); } catch { continue; }
+                if (!open || !d.isActiveAndEnabled || SomeoneNear(d.transform.position))
+                {
+                    continue;
+                }
+                DoorSync.Applying = true;
+                try
+                {
+                    d.Close();
+                    Plugin.Log.LogInfo("Shut a locked door that was standing open: " + d.name);
+                }
+                catch (System.Exception e)
+                {
+                    Plugin.Log.LogWarning($"Couldn't shut locked door {d.name}: {e.Message}");
+                }
+                finally
+                {
+                    DoorSync.Applying = false;
+                }
+            }
+        }
+
+        private static bool SomeoneNear(Vector3 pos)
+        {
+            float r2 = ClearOfDoor * ClearOfDoor;
+            ENT_Player me = ENT_Player.playerObject;
+            if (me != null && !me.dead && (me.transform.position - pos).sqrMagnitude < r2)
+            {
+                return true;
+            }
+            if (Players.PlayerSync.Instance != null)
+            {
+                foreach (Players.RemotePlayer remote in Players.PlayerSync.Instance.Remotes.Values)
+                {
+                    if (remote != null && !remote.Latest.Dead && (remote.LocalPosition - pos).sqrMagnitude < r2)
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
         private static bool NameHas(Transform t, Transform stop, params string[] words)
         {
             for (Transform c = t; c != null && c != stop; c = c.parent)
@@ -509,6 +573,19 @@ namespace Belay.World
         [HarmonyPrefix]
         [HarmonyPriority(Priority.First)]
         private static bool DoorPush(UT_Door __instance, float amount) => amount <= 0f || !ShortcutDoors.IsLocked(__instance);
+
+        /// <summary>Doors set straight to an open amount (handles, scripted pulls) can't open further either.</summary>
+        [HarmonyPatch(typeof(UT_Door), nameof(UT_Door.SetOpenAmount))]
+        [HarmonyPrefix]
+        [HarmonyPriority(Priority.First)]
+        private static bool DoorSet(UT_Door __instance, float amount)
+        {
+            if (!ShortcutDoors.IsLocked(__instance))
+            {
+                return true;
+            }
+            try { return amount <= ShortcutDoors.DoorAmount(__instance); } catch { return false; }
+        }
 
         [HarmonyPatch(typeof(UT_PathMover), nameof(UT_PathMover.StartMove))]
         [HarmonyPrefix]
