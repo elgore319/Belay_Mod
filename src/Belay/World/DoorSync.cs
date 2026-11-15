@@ -253,11 +253,37 @@ namespace Belay.World
         {
             string id = ZoneId(zone);
             zoneCache[id] = zone;
-            if (extrasRun.Add(zone))
+            if (extrasRun.Add(zone) && !IsGooZone(zone))
             {
                 RunPart(zone, who, entering: true);
             }
             LocalPass(id);
+            return false;
+        }
+
+        // ---------------------------------------------------------------- Zones that move the mass
+
+        private static readonly HashSet<UT_TriggerZone> gooZones = new HashSet<UT_TriggerZone>();
+
+        /// <summary>
+        /// A zone that moves or wakes the mass (like the hallway before the Mother: the first player into the
+        /// next room set the mass off behind them, onto everyone still in the hallway). The whole zone waits
+        /// until every living player has walked through it, then fires for everyone at once, with no countdown.
+        /// </summary>
+        internal static bool IsGooZone(UT_TriggerZone zone) => zone != null && IsCloseZone(zone) && gooZones.Contains(zone);
+
+        private static bool IsGooTarget(Object target)
+        {
+            if (target is UT_GooController || target is DEN_DeathFloor || target is UT_GooTakeover || target is UT_GooSpeedZone)
+            {
+                return true;
+            }
+            if (target is GameObject go)
+            {
+                string n = go.name.ToLowerInvariant();
+                return n.Contains("goo") || n.Contains("mass") || go.GetComponentInChildren<UT_GooTakeover>(true) != null
+                    || go.GetComponentInChildren<UT_GooController>(true) != null;
+            }
             return false;
         }
 
@@ -339,7 +365,7 @@ namespace Belay.World
         ///  - shutting, and our player never walked in: the door and the harmless rest, never anything
         ///    that changes this PC's map under a player who may still be behind it.
         /// </summary>
-        private static void RunPart(UT_TriggerZone zone, Transform who, bool entering, bool restDone = false)
+        private static void RunPart(UT_TriggerZone zone, Transform who, bool entering, bool restDone = false, bool whole = false)
         {
             UnityEngine.Events.UnityEventBase ev = zone.onEnter;
             if (ev == null)
@@ -352,7 +378,8 @@ namespace Belay.World
             for (int i = 0; i < ev.GetPersistentEventCount(); i++)
             {
                 Part part = PartOf(ev.GetPersistentTarget(i), ev.GetPersistentMethodName(i));
-                bool run = entering ? (part == Part.World || part == Part.Other)
+                bool run = whole ? (restDone || part == Part.Door || part == Part.Other)
+                    : entering ? (part == Part.World || part == Part.Other)
                     : restDone ? (part == Part.Door || part == Part.Unload)
                     : (part == Part.Door || part == Part.Other);
                 if (run)
@@ -463,7 +490,7 @@ namespace Belay.World
             {
                 return;
             }
-            float delay = CloseDelay;
+            float delay = IsZone(id) && IsGooZone(FindZone(id)) ? 0f : CloseDelay;
             countdowns[id] = Time.unscaledTime + delay;
             if (IsZone(id)) FindZone(id); else Find(id);
             Plugin.Log.LogInfo($"Door closing for everyone in {delay:0} s: {id}");
@@ -575,7 +602,7 @@ namespace Belay.World
                 hasRun.SetValue(true);
                 // The rest of the zone already ran here when this PC's player walked in; only the door is left.
                 bool restDone = extrasRun.Contains(zone);
-                RunPart(zone, who, entering: false, restDone: restDone);
+                RunPart(zone, who, entering: false, restDone: restDone, whole: IsGooZone(zone));
                 if (!zone.runOnce)
                 {
                     extrasRun.Remove(zone);
@@ -662,6 +689,11 @@ namespace Belay.World
                     if (target is UT_Door && (method == nameof(UT_Door.Close) || method == nameof(UT_Door.Toggle)))
                     {
                         result = true;
+                    }
+                    if (IsGooTarget(target))
+                    {
+                        result = true;
+                        gooZones.Add(zone);
                     }
                 }
             }

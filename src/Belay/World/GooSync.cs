@@ -145,7 +145,16 @@ namespace Belay.World
         /// <summary>Host: the lowest living player's position, local space (see <see cref="LowestPlayerHeight"/>).</summary>
         public static Vector3 LowestPlayerPosition()
         {
-            float gooY = DEN_DeathFloor.instance != null ? ((Component)DEN_DeathFloor.instance).transform.position.y : float.MinValue;
+            return LowestPlayerPosition(DEN_DeathFloor.instance != null ? ((Component)DEN_DeathFloor.instance).transform.position.y : float.MinValue);
+        }
+
+        /// <summary>
+        /// Same, judging "already under the mass" against a given goo height (local space). A scripted jump
+        /// is judged against where the goo was before it jumped: against the new height, everyone it jumped
+        /// over looked already dead, didn't count, and the jump landed on them.
+        /// </summary>
+        public static Vector3 LowestPlayerPosition(float gooY)
+        {
             Vector3 own = ENT_Player.playerObject.transform.position;
             bool found = !(ENT_Player.playerObject.dead || own.y < gooY - 1f);
             Vector3 lowest = own;
@@ -273,7 +282,8 @@ namespace Belay.World
             Transform t = ((Component)goo).transform;
             Vector3 pos = t.position;
             float y = WorldSpace.ToShared(pos).y;
-            float limit = WorldSpace.ToShared(new Vector3(0f, GooSync.LowestPlayerHeight(), 0f)).y - ScriptedJumpMargin;
+            float before = WorldSpace.ToLocal(new Vector3(0f, lastPostY, 0f)).y;
+            float limit = WorldSpace.ToShared(new Vector3(0f, GooSync.LowestPlayerPosition(before).y, 0f)).y - ScriptedJumpMargin;
             float target = y;
             float rise = y - lastPostY;
             bool jump = rise > 0.05f && rise > ScriptedJumpSpeed * Mathf.Max(Time.deltaTime, 0.001f);
