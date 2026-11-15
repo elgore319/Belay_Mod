@@ -224,7 +224,7 @@ namespace Belay.Bot
         private void OnGUI()
         {
             NetSession net = NetSession.Instance;
-            string text = "BELAY TEST CLIENT   " + net.Status + "   Autopilot: " + (Autopilot ? "ON" : "OFF")
+            string text = "TETHERED TEST CLIENT   " + net.Status + "   Autopilot: " + (Autopilot ? "ON" : "OFF")
                 + " [" + Plugin.TestClientAutopilotKey.Value + "]";
             var style = new GUIStyle(GUI.skin.label) { fontSize = 16, fontStyle = FontStyle.Bold };
             GUI.color = new Color(1f, 0.85f, 0.25f);

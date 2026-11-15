@@ -14,7 +14,7 @@ namespace Belay.UI
 {
     /// <summary>
     /// The Belay mod menu. It's drawn with IMGUI on its own (no game UI objects are moved or patched,
-    /// so other mods' menus are untouched), opens from the "BELAY" entry that <see cref="GameMenuEntry"/>
+    /// so other mods' menus are untouched), opens from the "TETHERED" entry that <see cref="GameMenuEntry"/>
     /// adds to the game's main and pause menus or from the menu key, and only captures input while it is open.
     /// </summary>
     public class BelayMenu : MonoBehaviour
@@ -182,7 +182,7 @@ namespace Belay.UI
                 DrawUpdatePopup();
                 if (open)
                 {
-                    window = GUILayout.Window(0x8E1A7, window, DrawWindow, "BELAY  v" + Plugin.Version);
+                    window = GUILayout.Window(0x8E1A7, window, DrawWindow, "TETHERED  v" + Plugin.Version);
                 }
             }
             finally
@@ -203,7 +203,7 @@ namespace Belay.UI
             {
                 return;
             }
-            if (!GameMenuEntry.Showing && GameMenuEntry.GaveUp && GUI.Button(new Rect(Screen.width - 150, Screen.height - 54, 140, 40), "BELAY (" + Plugin.MenuKey.Value + ")"))
+            if (!GameMenuEntry.Showing && GameMenuEntry.GaveUp && GUI.Button(new Rect(Screen.width - 150, Screen.height - 54, 140, 40), "TETHERED (" + Plugin.MenuKey.Value + ")"))
             {
                 SetOpen(true);
             }
@@ -211,7 +211,7 @@ namespace Belay.UI
             {
                 GUI.color = new UnityEngine.Color(1f, 0.45f, 0.4f);
                 GUI.Label(new Rect(Screen.width - 520, Screen.height - 90, 510, 40),
-                    "Another multiplayer mod (MultiPlayer Mod) is on and conflicts with Belay. Turn it off in Belay > Mods, then restart.");
+                    "Another multiplayer mod (MultiPlayer Mod) is on and conflicts with Tethered. Turn it off in Tethered > Mods, then restart.");
                 GUI.color = UnityEngine.Color.white;
             }
         }
@@ -233,8 +233,8 @@ namespace Belay.UI
             var box = new Rect(Screen.width / 2f - 230f, 40f, 460f, 112f);
             GUI.Box(box, "");
             GUI.Label(new Rect(box.x + 16f, box.y + 12f, box.width - 32f, 50f), ready
-                ? "Belay " + up.LatestVersion + " is downloaded (you're on " + Plugin.Version + "). Restart the game to use it."
-                : "Belay " + up.LatestVersion + " is out (you're on " + Plugin.Version + ").");
+                ? "Tethered " + up.LatestVersion + " is downloaded (you're on " + Plugin.Version + "). Restart the game to use it."
+                : "Tethered " + up.LatestVersion + " is out (you're on " + Plugin.Version + ").");
             if (GUI.Button(new Rect(box.x + 16f, box.y + 64f, 200f, 36f), ready ? "Restart now" : "Update"))
             {
                 if (ready) Updater.RestartGame();
@@ -258,7 +258,7 @@ namespace Belay.UI
             {
                 return;
             }
-            string text = $"Belay: {net.MemberOrder().Count}/{NetSession.MaxPlayers} roped in";
+            string text = $"Tethered: {net.MemberOrder().Count}/{NetSession.MaxPlayers} roped in";
             string revivePrompt = ReviveSystem.Instance != null ? ReviveSystem.Instance.Prompt : null;
             if (revivePrompt != null)
             {
@@ -305,7 +305,7 @@ namespace Belay.UI
                     GUILayout.Label("Status: " + net.Status);
                     if (net.IsTestClient)
                     {
-                        GUILayout.Label("This window is a Belay test client. It joins the game running on this PC by itself; close it to stop.");
+                        GUILayout.Label("This window is a Tethered test client. It joins the game running on this PC by itself; close it to stop.");
                         if (net.InLobby)
                         {
                             GUILayout.Label($"Lobby: {net.GetLobbyData(NetSession.KeyName)}");
@@ -563,7 +563,7 @@ namespace Belay.UI
                 Players.Avatar.Outfits.Local = outfit;
             }
             GUILayout.Space(6);
-            GUILayout.Label("Teammates need Belay 0.7.21 or newer to see it. Test bots wear your outfit, so you can check it on one.",
+            GUILayout.Label("Teammates need Tethered 0.7.21 or newer to see it. Test bots wear your outfit, so you can check it on one.",
                 BelayTheme.Hint ?? GUI.skin.label);
         }
 
@@ -604,7 +604,7 @@ namespace Belay.UI
 
         private void DrawSettingsTab()
         {
-            DrawKeyBinding("Open Belay menu", Plugin.MenuKey);
+            DrawKeyBinding("Open Tethered menu", Plugin.MenuKey);
             DrawKeyBinding("Next spectated player", Plugin.SpectateNextKey);
             DrawKeyBinding("Pull teammate up (rope)", Plugin.RopePullKey);
             GUILayout.Space(6);
@@ -620,7 +620,7 @@ namespace Belay.UI
         private void DrawUpdates()
         {
             var up = Updater.Instance;
-            GUILayout.Label("Updates (you have Belay " + Plugin.Version + ")");
+            GUILayout.Label("Updates (you have Tethered " + Plugin.Version + ")");
             Plugin.AutoUpdate.Value = GUILayout.Toggle(Plugin.AutoUpdate.Value, "Update automatically when the game starts");
             if (up == null) return;
             if (!string.IsNullOrEmpty(up.Message)) GUILayout.Label(up.Message);

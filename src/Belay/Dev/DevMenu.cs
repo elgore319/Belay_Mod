@@ -375,7 +375,7 @@ namespace Belay.Dev
             }
             try
             {
-                window = GUILayout.Window(0x8E1D3, window, DrawWindow, "BELAY DEV");
+                window = GUILayout.Window(0x8E1D3, window, DrawWindow, "TETHERED DEV");
             }
             finally
             {

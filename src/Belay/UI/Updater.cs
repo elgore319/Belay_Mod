@@ -125,8 +125,8 @@ namespace Belay.UI
                 string marker = Path.Combine(Path.Combine(BepInEx.Paths.CachePath, "Belay"), "updated.txt");
                 if (!File.Exists(marker)) return;
                 File.Delete(marker);
-                Plugin.Log.LogInfo("Updated to Belay " + Plugin.Version + " at launch");
-                Run.RunFlow.Instance?.ShowNotice("Updated to Belay " + Plugin.Version + ".", 8f);
+                Plugin.Log.LogInfo("Updated to Tethered " + Plugin.Version + " at launch");
+                Run.RunFlow.Instance?.ShowNotice("Updated to Tethered " + Plugin.Version + ".", 8f);
             }
             catch (Exception e)
             {
@@ -245,14 +245,14 @@ namespace Belay.UI
                 {
                     if (before == UpdateState.Ready) { State = UpdateState.Ready; yield break; }
                     State = UpdateState.UpToDate;
-                    Message = "Belay " + Plugin.Version + " is up to date.";
+                    Message = "Tethered " + Plugin.Version + " is up to date.";
                     yield break;
                 }
 
                 LatestVersion = bestVer.ToString();
                 downloadUrl = bestUrl;
                 State = UpdateState.Available;
-                Message = "Belay " + LatestVersion + " is available (you have " + Plugin.Version + ").";
+                Message = "Tethered " + LatestVersion + " is available (you have " + Plugin.Version + ").";
                 Plugin.Log.LogInfo(Message);
             }
 
@@ -265,7 +265,7 @@ namespace Belay.UI
         private IEnumerator Download()
         {
             State = UpdateState.Downloading;
-            Message = "Downloading Belay " + LatestVersion + "...";
+            Message = "Downloading Tethered " + LatestVersion + "...";
 
             using (var req = UnityWebRequest.Get(downloadUrl))
             {
@@ -299,7 +299,7 @@ namespace Belay.UI
 
             State = UpdateState.Ready;
             PopupDismissed = false;
-            Message = "Belay " + LatestVersion + " is installed. Restart the game to use it.";
+            Message = "Tethered " + LatestVersion + " is installed. Restart the game to use it.";
             Plugin.Log.LogInfo(Message);
             // On the main menu the restart popup says this; in a run a notice is enough.
             if (CL_GameManager.IsInGame()) Run.RunFlow.Instance?.ShowNotice(Message, 10f);
