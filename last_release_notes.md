@@ -1,6 +1,7 @@
-## Belay 0.7.10
+## Belay 0.7.11
 
-- **No more falling into the void at the Nest entry.** When anyone walked into the Nest, every PC built the Nest and removed the old map at the same moment, even for teammates still on their way, so they fell into the void. Now each PC builds a new branch of the map when its own player gets there (a dead player watching a teammate gets it right away). Everyone still gets the same levels.
-- **The map behind you only unloads once the whole team is past.** A door trigger that unloads the levels behind you now waits until everyone is through. It never unloads the map on a PC whose player hasn't walked through yet.
+- **Teammates move smoothly.** Teammates used to chase their newest network update, so they stepped, rubber-banded and snapped their heads round. Now each teammate is played back a few hundredths of a second behind, on a smooth curve through their updates, and the delay adjusts itself to the connection. Head turns and looking up or down are smoothed too. If updates stop for a moment, a teammate coasts briefly instead of freezing in mid-air.
+- **Smoother walking, falling and landing.** The walk cycle now follows a steady speed, so feet no longer twitch. Arms lift and lower gradually when a teammate starts or stops falling, legs kick harder on a long drop, feet swing down to the floor on landing instead of popping there, and the knees bend to soak up a big landing.
+- Riding an elevator no longer makes teammates look like they're walking or falling.
 
-Everyone in the lobby should update.
+No network changes in this one, so it works with teammates on 0.7.10, but everyone should update.
