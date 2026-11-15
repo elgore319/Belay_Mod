@@ -26,10 +26,11 @@ namespace Belay.UI
             Rules,
             Mods,
             Bot,
+            Outfit,
             Settings,
         }
 
-        private static readonly string[] TabLabels = { "Lobby", "Players", "Rules", "Mods", "Bot", "Settings" };
+        private static readonly string[] TabLabels = { "Lobby", "Players", "Rules", "Mods", "Bot", "Outfit", "Settings" };
 
         private static BelayMenu instance;
 
@@ -337,6 +338,9 @@ namespace Belay.UI
                 case Tab.Bot:
                     Bot.TestBot.Instance?.DrawTab();
                     break;
+                case Tab.Outfit:
+                    DrawOutfitTab();
+                    break;
                 case Tab.Settings:
                     DrawSettingsTab();
                     break;
@@ -532,6 +536,70 @@ namespace Belay.UI
             {
                 ModManager.Refresh();
             }
+        }
+
+        /// <summary>How teammates see the local player's climber: headgear and clothing colors.</summary>
+        private void DrawOutfitTab()
+        {
+            Players.Avatar.Outfit outfit = Players.Avatar.Outfits.Local;
+            Players.Avatar.Outfit before = outfit;
+            GUILayout.Label("How teammates see your climber. Your gloves follow the hand skins you equip in the game.");
+            GUILayout.Space(8);
+
+            GUILayout.Label("Headgear");
+            outfit.Headgear = GUILayout.Toolbar(outfit.Headgear, Players.Avatar.Outfits.HeadgearNames, BelayTheme.Tab ?? GUI.skin.button);
+            GUILayout.Space(8);
+            outfit.Jacket = DrawOutfitColor("Jacket", outfit.Jacket, "Lobby color");
+            outfit.Hat = DrawOutfitColor("Helmet / beanie", outfit.Hat, "Lobby color");
+            outfit.Pants = DrawOutfitColor("Trousers", outfit.Pants, "Standard");
+            outfit.Pack = DrawOutfitColor("Backpack", outfit.Pack, "Standard");
+            GUILayout.Space(8);
+            if (GUILayout.Button("Back to the standard look", GUILayout.Width(240)))
+            {
+                outfit = default;
+            }
+            if (!outfit.Same(before))
+            {
+                Players.Avatar.Outfits.Local = outfit;
+            }
+            GUILayout.Space(6);
+            GUILayout.Label("Teammates need Belay 0.7.21 or newer to see it. Test bots wear your outfit, so you can check it on one.",
+                BelayTheme.Hint ?? GUI.skin.label);
+        }
+
+        /// <summary>One clothing color: a row of swatches to click, with the standard look first.</summary>
+        private static int DrawOutfitColor(string label, int chosen, string standardName)
+        {
+            Players.Avatar.Outfits.Swatch[] colors = Players.Avatar.Outfits.Colors;
+            string name = chosen == 0 ? standardName : colors[Mathf.Clamp(chosen, 0, colors.Length - 1)].Name;
+            GUILayout.Label(label + ": " + name);
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button(chosen == 0 ? "[ " + standardName + " ]" : standardName, GUILayout.Width(130), GUILayout.Height(26)))
+            {
+                chosen = 0;
+            }
+            UnityEngine.Color old = GUI.color;
+            for (int i = 1; i < colors.Length; i++)
+            {
+                Rect box = GUILayoutUtility.GetRect(26, 26, GUILayout.Width(26), GUILayout.Height(26));
+                if (i == chosen)
+                {
+                    GUI.color = UnityEngine.Color.white;
+                    GUI.DrawTexture(box, Texture2D.whiteTexture);
+                }
+                GUI.color = colors[i].Color;
+                Rect inner = i == chosen ? new Rect(box.x + 3, box.y + 3, box.width - 6, box.height - 6) : new Rect(box.x + 1, box.y + 1, box.width - 2, box.height - 2);
+                GUI.DrawTexture(inner, Texture2D.whiteTexture);
+                GUI.color = old;
+                if (GUI.Button(box, GUIContent.none, GUIStyle.none))
+                {
+                    chosen = i;
+                }
+            }
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
+            GUILayout.Space(4);
+            return chosen;
         }
 
         private void DrawSettingsTab()

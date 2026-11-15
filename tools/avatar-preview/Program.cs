@@ -37,7 +37,20 @@ internal static class Program
 
     private static void Main(string[] args)
     {
-        PixelTextures.Recipe[] recipes = AvatarDesign.Recipes(new Color(1f, 0.45f, 0.2f));
+        // Optional outfit colors: PREVIEW_COLORS="r,g,b;r,g,b;r,g,b;r,g,b" (jacket;headgear;trousers;pack, "-" to skip).
+        Color?[] outfit = new Color?[4];
+        string[] chosen = (Environment.GetEnvironmentVariable("PREVIEW_COLORS") ?? "").Split(';');
+        for (int i = 0; i < 4 && i < chosen.Length; i++)
+        {
+            string[] c = chosen[i].Split(',');
+            if (c.Length == 3)
+            {
+                outfit[i] = new Color(float.Parse(c[0], System.Globalization.CultureInfo.InvariantCulture),
+                    float.Parse(c[1], System.Globalization.CultureInfo.InvariantCulture),
+                    float.Parse(c[2], System.Globalization.CultureInfo.InvariantCulture));
+            }
+        }
+        PixelTextures.Recipe[] recipes = AvatarDesign.Recipes(new Color(1f, 0.45f, 0.2f), outfit[0], outfit[1], outfit[2], outfit[3]);
         var textures = new List<string>();
         for (int i = 0; i < recipes.Length; i++)
         {
@@ -95,6 +108,14 @@ internal static class Program
             new Vector3(-0.2f, 1.95f, 0.32f), new Vector3(0.38f, 1.55f, 0.4f));
         Figure("crouching", standing: true, leftGrip: false, rightGrip: false,
             new Vector3(-0.22f, 0.55f, 0.6f), new Vector3(0.22f, 0.55f, 0.6f), crouch: true);
+        string[] headNames = { "helmet", "beanie", "hood", "balaclava" };
+        for (int style = 1; style < AvatarDesign.HeadStyles; style++)
+        {
+            headStyle = style;
+            Figure(headNames[style], standing: true, leftGrip: false, rightGrip: false,
+                new Vector3(-0.22f, 1.25f, 0.45f), new Vector3(0.22f, 1.25f, 0.45f));
+        }
+        headStyle = 0;
         Figure("inventory", standing: true, leftGrip: true, rightGrip: true, Vector3.zero, Vector3.zero, inventory: true);
 
         if (skinNames.Count > 0)
@@ -139,7 +160,7 @@ internal static class Program
 
         Vector3 neck = torso.Apply(new Vector3(0, AvatarDesign.NeckHeight, 0.01f));
         float pitch = (inventory ? 40f : standing ? 10f : -25f) * Mathf.Deg2Rad;
-        Emit(AvatarDesign.BuildHead, Frame.Look(neck, new Vector3(0, -Mathf.Sin(pitch), Mathf.Cos(pitch)), Vector3.up));
+        Emit(k => AvatarDesign.BuildHead(k, headStyle), Frame.Look(neck, new Vector3(0, -Mathf.Sin(pitch), Mathf.Cos(pitch)), Vector3.up));
 
         Arm(torso, -1, leftHand, leftGrip);
         Arm(torso, 1, rightHand, rightGrip);
@@ -200,6 +221,7 @@ internal static class Program
         return end;
     }
 
+    private static int headStyle;
     private static int gloveSlot = Slot.Glove;
 
     /// <summary>Each skin on a left open hand, left fist, right fist and right open hand, in a row.</summary>

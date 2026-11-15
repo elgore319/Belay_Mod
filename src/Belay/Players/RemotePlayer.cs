@@ -136,6 +136,8 @@ namespace Belay.Players
             velocity = Vector3.Lerp(velocity, frame.Velocity, 1f - Mathf.Exp(-12f * dt));
 
             HandSkins.PublishTick();
+            Outfits.PublishTick();
+            avatar.Wear(Outfits.Of(SteamId));
             avatar.Pose(transform.position, frame.Yaw, frame.Pitch, leftHand, rightHand,
                 shown.LeftHanging, shown.RightHanging, velocity, shown.InventoryOpen, dt,
                 HandSkins.SkinOf(SteamId, 0), HandSkins.SkinOf(SteamId, 1), shown.LeftItem, shown.RightItem,

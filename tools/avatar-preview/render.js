@@ -25,7 +25,8 @@ const page = `<html><body style="margin:0;background:#16171a"><canvas id="c"></c
   const tab = await browser.newPage({ viewport: { width: W * views.length, height: H }, deviceScaleFactor: 2 });
   await tab.setContent(page);
   await tab.addScriptTag({ path: threePath });
-  await tab.evaluate(({ data, views, W, H }) => {
+  const cam = (process.env.CAM || '4.3,1.35,1.02').split(',').map(Number);
+  await tab.evaluate(({ data, views, W, H, cam }) => {
     const model = JSON.parse(data);
     const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
     renderer.setPixelRatio(2);
@@ -76,8 +77,10 @@ const page = `<html><body style="margin:0;background:#16171a"><canvas id="c"></c
         camera.position.set(Math.sin(a) * d, 0.08, Math.cos(a) * d);
         camera.lookAt(0, 0.08, 0);
       } else {
-        camera.position.set(Math.sin(a) * 4.3, 1.35, Math.cos(a) * 4.3);
-        camera.lookAt(0, 1.02, 0);
+        // CAM="distance,height,lookHeight" moves the camera, e.g. "1.3,1.7,1.62" for a head close-up.
+        const [dist, camY, lookY] = cam;
+        camera.position.set(Math.sin(a) * dist, camY, Math.cos(a) * dist);
+        camera.lookAt(0, lookY, 0);
       }
       renderer.setViewport(i * W, 0, W, H);
       renderer.setScissor(i * W, 0, W, H);
@@ -106,7 +109,7 @@ const page = `<html><body style="margin:0;background:#16171a"><canvas id="c"></c
       });
     }
     document.body.appendChild(labels);
-  }, { data, views, W, H });
+  }, { data, views, W, H, cam });
   await tab.screenshot({ path: out });
   await browser.close();
   console.log('wrote ' + out);

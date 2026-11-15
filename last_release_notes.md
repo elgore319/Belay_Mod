@@ -1,7 +1,6 @@
-## Belay 0.7.20
+## Belay 0.7.21
 
-- **Pausing no longer stops the game in co-op.** Opening the pause menu only takes your hands off the controls. The world, the mass and your teammates keep going, so one player pausing can't freeze things for everyone (this also fixes the host's pause stopping the mass for the whole team). Mind your grip if you pause while hanging.
-- **Pause for everyone.** The pause menu has a PAUSE FOR EVERYONE button that stops the game on every PC and opens everyone's pause menu. Anyone can press RESUME FOR EVERYONE to start it again. While the team is paused, closing your own menu won't start your game alone.
-- **Carrying a teammate is hard work.** While you're lifting a teammate (standing, or with your other hand on the wall), the hand holding them loses grip much faster, and you walk slower. Run out of grip and you drop them. Hanging off a teammate who is climbing costs nothing extra.
+- **Outfits.** The Belay menu has a new **Outfit** tab for how teammates see your climber: pick your headgear (helmet, beanie, hood up or balaclava) and the color of your jacket, headgear, trousers and backpack from 14 colors. Leave everything on standard to keep your lobby color. Gloves still follow the hand skins you equip in the game. Test bots wear your outfit, so you can check it on one.
+- **Teammates' hands hang naturally.** A relaxed arm now has its palm toward the thigh and thumb forward, instead of the palm facing forward.
 
-Everyone in the lobby should update (network version changed).
+Teammates need 0.7.21 to see your outfit; older versions just show the standard look.
