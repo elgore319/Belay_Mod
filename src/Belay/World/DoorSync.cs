@@ -254,7 +254,7 @@ namespace Belay.World
             zoneCache[id] = zone;
             if (extrasRun.Add(zone))
             {
-                RunPart(zone, who, doorPart: false);
+                RunPart(zone, who, entering: true);
             }
             LocalPass(id);
             return false;
@@ -304,8 +304,41 @@ namespace Belay.World
             return false;
         }
 
-        /// <summary>Run only the door part, or only the rest, of a close zone's listeners.</summary>
-        private static void RunPart(UT_TriggerZone zone, Transform who, bool doorPart, bool both = false)
+        /// <summary>
+        /// Listeners that change the map itself (which level counts as current, unloading the levels behind,
+        /// building a branch). These only ever run on a PC when its own player walks into the zone: run
+        /// for someone still behind, they removed the floor under them.
+        /// </summary>
+        private static bool IsWorldListener(Object target)
+        {
+            return target is M_Level || target is UT_WorldLoaderController || target is UT_BranchGenerator;
+        }
+
+        private enum Part { Door, Unload, World, Other }
+
+        private static Part PartOf(Object target, string method)
+        {
+            if (IsDoorListener(target, method))
+            {
+                return Part.Door;
+            }
+            if (IsWorldListener(target))
+            {
+                string m = (method ?? "").ToLowerInvariant();
+                return m.Contains("unload") || m.Contains("delete") || m.Contains("clear") || m.Contains("restart") || m.Contains("sendtoworldloader")
+                    ? Part.Unload : Part.World;
+            }
+            return Part.Other;
+        }
+
+        /// <summary>
+        /// Run part of a close zone's listeners:
+        ///  - our player walked in: everything but the door and the unloading (level loading, branches, achievements);
+        ///  - shutting, and our player walked in earlier: the door, then the unloading (everyone is past it now);
+        ///  - shutting, and our player never walked in: the door and the harmless rest, never anything
+        ///    that changes this PC's map under a player who may still be behind it.
+        /// </summary>
+        private static void RunPart(UT_TriggerZone zone, Transform who, bool entering, bool restDone = false)
         {
             UnityEngine.Events.UnityEventBase ev = zone.onEnter;
             if (ev == null)
@@ -317,8 +350,11 @@ namespace Belay.World
             int kept = 0;
             for (int i = 0; i < ev.GetPersistentEventCount(); i++)
             {
-                bool door = IsDoorListener(ev.GetPersistentTarget(i), ev.GetPersistentMethodName(i));
-                if (both || door == doorPart)
+                Part part = PartOf(ev.GetPersistentTarget(i), ev.GetPersistentMethodName(i));
+                bool run = entering ? (part == Part.World || part == Part.Other)
+                    : restDone ? (part == Part.Door || part == Part.Unload)
+                    : (part == Part.Door || part == Part.Other);
+                if (run)
                 {
                     kept++;
                     continue;
@@ -332,13 +368,13 @@ namespace Belay.World
                 Restore(ev, muted, states);
                 return;
             }
-            if (!doorPart && !both)
+            if (entering)
             {
                 Plugin.Log.LogInfo($"Running the rest of a door trigger now ({kept} of {ev.GetPersistentEventCount()}): {ButtonSync.ObjectId(zone)}");
             }
             try
             {
-                if (doorPart || both)
+                if (!entering)
                 {
                     ButtonSync.RunShared(() => zone.onEnter.Invoke(who), zone.onEnter);
                 }
@@ -522,7 +558,7 @@ namespace Belay.World
                 hasRun.SetValue(true);
                 // The rest of the zone already ran here when this PC's player walked in; only the door is left.
                 bool restDone = extrasRun.Contains(zone);
-                RunPart(zone, who, doorPart: true, both: !restDone);
+                RunPart(zone, who, entering: false, restDone: restDone);
                 if (!zone.runOnce)
                 {
                     extrasRun.Remove(zone);

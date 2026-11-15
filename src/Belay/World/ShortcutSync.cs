@@ -305,6 +305,8 @@ namespace Belay.World
             generatorCache[id] = generator;
             Plugin.Log.LogInfo("Walked into a shortcut, opening it for the team: " + id);
             string me = NetSession.NameOf(NetSession.LocalId);
+            // Our player is right here, so build it now whatever happens with the team's copy.
+            Open(id, me, force: true);
             if (NetSession.Instance.IsHost)
             {
                 CancelVote(id);
@@ -312,9 +314,15 @@ namespace Belay.World
             }
             else
             {
-                Open(id, me);
                 Ask(new List<string> { id }, false);
             }
+        }
+
+        internal void OpenHere(UT_BranchGenerator generator)
+        {
+            string id = ButtonSync.ObjectId(generator);
+            generatorCache[id] = generator;
+            Open(id, NetSession.NameOf(NetSession.LocalId), force: true);
         }
 
         private void HostNext()
@@ -704,20 +712,71 @@ namespace Belay.World
             return found;
         }
 
-        private void Open(string id, string starter)
+        /// <summary>Opened branches this PC has actually built.</summary>
+        internal static readonly HashSet<string> BuiltHere = new HashSet<string>();
+        /// <summary>Opened by the team, but this PC's player isn't there yet.</summary>
+        private static readonly Dictionary<string, string> deferred = new Dictionary<string, string>();
+
+        /// <summary>Set while a branch is built, so the build is seeded from the shortcut, not from this PC's history.</summary>
+        internal static int? BuildSeed;
+
+        /// <summary>
+        /// Whether to build a branch here now. Building one switches the map over to it, which hides the
+        /// levels behind and (for the main way on, like the Nest entry) deletes them. That used to happen
+        /// on every PC the moment anyone walked in, so teammates still on their way had the map removed
+        /// under them and fell into the void. Now a PC builds it once its own player gets there (or is
+        /// dead and watching a teammate who is).
+        /// </summary>
+        private static bool ReadyHere(UT_BranchGenerator g)
         {
-            if (Opened.Contains(id))
+            ENT_Player player = ENT_Player.playerObject;
+            if (player == null || player.dead)
+            {
+                return true;
+            }
+            M_Level level = g.currentLevel != null ? g.currentLevel : g.GetComponentInParent<M_Level>();
+            WorldLoader loader = WorldLoader.instance;
+            M_Level current = loader != null ? loader.GetCurrentLevel()?.GetLevel() : null;
+            // In the branch's own level (the game counts it as current and you're inside it), or right at
+            // its trigger. Walking into the trigger builds it anyway; this is the fallback.
+            if (level != null && current == level && WorldCatchUp.LevelAt(player.transform.position) == level)
+            {
+                return true;
+            }
+            return Vector3.Distance(player.transform.position, g.transform.position) < 12f;
+        }
+
+        private static bool IsMainWayOn(UT_BranchGenerator g) => g.deleteRootBranch || g.deleteRootLevelAfterTeleporting || g.teleportPlayerIntoBranch;
+
+        private void Open(string id, string starter, bool force = false)
+        {
+            if (BuiltHere.Contains(id))
             {
                 return;
             }
+            Opened.Add(id);
+            Approved.Remove(id);
             UT_BranchGenerator g = FindGenerator(id);
             if (g != null)
             {
-                Opened.Add(id);
-                Approved.Remove(id);
-                // Block the normal way on, so nobody climbs into the part of the map the shortcut replaces.
-                BlockNormalPath(g);
+                if (!force && !ReadyHere(g))
+                {
+                    if (!deferred.ContainsKey(id))
+                    {
+                        Plugin.Log.LogInfo("The team opened a branch ahead of you; it builds here when you get there: " + id);
+                    }
+                    deferred[id] = starter;
+                    return;
+                }
+                deferred.Remove(id);
+                BuiltHere.Add(id);
+                if (!IsMainWayOn(g))
+                {
+                    // Block the normal way on, so nobody climbs into the part of the map the shortcut replaces.
+                    BlockNormalPath(g);
+                }
                 Applying = true;
+                BuildSeed = Seed(id);
                 try
                 {
                     Random.InitState(Seed(id));
@@ -730,6 +789,7 @@ namespace Belay.World
                 finally
                 {
                     Applying = false;
+                    BuildSeed = null;
                 }
                 Plugin.Log.LogInfo("Shortcut opened for the team: " + id);
                 return;
@@ -747,15 +807,29 @@ namespace Belay.World
 
         private void RetryNotLoaded()
         {
-            if ((notLoadedYet.Count == 0 && lockLater.Count == 0) || Time.unscaledTime < nextNotLoadedTry)
+            if ((notLoadedYet.Count == 0 && lockLater.Count == 0 && deferred.Count == 0) || Time.unscaledTime < nextNotLoadedTry)
             {
                 return;
             }
-            nextNotLoadedTry = Time.unscaledTime + 2f;
+            nextNotLoadedTry = Time.unscaledTime + 1f;
             RetryLocks();
+            foreach (var pair in new List<KeyValuePair<string, string>>(deferred))
+            {
+                if (BuiltHere.Contains(pair.Key))
+                {
+                    deferred.Remove(pair.Key);
+                    continue;
+                }
+                UT_BranchGenerator g = FindGenerator(pair.Key);
+                if (g != null && ReadyHere(g))
+                {
+                    Plugin.Log.LogInfo("Reached a branch the team opened, building it here: " + pair.Key);
+                    Open(pair.Key, pair.Value, force: true);
+                }
+            }
             foreach (var pair in new List<KeyValuePair<string, string>>(notLoadedYet))
             {
-                if (Opened.Contains(pair.Key))
+                if (BuiltHere.Contains(pair.Key) || deferred.ContainsKey(pair.Key))
                 {
                     notLoadedYet.Remove(pair.Key);
                     continue;
@@ -823,6 +897,8 @@ namespace Belay.World
             {
                 runId = net.CurrentRun.RunId;
                 Opened.Clear();
+                BuiltHere.Clear();
+                deferred.Clear();
                 ShortcutDoors.Clear();
                 Approved.Clear();
                 normalBlocked.Clear();
@@ -877,9 +953,16 @@ namespace Belay.World
             {
                 return true;
             }
-            if (ShortcutSync.Opened.Contains(ButtonSync.ObjectId(__instance)))
+            string id = ButtonSync.ObjectId(__instance);
+            if (ShortcutSync.BuiltHere.Contains(id))
             {
-                // Already opened for the team: don't build a second branch.
+                // Already built here: don't build a second branch.
+                return false;
+            }
+            if (ShortcutSync.Opened.Contains(id))
+            {
+                // The team opened it and our player just got here: build our copy.
+                ShortcutSync.Instance.OpenHere(__instance);
                 return false;
             }
             ShortcutSync.Instance.OpenNow(__instance);

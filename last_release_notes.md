@@ -1,8 +1,6 @@
-## Belay 0.7.9
+## Belay 0.7.10
 
-- **The Nest is the same for everyone.** Each PC's map seed drifted a little every time it built more map, so by the Nest the team got different levels. Every build of the map now uses a seed the whole team agrees on.
-- **The airlock into the Nest works.** A door worked by a lever, button or crank (like the airlock) now shuts right away for everyone. Before, it stayed open waiting for the team, so the airlock never cycled and the mass caught everyone inside.
-- **Faster transitions.** When a door's trigger also loads the next area (the next segment, unloading the levels behind you, starting a branch), that part now happens the moment you walk in. Only the door itself still waits for the team.
-- **Game over screen.** If the game over sequence stalls before the score screen, Belay now puts the screen up itself.
+- **No more falling into the void at the Nest entry.** When anyone walked into the Nest, every PC built the Nest and removed the old map at the same moment, even for teammates still on their way, so they fell into the void. Now each PC builds a new branch of the map when its own player gets there (a dead player watching a teammate gets it right away). Everyone still gets the same levels.
+- **The map behind you only unloads once the whole team is past.** A door trigger that unloads the levels behind you now waits until everyone is through. It never unloads the map on a PC whose player hasn't walked through yet.
 
 Everyone in the lobby should update.
