@@ -190,7 +190,7 @@ namespace Belay.World
                 return;
             }
             Mismatches++;
-            string who = new Friend(client).Name;
+            string who = NetSession.NameOf(client);
             Plugin.Log.LogWarning($"LEVEL MISMATCH #{levelId} with {who}\n  host:   {mine.Summary}\n  {who}: {theirs.Summary}");
             Run.RunFlow.Instance?.ShowNotice($"Level {levelId + 1} is different for {who} (details in LogOutput.log)", 8f);
             NetSession.Instance.Send(PacketType.LevelMismatch, w =>

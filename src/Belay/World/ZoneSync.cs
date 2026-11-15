@@ -140,14 +140,29 @@ namespace Belay.World
             zone.onEnter?.Invoke(who != null ? who : zone.transform);
         }
 
-        private bool Apply(string id, bool catchingUp = false)
+        private static Dictionary<string, UT_TriggerZone> ZonesById()
         {
+            var map = new Dictionary<string, UT_TriggerZone>();
             foreach (UT_TriggerZone zone in FindObjectsByType<UT_TriggerZone>(FindObjectsSortMode.None))
             {
-                if (zone == null || ButtonSync.ObjectId(zone) != id)
+                if (zone != null)
                 {
-                    continue;
+                    string id = ButtonSync.ObjectId(zone);
+                    if (!map.ContainsKey(id))
+                    {
+                        map[id] = zone;
+                    }
                 }
+            }
+            return map;
+        }
+
+        private bool Apply(string id, bool catchingUp = false, Dictionary<string, UT_TriggerZone> zones = null)
+        {
+            // Retrying missed sequences passes one shared lookup instead of scanning every zone per id.
+            zones = zones ?? ZonesById();
+            if (zones.TryGetValue(id, out UT_TriggerZone zone) && zone != null)
+            {
                 var hasRun = Traverse.Create(zone).Field("hasRun");
                 if (hasRun.GetValue<bool>())
                 {
@@ -204,13 +219,14 @@ namespace Belay.World
             {
                 return;
             }
+            Dictionary<string, UT_TriggerZone> zones = ZonesById();
             foreach (var pair in new List<KeyValuePair<string, float>>(missed))
             {
                 if (Time.unscaledTime - pair.Value > 900f)
                 {
                     missed.Remove(pair.Key);
                 }
-                else if (Apply(pair.Key, catchingUp: true))
+                else if (Apply(pair.Key, catchingUp: true, zones))
                 {
                     missed.Remove(pair.Key);
                     Plugin.Log.LogInfo("Caught up on a teammate's earlier room sequence: " + pair.Key);
