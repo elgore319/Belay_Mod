@@ -62,6 +62,8 @@ namespace Belay.Net
         ItemTaken = 113,
         ItemDenied = 114,
         FlareLit = 115,
+        AreaRequest = 116,
+        AreaDelegate = 117,
     }
 
     public static class Channels

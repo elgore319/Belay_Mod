@@ -175,7 +175,22 @@ namespace Belay.World
         /// climber, so it should go at their level's pace: a host up in a faster region made the mass race
         /// through the slower levels the others were still climbing. Returns lowest's pace / host's pace.
         /// </summary>
+        private static float paceCache = 1f;
+        private static float paceCheckedAt = -10f;
+
         public static float LevelPaceRatio(Vector3 lowest)
+        {
+            // Walking the level graph every frame isn't worth it: the levels only change as people climb.
+            if (Time.unscaledTime - paceCheckedAt < 0.5f)
+            {
+                return paceCache;
+            }
+            paceCheckedAt = Time.unscaledTime;
+            paceCache = ComputePace(lowest);
+            return paceCache;
+        }
+
+        private static float ComputePace(Vector3 lowest)
         {
             try
             {

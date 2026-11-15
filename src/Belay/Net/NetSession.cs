@@ -236,6 +236,7 @@ namespace Belay.Net
             }
             lobby.Leave();
             CurrentLobby = null;
+            memberCache = null;
             Status = "Not connected";
             OnLobbyChanged?.Invoke();
         }
@@ -274,13 +275,23 @@ namespace Belay.Net
             {
                 return Loopback.ClientConnected ? new List<SteamId>(Loopback.Members) : new List<SteamId>();
             }
-            List<SteamId> ids = Members.Select(m => m.Id).ToList();
-            if (IsHost && Loopback.PeerAlive)
+            // Asked for many times a frame (doors, goo, rope, votes, every relayed packet); reading the
+            // Steam lobby each time cost a Steam call per member. The answer is the same within a frame.
+            if (memberCacheFrame != Time.frameCount || memberCache == null)
             {
-                ids.Add(LoopbackLink.ClientId);
+                List<SteamId> ids = Members.Select(m => m.Id).ToList();
+                if (IsHost && Loopback.PeerAlive)
+                {
+                    ids.Add(LoopbackLink.ClientId);
+                }
+                memberCache = ids;
+                memberCacheFrame = Time.frameCount;
             }
-            return ids;
+            return new List<SteamId>(memberCache);
         }
+
+        private List<SteamId> memberCache;
+        private int memberCacheFrame = -1;
 
         /// <summary>Members in join order, used to decide who is roped to whom. Local test bots come last.</summary>
         public List<SteamId> MemberOrder()
@@ -423,6 +434,7 @@ namespace Belay.Net
                 return;
             }
             CurrentLobby = lobby;
+            memberCache = null;
             versionWarned.Clear();
             lobby.SetMemberData(KeyMods, UI.ModManager.LoadedModList());
             lobby.SetMemberData(KeyModVersion, Plugin.Version);
@@ -475,6 +487,7 @@ namespace Belay.Net
 
         private void HandleMembersChanged(Lobby lobby)
         {
+            memberCache = null;
             if (CurrentLobby.HasValue && lobby.Id == CurrentLobby.Value.Id)
             {
                 CheckMemberVersions(lobby);
@@ -489,6 +502,7 @@ namespace Belay.Net
             {
                 return;
             }
+            memberCache = null;
             SteamNetworking.CloseP2PSessionWithUser(friend.Id);
             OnPlayerLeft?.Invoke(friend.Id);
             HandleMembersChanged(lobby);
@@ -520,7 +534,7 @@ namespace Belay.Net
         }
 
         /// <summary>Packets a client sends that the host passes on to every other client.</summary>
-        private static readonly HashSet<PacketType> RelayedByHost = new HashSet<PacketType> { PacketType.DoorOpen, PacketType.ButtonPress, PacketType.HoldInteract, PacketType.LeverAngle, PacketType.HandTouch, PacketType.ItemDrop, PacketType.DoorRequestClose, PacketType.RopePull, PacketType.ZoneEntered, PacketType.Knockback, PacketType.PropKill, PacketType.EnemyHurt, PacketType.EnemyKilled, PacketType.EnemyHit, PacketType.HandholdBroke, PacketType.PropShattered, PacketType.ItemInserted, PacketType.ProjectileFired, PacketType.PlayerGrabbed, PacketType.SpawnerFired, PacketType.PlayerAction, PacketType.PlayerDied, PacketType.RunWon, PacketType.ObjectPlaced, PacketType.ObjectHammered, PacketType.ObjectBroken, PacketType.ItemSettled, PacketType.PlungerStuck, PacketType.FlareLit };
+        private static readonly HashSet<PacketType> RelayedByHost = new HashSet<PacketType> { PacketType.DoorOpen, PacketType.ButtonPress, PacketType.HoldInteract, PacketType.LeverAngle, PacketType.HandTouch, PacketType.ItemDrop, PacketType.DoorRequestClose, PacketType.RopePull, PacketType.ZoneEntered, PacketType.Knockback, PacketType.PropKill, PacketType.EnemyHurt, PacketType.EnemyKilled, PacketType.EnemyHit, PacketType.HandholdBroke, PacketType.PropShattered, PacketType.ItemInserted, PacketType.ProjectileFired, PacketType.PlayerGrabbed, PacketType.SpawnerFired, PacketType.PlayerAction, PacketType.PlayerDied, PacketType.RunWon, PacketType.ObjectPlaced, PacketType.ObjectHammered, PacketType.ObjectBroken, PacketType.ItemSettled, PacketType.PlungerStuck, PacketType.FlareLit, PacketType.WaveSpawned, PacketType.TickSackBurst };
         /// <summary>Frequent state the host passes on without delivery guarantees (a newer copy follows soon).</summary>
         private static readonly HashSet<PacketType> RelayedUnreliable = new HashSet<PacketType> { PacketType.PropState, PacketType.EnemyStates, PacketType.EnemyShot };
 

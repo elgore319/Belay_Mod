@@ -41,7 +41,17 @@ namespace Belay.World
         private readonly HashSet<string> hostFired = new HashSet<string>();
         /// <summary>Client: spawners we asked the host about.</summary>
         private readonly HashSet<string> requested = new HashSet<string>();
+        /// <summary>
+        /// Host: wave zones and egg sacs handed to a teammate because the host hasn't got that part of the
+        /// map (or has it switched off). Client: the ones handed to us, which we run for everyone.
+        /// </summary>
+        private readonly HashSet<string> delegatedAreas = new HashSet<string>();
+        private readonly HashSet<string> areaRequested = new HashSet<string>();
+        private static readonly Dictionary<Component, string> idCache = new Dictionary<Component, string>();
         private int runId;
+
+        private const byte AreaWave = 1;
+        private const byte AreaSac = 2;
         private float nextPendingCheck;
 
         private static readonly AccessTools.FieldRef<UT_TriggerSpawner, float> SpawnerStart = AccessTools.FieldRefAccess<UT_TriggerSpawner, float>("startTime");
@@ -61,6 +71,8 @@ namespace Belay.World
             NetSession.Instance.On(PacketType.TickSackBurst, HandleSac);
             NetSession.Instance.On(PacketType.SpawnerRequest, HandleRequest);
             NetSession.Instance.On(PacketType.SpawnerDelegate, HandleDelegate);
+            NetSession.Instance.On(PacketType.AreaRequest, HandleAreaRequest);
+            NetSession.Instance.On(PacketType.AreaDelegate, HandleAreaDelegate);
         }
 
         internal static bool Live => Instance != null && NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready && !Applying;
@@ -81,6 +93,9 @@ namespace Belay.World
                 sacsBurst.Clear();
                 hostFired.Clear();
                 requested.Clear();
+                delegatedAreas.Clear();
+                areaRequested.Clear();
+                idCache.Clear();
             }
             if (Time.unscaledTime >= nextPendingCheck && (spawnerFired.Count > 0 || waveSpawns.Count > 0 || sacsBurst.Count > 0))
             {
@@ -147,11 +162,39 @@ namespace Belay.World
             return null;
         }
 
+        /// <summary>One pass over every object of a type, by id (instead of a full scan for each id we wait on).</summary>
+        private static Dictionary<string, T> AllById<T>() where T : Component
+        {
+            var map = new Dictionary<string, T>();
+            foreach (T c in FindObjectsByType<T>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (c != null)
+                {
+                    map[IdOf(c)] = c;
+                }
+            }
+            return map;
+        }
+
+        /// <summary>ButtonSync.ObjectId, worked out once per object (it builds a path string every call).</summary>
+        internal static string IdOf(Component c)
+        {
+            if (!idCache.TryGetValue(c, out string id))
+            {
+                id = ButtonSync.ObjectId(c);
+                idCache[c] = id;
+            }
+            return id;
+        }
+
         private void ApplyPending()
         {
+            Dictionary<string, UT_TriggerSpawner> spawners = spawnerFired.Count > 0 ? AllById<UT_TriggerSpawner>() : null;
+            Dictionary<string, ENV_DenizenWaveZone> zones = waveSpawns.Count > 0 ? AllById<ENV_DenizenWaveZone>() : null;
+            Dictionary<string, ENV_TickEggSack> sacs = sacsBurst.Count > 0 ? AllById<ENV_TickEggSack>() : null;
             foreach (string id in new List<string>(spawnerFired.Keys))
             {
-                UT_TriggerSpawner s = FindById<UT_TriggerSpawner>(id);
+                spawners.TryGetValue(id, out UT_TriggerSpawner s);
                 if (s != null)
                 {
                     bool pass = spawnerFired[id];
@@ -161,7 +204,7 @@ namespace Belay.World
             }
             foreach (string id in new List<string>(waveSpawns.Keys))
             {
-                ENV_DenizenWaveZone z = FindById<ENV_DenizenWaveZone>(id);
+                zones.TryGetValue(id, out ENV_DenizenWaveZone z);
                 if (z != null)
                 {
                     List<(string kind, Vector3 shared)> list = waveSpawns[id];
@@ -174,7 +217,7 @@ namespace Belay.World
             }
             foreach (string id in new List<string>(sacsBurst))
             {
-                ENV_TickEggSack sac = FindById<ENV_TickEggSack>(id);
+                sacs.TryGetValue(id, out ENV_TickEggSack sac);
                 if (sac != null)
                 {
                     sacsBurst.Remove(id);
@@ -325,7 +368,7 @@ namespace Belay.World
             {
                 return;
             }
-            string id = ButtonSync.ObjectId(zone);
+            string id = IdOf(zone);
             foreach (Denizen d in now)
             {
                 if (d == null || before.Contains(d))
@@ -354,7 +397,7 @@ namespace Belay.World
             string id = r.ReadString();
             string kind = r.ReadString();
             Vector3 shared = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
-            if (IsHost)
+            if (origin == NetSession.LocalId || RunsArea(id))
             {
                 return;
             }
@@ -412,14 +455,14 @@ namespace Belay.World
 
         internal void OnHostBurst(ENV_TickEggSack sac)
         {
-            string id = ButtonSync.ObjectId(sac);
+            string id = IdOf(sac);
             NetSession.Instance.Send(PacketType.TickSackBurst, w => w.Write(id));
         }
 
         private void HandleSac(SteamId origin, BinaryReader r)
         {
             string id = r.ReadString();
-            if (IsHost)
+            if (origin == NetSession.LocalId || RunsArea(id))
             {
                 return;
             }
@@ -430,6 +473,72 @@ namespace Belay.World
                 return;
             }
             Burst(sac);
+        }
+
+        // ------------------------------------------------------------ Areas the host doesn't have
+
+        /// <summary>Whether this PC runs this wave zone or egg sac (the host, unless it handed it on).</summary>
+        internal bool RunsArea(string id)
+        {
+            return IsHost ? !delegatedAreas.Contains(id) : delegatedAreas.Contains(id);
+        }
+
+        internal static bool RunsHere(Component c) => Instance != null && Instance.RunsArea(IdOf(c));
+
+        /// <summary>
+        /// Client: our player reached a wave zone or egg sac. The host may not have that part of the map,
+        /// in which case nothing would ever spawn there; ask once, and the host hands it to us if so.
+        /// </summary>
+        internal void NoteNear(Component c, byte kind)
+        {
+            if (IsHost)
+            {
+                return;
+            }
+            string id = IdOf(c);
+            if (delegatedAreas.Contains(id) || !areaRequested.Add(id))
+            {
+                return;
+            }
+            NetSession.Instance.Send(PacketType.AreaRequest, w => { w.Write(kind); w.Write(id); });
+        }
+
+        private void HandleAreaRequest(SteamId origin, BinaryReader r)
+        {
+            byte kind = r.ReadByte();
+            string id = r.ReadString();
+            if (!IsHost || delegatedAreas.Contains(id))
+            {
+                return;
+            }
+            Component here = kind == AreaWave ? FindById<ENV_DenizenWaveZone>(id) : (Component)FindById<ENV_TickEggSack>(id);
+            if (here != null && here.gameObject.activeInHierarchy)
+            {
+                return; // we have it running: it goes off here
+            }
+            if (kind == AreaSac && here != null && SacSpawned((ENV_TickEggSack)here))
+            {
+                return; // already burst
+            }
+            delegatedAreas.Add(id);
+            ulong to = origin.Value;
+            NetSession.Instance.Send(PacketType.AreaDelegate, w => { w.Write(id); w.Write(to); });
+            Plugin.Log.LogInfo($"{(kind == AreaWave ? "Wave zone" : "Egg sac")} not running here, handed to {NetSession.NameOf(origin)}: {id}");
+        }
+
+        private void HandleAreaDelegate(SteamId origin, BinaryReader r)
+        {
+            string id = r.ReadString();
+            ulong to = r.ReadUInt64();
+            if (IsHost || origin != NetSession.Instance.HostId)
+            {
+                return;
+            }
+            if (to == NetSession.LocalId.Value)
+            {
+                delegatedAreas.Add(id);
+                Plugin.Log.LogInfo("Running a wave zone or egg sac for the team: " + id);
+            }
         }
 
         private void Burst(ENV_TickEggSack sac)
@@ -495,7 +604,23 @@ namespace Belay.World
         // Wave zones run on the host only, counting every living player.
         [HarmonyPatch(typeof(ENV_DenizenWaveZone), "Update")]
         [HarmonyPrefix]
-        private static bool WaveUpdate() => !HostSpawns.Live || HostSpawns.IsHost;
+        private static bool WaveUpdate(ENV_DenizenWaveZone __instance)
+        {
+            if (!HostSpawns.Live)
+            {
+                return true;
+            }
+            if (HostSpawns.RunsHere(__instance))
+            {
+                return true;
+            }
+            ENT_Player me = ENT_Player.playerObject;
+            if (me != null && !me.dead && __instance.waveZoneBounds.Contains(__instance.transform.InverseTransformPoint(me.transform.position)))
+            {
+                HostSpawns.Instance.NoteNear(__instance, 1);
+            }
+            return false;
+        }
 
         [HarmonyPatch(typeof(ENV_DenizenWaveZone), nameof(ENV_DenizenWaveZone.IsPlayerInWaveZone))]
         [HarmonyPostfix]
@@ -534,7 +659,7 @@ namespace Belay.World
         [HarmonyPrefix]
         private static void WavePrefix(ENV_DenizenWaveZone __instance, out List<Denizen> __state)
         {
-            __state = HostSpawns.Live && HostSpawns.IsHost ? HostSpawns.Snapshot(__instance) : null;
+            __state = HostSpawns.Live && HostSpawns.RunsHere(__instance) ? HostSpawns.Snapshot(__instance) : null;
         }
 
         [HarmonyPatch(typeof(ENV_DenizenWaveZone), "SpawnDenizens")]
@@ -558,17 +683,27 @@ namespace Belay.World
         // Tick egg sacs: burst on the host when anyone is close, on every PC at once.
         [HarmonyPatch(typeof(ENV_TickEggSack), "Update")]
         [HarmonyPrefix]
-        private static bool SacUpdate(bool ___hasSpawned, out bool __state)
+        private static bool SacUpdate(ENV_TickEggSack __instance, bool ___hasSpawned, out bool __state)
         {
             __state = ___hasSpawned;
-            return !HostSpawns.Live || HostSpawns.IsHost;
+            if (!HostSpawns.Live || HostSpawns.RunsHere(__instance))
+            {
+                return true;
+            }
+            ENT_Player me = ENT_Player.playerObject;
+            if (!___hasSpawned && me != null && !me.dead
+                && Vector3.Distance(me.transform.position, __instance.transform.position) <= __instance.playerProximitySpawnRadius * 1.5f)
+            {
+                HostSpawns.Instance.NoteNear(__instance, 2);
+            }
+            return false;
         }
 
         [HarmonyPatch(typeof(ENV_TickEggSack), "Update")]
         [HarmonyPostfix]
         private static void SacUpdatePost(ENV_TickEggSack __instance, bool ___hasSpawned, bool __state)
         {
-            if (!__state && ___hasSpawned && HostSpawns.Live && HostSpawns.IsHost)
+            if (!__state && ___hasSpawned && HostSpawns.Live && HostSpawns.RunsHere(__instance))
             {
                 HostSpawns.Instance.OnHostBurst(__instance);
             }
