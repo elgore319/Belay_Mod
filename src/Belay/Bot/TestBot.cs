@@ -54,6 +54,12 @@ namespace Belay.Bot
         /// <summary>The creature it's reacting to, if any (see BotThreats).</summary>
         public string Threat;
         public float StrikeTimer;
+
+        /// <summary>A barnacle has it (see BotThreats).</summary>
+        public DEN_Barnacle GrabbedBarnacle;
+        public int BarnacleHits;
+        public float BiteTimer;
+        public float GrabCooldown;
         public bool Anchored;
         public bool LookAtYou;
         public bool Dead;
@@ -252,6 +258,11 @@ namespace Belay.Bot
                 bot.Climber = new BotClimber(bot.Id);
                 SteamId id = bot.Id;
                 bot.Climber.Hurt = (amount, what) => Hurt(id, amount, what, "falling");
+                bot.Climber.MakeHold = (shoulder, goal, into) =>
+                {
+                    BotPlayer b = Bots.Find(x => x.Id == id);
+                    return b != null && BotTools.MakeHold(b, shoulder, goal, into);
+                };
                 bot.Climber.Kill = what =>
                 {
                     BotPlayer b = Bots.Find(x => x.Id == id);
@@ -375,6 +386,11 @@ namespace Belay.Bot
                 UI.DeathFeed.Instance?.Show(bot.Id, deathType);
                 BotItems.DropAll(bot);
                 bot.EatingItem = null;
+                bot.GrabbedBarnacle = null;
+                if (bot.Climber != null)
+                {
+                    bot.Climber.GrabbedBy = null;
+                }
                 Push(bot);
             }
         }
@@ -683,6 +699,7 @@ namespace Belay.Bot
             string whom = leader == NetSession.LocalId ? "you" : NetSession.NameOf(leader);
             bot.Activity = !youAlive ? (bot.HasReviveGoal ? (bot.ReviveAtTerminal ? "heading for a terminal to revive " + whom : "climbing to the next room to revive " + whom) : "looking for a way to revive " + whom)
                 : bot.EatingItem != null ? "eating"
+                : c.Grabbed ? "grabbed by a barnacle, fighting it"
                 : alarmed ? "hurrying away from " + bot.Threat
                 : c.Mantling ? "pulling up"
                 : c.Hanging ? (c.GripFraction < 0.3f ? "climbing, grip running out" : "climbing")
@@ -1340,7 +1357,8 @@ namespace Belay.Bot
             GUILayout.Label("Bots are teammates that only exist in your game. In Climb mode a bot makes its own way up "
                 + "behind you: it grabs real holds, runs out of grip, rests on ledges, jumps gaps and can fall. If you "
                 + "go down, it heads for the nearest terminal and revives you. It picks up items it passes (take them from it below), "
-                + "eats food when it's hurt or slipping, drops everything when it dies, and hurries on (or swings) when a creature gets close.");
+                + "eats food when it's hurt or slipping, uses pitons and rebar where there's no hold, drops everything when it dies, "
+                + "hurries on (or swings) when a creature gets close, and fights its way out of barnacles.");
             GUILayout.Space(4);
 
             if (!NetSession.SteamReady)
@@ -1535,7 +1553,7 @@ namespace Belay.Bot
                 foreach (Item item in new List<Item>(bot.Items))
                 {
                     GUILayout.BeginHorizontal();
-                    GUILayout.Label("  " + BotItems.Label(item) + (BotItems.FoodOf(item) != null ? " (eats it when hurt or slipping)" : ""));
+                    GUILayout.Label("  " + BotItems.Label(item) + (BotItems.FoodOf(item) != null ? " (eats it when hurt or slipping)" : BotTools.IsTool(item) ? " (uses it where there's no hold)" : ""));
                     if (GUILayout.Button("Take", GUILayout.Width(60)))
                     {
                         BotItems.GiveToYou(bot, item);
