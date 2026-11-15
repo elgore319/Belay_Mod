@@ -611,7 +611,8 @@ namespace Belay.World
         private static Material barrierMaterial;
 
         /// <summary>
-        /// A solid, see-through red slab across a path, the same on every PC. It's laid across the
+        /// Closes a way that has no door to lock: a solid slab across the path, the same on every PC,
+        /// dressed in the level's own wall material so it reads as part of the level. It's laid across the
         /// spot's "up" (paths climb upward from entrances and exits) and parented to the level so it
         /// follows the world and goes away with it.
         /// </summary>
@@ -629,16 +630,56 @@ namespace Belay.World
             wall.transform.localScale = Vector3.one;
             Vector3 lossy = wall.transform.lossyScale;
             wall.transform.localScale = new Vector3(6f / Mathf.Max(0.01f, Mathf.Abs(lossy.x)), 0.4f / Mathf.Max(0.01f, Mathf.Abs(lossy.y)), 6f / Mathf.Max(0.01f, Mathf.Abs(lossy.z)));
-            if (barrierMaterial == null)
-            {
-                barrierMaterial = new Material(Shader.Find("Sprites/Default")) { color = new Color(0.9f, 0.15f, 0.1f, 0.45f) };
-            }
             Renderer r = wall.GetComponent<Renderer>();
             if (r != null)
             {
-                r.sharedMaterial = barrierMaterial;
+                Material mat = WallMaterial(level, at.position, r);
+                if (mat == null)
+                {
+                    if (barrierMaterial == null)
+                    {
+                        barrierMaterial = new Material(Shader.Find("Sprites/Default")) { color = new Color(0.12f, 0.11f, 0.1f, 1f) };
+                    }
+                    mat = barrierMaterial;
+                }
+                r.sharedMaterial = mat;
             }
             Plugin.Log.LogInfo($"Blocked the {what} path at {at.name}");
+        }
+
+        /// <summary>The material of the biggest solid, opaque surface of the level near this spot.</summary>
+        private static Material WallMaterial(M_Level level, Vector3 near, Renderer skip)
+        {
+            if (level == null)
+            {
+                return null;
+            }
+            Material best = null;
+            float bestSize = 0f;
+            foreach (MeshRenderer mr in level.GetComponentsInChildren<MeshRenderer>())
+            {
+                if (mr == null || mr == skip || !mr.enabled || mr.sharedMaterial == null)
+                {
+                    continue;
+                }
+                Material m = mr.sharedMaterial;
+                if (m.renderQueue >= 2450 || mr.GetComponent<Collider>() == null)
+                {
+                    continue; // see-through, or not something you could stand on
+                }
+                Bounds b = mr.bounds;
+                if (b.SqrDistance(near) > 15f * 15f)
+                {
+                    continue;
+                }
+                float size = b.size.x * b.size.y + b.size.y * b.size.z + b.size.x * b.size.z;
+                if (size > bestSize)
+                {
+                    bestSize = size;
+                    best = m;
+                }
+            }
+            return best;
         }
 
         private void Open(string id, string starter)
@@ -777,6 +818,7 @@ namespace Belay.World
             {
                 showVote = false; // the host went quiet
             }
+            ShortcutDoors.Tick();
             KeepOffNormalPath();
             RetryNotLoaded();
         }

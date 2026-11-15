@@ -9,23 +9,128 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Blocks a shortcut or the main path with the level's own doors instead of a red barrier:
+    /// Blocks a shortcut or the main path with the level's own machinery instead of a red barrier:
     ///  - Team picks the main path: the doors on the shortcut's side never open.
     ///  - Team picks the shortcut: the main path's doors (the elevator, or the doors at the level's exit)
     ///    never open.
-    /// Where there's no door to lock, the old barrier is used. The same check also writes a report of
-    /// every shortcut in the game (BepInEx/cache/Belay/shortcut-report.txt) when the game starts.
+    /// It's meant to feel like part of the level, with nothing on screen about it:
+    ///  - A locked door that's standing open swings shut on its own (with its own sound) as soon as
+    ///    nobody is standing in it, and stays shut, cranks and pull handles included.
+    ///  - An elevator or lift on the losing side is dead: calling it or pressing go does nothing, so
+    ///    it stays where it is with its doors shut. One already under way finishes its trip, but its
+    ///    doors don't open at the other end.
+    /// Where there's no door to lock, a slab in the level's own wall material closes the way. The same
+    /// check also writes a report of every shortcut in the game (BepInEx/cache/Belay/shortcut-report.txt)
+    /// when the game starts.
     /// </summary>
     internal static class ShortcutDoors
     {
         private const float ExitRadius = 15f;
         private const float StartRadius = 8f;
 
-        private static readonly HashSet<UT_Door> locked = new HashSet<UT_Door>();
+        /// <summary>Don't swing a door shut on someone standing in it.</summary>
+        private const float ClearOfDoor = 3f;
+        private const float TickEvery = 0.25f;
 
-        internal static void Clear() => locked.Clear();
+        private static readonly HashSet<UT_Door> locked = new HashSet<UT_Door>();
+        private static readonly HashSet<Component> lockedMovers = new HashSet<Component>();
+        private static readonly HashSet<UT_Door> shutLogged = new HashSet<UT_Door>();
+        private static float nextTick;
+
+        private static readonly AccessTools.FieldRef<UT_Door, bool> DoorOpen = AccessTools.FieldRefAccess<UT_Door, bool>("open");
+        private static readonly AccessTools.FieldRef<UT_PathMover, float> MoverWait = AccessTools.FieldRefAccess<UT_PathMover, float>("currentWaitTime");
+        internal static readonly AccessTools.FieldRef<UT_Door, float> DoorAmount = AccessTools.FieldRefAccess<UT_Door, float>("lerpAmount");
+
+        internal static void Clear()
+        {
+            locked.Clear();
+            lockedMovers.Clear();
+            shutLogged.Clear();
+        }
 
         internal static bool IsLocked(UT_Door door) => door != null && locked.Contains(door);
+
+        internal static bool IsLockedMover(Component mover) => mover != null && lockedMovers.Contains(mover);
+
+        /// <summary>Closes locked doors that are still open, once nobody is in the way. Every PC does this itself.</summary>
+        internal static void Tick()
+        {
+            if ((locked.Count == 0 && lockedMovers.Count == 0) || Time.unscaledTime < nextTick)
+            {
+                return;
+            }
+            nextTick = Time.unscaledTime + TickEvery;
+            // A shuttling elevator that runs by itself: let it finish its trip, then it stays at the stop.
+            lockedMovers.RemoveWhere(m => m == null);
+            foreach (Component m in lockedMovers)
+            {
+                if (m is UT_PathMover p && p.active && p.moveObject != null)
+                {
+                    float wait;
+                    try { wait = MoverWait(p); } catch { continue; }
+                    if (wait > 0f && !SomeoneNear(p.moveObject.position))
+                    {
+                        p.StopMove();
+                        Plugin.Log.LogInfo("Stopped a locked elevator at its stop: " + p.name);
+                    }
+                }
+            }
+            locked.RemoveWhere(d => d == null);
+            foreach (UT_Door d in locked)
+            {
+                bool open;
+                try
+                {
+                    open = DoorOpen(d);
+                }
+                catch
+                {
+                    continue;
+                }
+                if (!open || !d.isActiveAndEnabled || SomeoneNear(d.transform.position))
+                {
+                    continue;
+                }
+                DoorSync.Applying = true;
+                try
+                {
+                    d.Close();
+                }
+                catch (System.Exception e)
+                {
+                    Plugin.Log.LogWarning($"Couldn't shut locked door {d.name}: {e.Message}");
+                }
+                finally
+                {
+                    DoorSync.Applying = false;
+                }
+                if (shutLogged.Add(d))
+                {
+                    Plugin.Log.LogInfo("Shut a locked door: " + d.name);
+                }
+            }
+        }
+
+        private static bool SomeoneNear(Vector3 pos)
+        {
+            float r2 = ClearOfDoor * ClearOfDoor;
+            ENT_Player me = ENT_Player.playerObject;
+            if (me != null && !me.dead && (me.transform.position - pos).sqrMagnitude < r2)
+            {
+                return true;
+            }
+            if (Players.PlayerSync.Instance != null)
+            {
+                foreach (Players.RemotePlayer remote in Players.PlayerSync.Instance.Remotes.Values)
+                {
+                    if (remote != null && !remote.Latest.Dead && (remote.LocalPosition - pos).sqrMagnitude < r2)
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
 
         private static bool NameHas(Transform t, Transform stop, params string[] words)
         {
@@ -82,12 +187,63 @@ namespace Belay.World
             }
         }
 
-        /// <summary>Locks the doors on the losing side. Returns false when there was no door to lock.</summary>
+        /// <summary>
+        /// Elevators and lifts (path movers and platforms) on each side: on the shortcut side, anything in
+        /// the shortcut's own part of the level; on the main path, anything named elevator or lift.
+        /// Looping movers (conveyors, moving scenery) are left alone.
+        /// </summary>
+        internal static void AnalyzeMovers(UT_BranchGenerator g, M_Level level, out List<Component> shortcutMovers, out List<Component> mainMovers)
+        {
+            shortcutMovers = new List<Component>();
+            mainMovers = new List<Component>();
+            if (g == null || level == null)
+            {
+                return;
+            }
+            Transform levelRoot = level.transform;
+            Transform root = ShortcutRoot(g, levelRoot);
+            Transform start = g.startTransform != null ? g.startTransform : g.transform;
+            var movers = new List<(Component c, Transform car)>();
+            foreach (UT_PathMover p in level.GetComponentsInChildren<UT_PathMover>(true))
+            {
+                if (p != null && !p.loop) movers.Add((p, p.moveObject != null ? p.moveObject : p.transform));
+            }
+            foreach (UT_Platform p in level.GetComponentsInChildren<UT_Platform>(true))
+            {
+                if (p != null) movers.Add((p, p.transform));
+            }
+            foreach (var (c, car) in movers)
+            {
+                if (c.transform.IsChildOf(root) || car.IsChildOf(root) || Vector3.Distance(car.position, start.position) < StartRadius)
+                {
+                    shortcutMovers.Add(c);
+                }
+                else if (NameHas(c.transform, levelRoot, "elevator", "lift") || NameHas(car, levelRoot, "elevator", "lift"))
+                {
+                    mainMovers.Add(c);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Locks the doors (and elevators) on the losing side. Returns false when there was no door to lock,
+        /// so the way needs a slab instead.
+        /// </summary>
         internal static bool LockSide(UT_BranchGenerator g, bool shortcutSide)
         {
             M_Level level = g != null ? (g.currentLevel ?? g.GetComponentInParent<M_Level>()) : null;
             Analyze(g, level, out List<UT_Door> shortcutDoors, out List<UT_Door> mainDoors);
+            AnalyzeMovers(g, level, out List<Component> shortcutMovers, out List<Component> mainMovers);
             List<UT_Door> doors = shortcutSide ? shortcutDoors : mainDoors;
+            List<Component> movers = shortcutSide ? shortcutMovers : mainMovers;
+            foreach (Component m in movers)
+            {
+                lockedMovers.Add(m);
+            }
+            if (movers.Count > 0)
+            {
+                Plugin.Log.LogInfo($"Stopped the {(shortcutSide ? "shortcut" : "main path")} elevators in {level.name}: {string.Join(", ", movers.Select(m => m.name))}");
+            }
             if (doors.Count == 0)
             {
                 return false;
@@ -96,6 +252,7 @@ namespace Belay.World
             {
                 locked.Add(d);
             }
+            nextTick = 0f;
             Plugin.Log.LogInfo($"Locked the {(shortcutSide ? "shortcut" : "main path")} doors in {level.name}: {string.Join(", ", doors.Select(d => d.name))}");
             return true;
         }
@@ -151,11 +308,14 @@ namespace Belay.World
                 {
                     count++;
                     Analyze(g, level, out List<UT_Door> sd, out List<UT_Door> md);
+                    AnalyzeMovers(g, level, out List<Component> sm, out List<Component> mm);
                     Transform exit = level.GetLevelExit();
                     string branches = g.branch != null ? string.Join(", ", g.branch.Where(b => b != null).Select(b => b.name)) : "";
                     sb.AppendLine($"{level.name} / {Path(g.transform, level.transform)}  -> {branches}");
                     sb.AppendLine("  shortcut side doors: " + (sd.Count > 0 ? string.Join(", ", sd.Select(d => Path(d.transform, level.transform))) : "NONE"));
                     sb.AppendLine("  main path doors:     " + (md.Count > 0 ? string.Join(", ", md.Select(d => Path(d.transform, level.transform))) : "NONE"));
+                    sb.AppendLine("  shortcut elevators:  " + (sm.Count > 0 ? string.Join(", ", sm.Select(m => Path(m.transform, level.transform))) : "none"));
+                    sb.AppendLine("  main path elevators: " + (mm.Count > 0 ? string.Join(", ", mm.Select(m => Path(m.transform, level.transform))) : "none"));
                     foreach (UT_Door d in level.GetComponentsInChildren<UT_Door>(true))
                     {
                         float toExit = exit != null ? Vector3.Distance(d.transform.position, exit.position) : -1f;
@@ -186,24 +346,48 @@ namespace Belay.World
         }
     }
 
-    [HarmonyPatch(typeof(UT_Door), nameof(UT_Door.Open))]
+    [HarmonyPatch]
     internal static class ShortcutDoorLockPatch
     {
-        private static float lastNotice = -10f;
-
+        [HarmonyPatch(typeof(UT_Door), nameof(UT_Door.Open))]
         [HarmonyPrefix]
         [HarmonyPriority(Priority.First)]
-        private static bool Prefix(UT_Door __instance)
+        private static bool Open(UT_Door __instance) => !ShortcutDoors.IsLocked(__instance);
+
+        // Cranks and pull handles move doors bit by bit.
+        [HarmonyPatch(typeof(UT_Door), nameof(UT_Door.AddOpenAmount))]
+        [HarmonyPrefix]
+        [HarmonyPriority(Priority.First)]
+        private static bool AddOpenAmount(UT_Door __instance, float amount) => !(amount > 0f && ShortcutDoors.IsLocked(__instance));
+
+        [HarmonyPatch(typeof(UT_Door), nameof(UT_Door.SetOpenAmount))]
+        [HarmonyPrefix]
+        [HarmonyPriority(Priority.First)]
+        private static bool SetOpenAmount(UT_Door __instance, float amount)
         {
             if (!ShortcutDoors.IsLocked(__instance))
             {
                 return true;
             }
-            if (Time.unscaledTime - lastNotice > 4f)
+            try
             {
-                lastNotice = Time.unscaledTime;
+                return amount <= ShortcutDoors.DoorAmount(__instance);
             }
-            return false;
+            catch
+            {
+                return false;
+            }
         }
+
+        // A dead elevator: whatever calls it, it doesn't set off.
+        [HarmonyPatch(typeof(UT_PathMover), nameof(UT_PathMover.StartMove))]
+        [HarmonyPrefix]
+        [HarmonyPriority(Priority.First)]
+        private static bool PathStart(UT_PathMover __instance) => !ShortcutDoors.IsLockedMover(__instance);
+
+        [HarmonyPatch(typeof(UT_Platform), nameof(UT_Platform.SetMoveSpeed))]
+        [HarmonyPrefix]
+        [HarmonyPriority(Priority.First)]
+        private static bool PlatformSpeed(UT_Platform __instance, float m) => Mathf.Approximately(m, 0f) || !ShortcutDoors.IsLockedMover(__instance);
     }
 }
