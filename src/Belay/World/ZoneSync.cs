@@ -254,7 +254,7 @@ namespace Belay.World
             if (closeZone)
             {
                 // A door's close trigger: start the team's countdown instead of shutting it now.
-                return DoorSync.Instance.OnLocalCloseZone(__instance);
+                return DoorSync.Instance.OnLocalCloseZone(__instance, other.transform);
             }
             return ZoneSync.Instance.LocalEnter(__instance, other.transform, level);
         }

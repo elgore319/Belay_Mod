@@ -1,8 +1,8 @@
-## Belay 0.7.8
+## Belay 0.7.9
 
-- **The vent hands, the phage and the tracker hunt the whole team.** These creatures are built around "the player", so in co-op they only ever went after the host. Now each one is run by the PC of whoever it's closest to, so it chases, grabs and kills that player properly, and everyone else sees the same creature in the same place.
-- **See teammates get caught.** When a barnacle tongue or a vent hand grabs a teammate, you now see it holding them. A teammate caught in a bear trap stays stuck in it on your screen too.
-- **See turrets shooting at teammates.** When a turret fires at a teammate, you see the muzzle flash and the tracer, and hear the shot.
-- **Close-range spawns no longer wait for the host.** If you reach a spawn point in a part of the map the host's game hasn't built yet, it now goes off for you, and everyone else gets the same spawn.
+- **The Nest is the same for everyone.** Each PC's map seed drifted a little every time it built more map, so by the Nest the team got different levels. Every build of the map now uses a seed the whole team agrees on.
+- **The airlock into the Nest works.** A door worked by a lever, button or crank (like the airlock) now shuts right away for everyone. Before, it stayed open waiting for the team, so the airlock never cycled and the mass caught everyone inside.
+- **Faster transitions.** When a door's trigger also loads the next area (the next segment, unloading the levels behind you, starting a branch), that part now happens the moment you walk in. Only the door itself still waits for the team.
+- **Game over screen.** If the game over sequence stalls before the score screen, Belay now puts the screen up itself.
 
-Everyone in the lobby must update (older versions can't join a 0.7.8 lobby).
+Everyone in the lobby should update.

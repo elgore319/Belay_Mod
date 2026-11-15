@@ -77,6 +77,12 @@ namespace Belay.Revive
         private void Update()
         {
             Prompt = null;
+            if (!Active && runOver && gameOverCheckAt >= 0f && NetSession.Instance.InLobby)
+            {
+                // The world can stop counting as ready once the run ends; still make sure the screen shows.
+                CheckGameOverStarted();
+                return;
+            }
             if (!Active)
             {
                 pendingRevive = false;
@@ -307,30 +313,89 @@ namespace Belay.Revive
         /// </summary>
         private void CheckGameOverStarted()
         {
-            if (!runOver || forcedGameOver || gameOverCheckAt < 0f || Time.unscaledTime < gameOverCheckAt)
+            if (!runOver || gameOverCheckAt < 0f || Time.unscaledTime < gameOverCheckAt)
             {
                 return;
             }
-            gameOverCheckAt = -1f;
-            if (CL_GameManager.runHasEnded)
+            if (ScoreScreenShowing())
             {
+                gameOverCheckAt = -1f;
                 return;
             }
-            forcedGameOver = true;
-            Plugin.Log.LogWarning("The game-over screen didn't start after the run ended; starting it directly");
-            try
+            CL_GameManager gMan = CL_GameManager.gMan;
+            if (gMan == null)
             {
-                CL_GameManager gMan = CL_GameManager.gMan;
-                var sequence = AccessTools.Method(typeof(CL_GameManager), "EndGameSequence");
-                if (gMan != null && sequence != null)
+                gameOverCheckAt = -1f;
+                return;
+            }
+            if (!CL_GameManager.runHasEnded && !forcedGameOver)
+            {
+                // The game's own death call returned early (it thought you were already dead, or went
+                // for a disk revive): start the end sequence directly and check again shortly.
+                forcedGameOver = true;
+                gameOverCheckAt = Time.unscaledTime + GameOverCheckDelay;
+                Plugin.Log.LogWarning("The game-over screen didn't start after the run ended; starting it directly");
+                try
                 {
+                    var sequence = AccessTools.Method(typeof(CL_GameManager), "EndGameSequence");
                     gMan.StartCoroutine((System.Collections.IEnumerator)sequence.Invoke(gMan, new object[] { false }));
                 }
+                catch (System.Exception e)
+                {
+                    Plugin.Log.LogWarning("Couldn't start the game-over screen: " + e.Message);
+                }
+                return;
+            }
+            // The end sequence started but stopped before the score screen (something in it threw, e.g.
+            // saving stats for a co-op run). Put the screen up ourselves, one step at a time.
+            gameOverCheckAt = -1f;
+            Plugin.Log.LogWarning("The game-over sequence stalled before the score screen; showing it directly");
+            StatManager stats = Traverse.Create(gMan).Field("statManager").GetValue<StatManager>();
+            Try("pause", () => gMan.isPaused = true);
+            Try("fade", () => gMan.uiMan.SetFadeTarget(1f));
+            Try("score screen", () => stats.ShowScoreScreen(false));
+            Try("cursor", () =>
+            {
+                Cursor.lockState = CursorLockMode.None;
+                CL_GameManager.showCursor = true;
+            });
+        }
+
+        private static void Try(string what, System.Action step)
+        {
+            try
+            {
+                step();
             }
             catch (System.Exception e)
             {
-                Plugin.Log.LogWarning("Couldn't start the game-over screen: " + e.Message);
+                Plugin.Log.LogWarning($"Game-over screen ({what}) failed: {e.Message}");
             }
+        }
+
+        private static bool ScoreScreenShowing()
+        {
+            try
+            {
+                CL_GameManager gMan = CL_GameManager.gMan;
+                StatManager stats = gMan != null ? Traverse.Create(gMan).Field("statManager").GetValue<StatManager>() : null;
+                if (stats == null)
+                {
+                    return false;
+                }
+                foreach (string field in new[] { "loseScreen", "winScreen" })
+                {
+                    Component screen = Traverse.Create(stats).Field(field).GetValue<Component>();
+                    if (screen != null && screen.gameObject.activeInHierarchy)
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch (System.Exception)
+            {
+            }
+            return false;
         }
 
         /// <summary>A teammate reached the ending: the run is over for everyone, dead or alive.</summary>
