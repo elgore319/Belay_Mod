@@ -71,14 +71,14 @@ namespace Belay.World
             }
         }
 
-        private static string Who(Transform t)
+        internal static string Who(Transform t)
         {
             ENT_Player me = ENT_Player.playerObject;
             return me != null && t == me.transform ? "you" : t.GetComponent<RemoteBody>()?.Owner?.DisplayName ?? "a teammate";
         }
 
         /// <summary>The nearest living player (you or a teammate), sticking with the current one unless another is clearly closer.</summary>
-        private static Transform Nearest(Vector3 at, Transform current)
+        internal static Transform Nearest(Vector3 at, Transform current)
         {
             var candidates = new List<Transform>();
             ENT_Player me = ENT_Player.playerObject;

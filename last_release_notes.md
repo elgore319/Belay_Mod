@@ -1,5 +1,7 @@
-## Belay 0.6.33
+## Belay 0.7.0
 
-- **Death messages.** When anyone in the lobby dies, everyone sees who it was and how they died near the top of the screen, using the game's own death lines (for example "EATEN ALIVE" or "FUSED INTO THE MASS"). They fade out after a few seconds. Bot deaths show the same way.
+- **The Hunter and the chase-killers hunt the whole team.** They used to lock onto the host when they spawned. Now they go after the nearest living player and switch when someone else is clearly closer.
+- **No more being killed from across the map.** Reaching a teammate no longer kills the host. The kill lands on the player it actually caught.
+- **Chase-killers stay while anyone is alive.** A chase-killer no longer disappears the moment the host dies while teammates are still climbing.
 
 Everyone in the lobby should update.
