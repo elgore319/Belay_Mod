@@ -25,6 +25,8 @@ namespace Belay.Items
             public string DisplayName;
             /// <summary>Picks the game item to copy.</summary>
             public Func<Item_Object, bool> Template;
+            /// <summary>Used when no game item matches <see cref="Template"/>.</summary>
+            public Func<Item_Object, bool> Fallback;
             /// <summary>Changes the copied hand item (adds the item's own behaviour).</summary>
             public Action<HandItem> SetupHand;
             /// <summary>Changes the copied world item.</summary>
@@ -71,6 +73,9 @@ namespace Belay.Items
         {
             Instance = this;
             PlungerGun.Define();
+            AnchorBolt.Define();
+            ChalkBag.Define();
+            SignalFlare.Define();
         }
 
         private void Update()
@@ -111,16 +116,7 @@ namespace Belay.Items
 
             foreach (Definition def in Definitions)
             {
-                Item_Object template = null;
-                foreach (GameObject go in baseDb.itemPrefabs)
-                {
-                    Item_Object io = go != null ? go.GetComponent<Item_Object>() : null;
-                    if (io != null && io.itemData != null && SafeMatch(def, io))
-                    {
-                        template = io;
-                        break;
-                    }
-                }
+                Item_Object template = FindTemplate(baseDb, def.Template) ?? FindTemplate(baseDb, def.Fallback);
                 if (template == null)
                 {
                     Plugin.Log.LogWarning("Co-op item " + def.Id + ": no game item to build it from");
@@ -143,16 +139,31 @@ namespace Belay.Items
             }
         }
 
-        private static bool SafeMatch(Definition def, Item_Object io)
+        private static Item_Object FindTemplate(WKAssetDatabase db, Func<Item_Object, bool> match)
         {
-            try
+            if (match == null)
             {
-                return def.Template(io);
+                return null;
             }
-            catch
+            foreach (GameObject go in db.itemPrefabs)
             {
-                return false;
+                Item_Object io = go != null ? go.GetComponent<Item_Object>() : null;
+                if (io == null || io.itemData == null)
+                {
+                    continue;
+                }
+                try
+                {
+                    if (match(io))
+                    {
+                        return io;
+                    }
+                }
+                catch
+                {
+                }
             }
+            return null;
         }
 
         private static Item_Object Build(Definition def, Item_Object template)

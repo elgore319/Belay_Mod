@@ -61,6 +61,7 @@ namespace Belay.Net
         PlungerStuck = 112,
         ItemTaken = 113,
         ItemDenied = 114,
+        FlareLit = 115,
     }
 
     public static class Channels
