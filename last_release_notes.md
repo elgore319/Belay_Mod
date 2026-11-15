@@ -1,11 +1,8 @@
-## Belay 0.7.24
+## Belay 0.7.25
 
-Small fixes from going over the older co-op systems (doors, room gates, elevators, room sequences, props, placed objects, level checks, team progress, trinkets). Not tested in a real co-op run yet.
+Climbing bots (F7 > Bot) now deal with barnacles and use climbing tools.
 
-- **Less stutter while room sequences catch up.** When a teammate started an interlude or breakroom sequence somewhere your game hadn't built yet, Belay checked for it once a second for up to 15 minutes, scanning every trigger in the map once per waiting sequence. It now scans once per check for all of them.
-- **Team progress can't fail to save at run start.** If the host's team progress snapshot was too big for the lobby and had nowhere tidy to cut it, building it could throw an error. It now just cuts it.
-- The level-mismatch warning now names a local test client correctly instead of showing a blank name.
-
-The doors, gates, elevators, props, placed objects and trinket budget code looked sound.
-
-No network changes, so it works with teammates on 0.7.23, but everyone should update.
+- **Barnacles grab bots.** A barnacle tongue that touches a bot latches on and hauls it up to the mouth, where it gets bitten. The bot swings at the barnacle until the barnacle dies or the bot tears free, then drops and tries to catch a hold on the way down.
+- **Pitons.** When a bot has no hold within reach on its way up, it hammers in a piton it's carrying. The piton stays in the wall for everyone, and anyone can climb on it, the same as one you place.
+- **Rebar.** With no piton, a bot throws a rebar into the wall just above it and climbs onto that.
+- Bots pick these tools up the same way as other items. The Bot tab marks them "uses it where there's no hold".

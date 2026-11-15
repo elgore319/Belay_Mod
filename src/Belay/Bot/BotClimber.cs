@@ -87,12 +87,23 @@ namespace Belay.Bot
         public bool Grounded { get; private set; }
         public bool Mantling => mantleT >= 0f;
         public bool Hanging => Hands[0].Holding || Hands[1].Holding;
-        public bool Falling => !Grounded && !Hanging && !Mantling;
+        public bool Falling => !Grounded && !Hanging && !Mantling && !Grabbed;
         public float GripFraction => Mathf.Min(Hands[0].Grip, Hands[1].Grip) / GripMax;
 
         /// <summary>Raised for fall damage (amount, cause) and for deadly falls.</summary>
         public Action<float, string> Hurt;
         public Action<string> Kill;
+
+        /// <summary>
+        /// No hold within reach on the way: the bot may make one (a piton, a thrown rebar). Gets the
+        /// shoulder, the goal and the way into the wall (world space); returns true if it made one.
+        /// </summary>
+        public Func<Vector3, Vector3, Vector3, bool> MakeHold;
+        private float makeHoldCooldown;
+
+        /// <summary>A barnacle's tongue has it: it's hauled up to this point and can't climb.</summary>
+        public Transform GrabbedBy;
+        public bool Grabbed => GrabbedBy != null;
 
         private float fallStartY;
         private float airTime;
@@ -116,6 +127,7 @@ namespace Belay.Bot
             Yaw = yaw;
             Pitch = 0f;
             mantleT = -1f;
+            GrabbedBy = null;
             airTime = 0f;
             fallStartY = WorldSpace.ToLocal(shared).y;
             lastWallNormal = Vector3.zero;
@@ -172,7 +184,12 @@ namespace Belay.Bot
             }
             catchCooldown -= dt;
 
-            if (Mantling)
+            makeHoldCooldown -= dt;
+            if (Grabbed)
+            {
+                StepGrabbed(dt, ref pos);
+            }
+            else if (Mantling)
             {
                 StepMantle(dt, ref pos);
             }
@@ -467,6 +484,38 @@ namespace Belay.Bot
                     return;
                 }
             }
+            TryMakeHold(shoulder, goal, into);
+        }
+
+        private void TryMakeHold(Vector3 shoulder, Vector3 goal, Vector3 into)
+        {
+            if (MakeHold == null || makeHoldCooldown > 0f || Vector3.Distance(shoulder, goal) < 1.2f)
+            {
+                return;
+            }
+            makeHoldCooldown = 2.5f;
+            if (MakeHold(shoulder, goal, into))
+            {
+                // The next reach finds it.
+                reachTimer = 0.4f;
+            }
+        }
+
+        private void StepGrabbed(float dt, ref Vector3 pos)
+        {
+            if (Hanging)
+            {
+                Hands[0].Release();
+                Hands[1].Release();
+            }
+            mantleT = -1f;
+            Grounded = false;
+            Velocity = Vector3.zero;
+            airTime = 0f;
+            fallStartY = pos.y;
+            Vector3 mouth = GrabbedBy.position - Vector3.up * (HalfHeight + 0.2f);
+            pos = Vector3.MoveTowards(pos, mouth, 2.2f * dt);
+            Pitch = Mathf.MoveTowardsAngle(Pitch, -60f, 180f * dt);
         }
 
         private void StepMantle(float dt, ref Vector3 pos)
@@ -511,6 +560,10 @@ namespace Belay.Bot
             {
                 StartMove(Hands[0], hold);
                 return true;
+            }
+            if (goal.y > feet + 2.2f)
+            {
+                TryMakeHold(shoulder, goal, into);
             }
             return false;
         }
@@ -647,7 +700,7 @@ namespace Belay.Bot
                 }
                 else
                 {
-                    Vector3 rest = Falling ? pos + Vector3.up * 0.55f + Side(i) * 0.3f : RestHand(pos, i);
+                    Vector3 rest = Falling || Grabbed ? pos + Vector3.up * 0.55f + Side(i) * 0.3f : RestHand(pos, i);
                     h.Shown = Vector3.Lerp(h.Shown, rest, 1f - Mathf.Exp(-12f * dt));
                 }
             }
