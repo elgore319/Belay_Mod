@@ -13,9 +13,9 @@ using UnityEngine;
 namespace Belay.UI
 {
     /// <summary>
-    /// The Belay mod menu. It's drawn with IMGUI on its own (no game UI objects are created, moved or
-    /// patched, so other mods' menus are untouched), opens from a small "Belay" button on the main and
-    /// pause menus or the menu key, and only captures input while it is open.
+    /// The Belay mod menu. It's drawn with IMGUI on its own (no game UI objects are moved or patched,
+    /// so other mods' menus are untouched), opens from the "BELAY" entry that <see cref="GameMenuEntry"/>
+    /// adds to the game's main and pause menus or from the menu key, and only captures input while it is open.
     /// </summary>
     public class BelayMenu : MonoBehaviour
     {
@@ -30,6 +30,8 @@ namespace Belay.UI
         }
 
         private static readonly string[] TabLabels = { "Lobby", "Players", "Rules", "Mods", "Bot", "Settings" };
+
+        private static BelayMenu instance;
 
         private bool open;
 
@@ -53,6 +55,20 @@ namespace Belay.UI
         private float catchFlash;
 
         private static readonly string[] PrivacyLabels = { "Public", "Friends", "Private" };
+
+        private void Awake()
+        {
+            instance = this;
+        }
+
+        /// <summary>Opens the window from the BELAY entry in the game's main or pause menu.</summary>
+        internal static void OpenFromGameMenu()
+        {
+            if (instance != null)
+            {
+                instance.SetOpen(true);
+            }
+        }
 
         private void Update()
         {
@@ -174,7 +190,10 @@ namespace Belay.UI
             }
         }
 
-        /// <summary>A small button in the corner of the main menu and the pause menu.</summary>
+        /// <summary>
+        /// The conflict warning on the main menu, and a small corner button kept only as a fallback for
+        /// when the BELAY entry couldn't be added to the game's own menu.
+        /// </summary>
         private void DrawMenuButton()
         {
             bool onMainMenu = !CL_GameManager.IsInGame();
@@ -183,7 +202,7 @@ namespace Belay.UI
             {
                 return;
             }
-            if (GUI.Button(new Rect(Screen.width - 150, Screen.height - 54, 140, 40), "BELAY (" + Plugin.MenuKey.Value + ")"))
+            if (!GameMenuEntry.Showing && GameMenuEntry.GaveUp && GUI.Button(new Rect(Screen.width - 150, Screen.height - 54, 140, 40), "BELAY (" + Plugin.MenuKey.Value + ")"))
             {
                 SetOpen(true);
             }
