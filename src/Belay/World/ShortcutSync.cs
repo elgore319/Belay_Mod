@@ -123,7 +123,7 @@ namespace Belay.World
             }
             Plugin.Log.LogInfo((Approved.Contains(id) ? "Opening a shortcut the team picked: " : "Asking the team to take a shortcut: ") + id);
             // Some shortcuts start when you walk into them. If the team picks the normal path, you're
-            // put back where you were when you asked, on the right side of the barrier.
+            // put back where you were when you asked, on the right side of the block.
             myRequestId = id;
             myRequestPos = WorldSpace.ToShared(ENT_Player.playerObject.transform.position);
             Ask(new List<string> { id }, false);
@@ -494,17 +494,17 @@ namespace Belay.World
             if (outcome == Outcome.Approved)
             {
                 Approved.Add(id);
-                BlockNormalPath(FindGenerator(id));
+                UT_BranchGenerator approved = FindGenerator(id);
+                if (approved != null) BlockNormalPath(approved);
+                else lockLater[id] = false;
                 return;
             }
             if (outcome == Outcome.Normal)
             {
                 Opened.Add(id); // the vote is over: this shortcut stays shut for the run
                 UT_BranchGenerator g = FindGenerator(id);
-                if (g != null && !ShortcutDoors.LockSide(g, shortcutSide: true) && g.startTransform != null)
-                {
-                    PlaceBarrier(g.startTransform, g.currentLevel, "shortcut");
-                }
+                if (g != null) BlockShortcut(g);
+                else lockLater[id] = true;
                 Approved.Remove(id);
                 if (myRequestId == id && ENT_Player.playerObject != null && !ENT_Player.playerObject.dead)
                 {
@@ -544,7 +544,41 @@ namespace Belay.World
             return null;
         }
 
-        /// <summary>Generators whose normal path (the rest of their level) already has a barrier.</summary>
+        /// <summary>
+        /// Decided shortcuts whose level this PC hasn't built yet: locked once it loads (true = the
+        /// shortcut side, false = the normal path).
+        /// </summary>
+        private static readonly Dictionary<string, bool> lockLater = new Dictionary<string, bool>();
+
+        private static void BlockShortcut(UT_BranchGenerator g)
+        {
+            if (!ShortcutDoors.LockSide(g, shortcutSide: true) && g.startTransform != null)
+            {
+                PlaceBarrier(g.startTransform, g.currentLevel, "shortcut");
+            }
+        }
+
+        private void RetryLocks()
+        {
+            if (lockLater.Count == 0)
+            {
+                return;
+            }
+            foreach (var pair in new List<KeyValuePair<string, bool>>(lockLater))
+            {
+                generatorCache.Remove(pair.Key);
+                UT_BranchGenerator g = FindGenerator(pair.Key);
+                if (g == null)
+                {
+                    continue;
+                }
+                lockLater.Remove(pair.Key);
+                if (pair.Value) BlockShortcut(g);
+                else if (Approved.Contains(pair.Key)) BlockNormalPath(g);
+            }
+        }
+
+        /// <summary>Generators whose normal path (the rest of their level) is already blocked.</summary>
         private static readonly HashSet<string> normalBlocked = new HashSet<string>();
 
         private static void BlockNormalPath(UT_BranchGenerator g)
@@ -564,7 +598,7 @@ namespace Belay.World
 
         /// <summary>
         /// Once the team has picked a shortcut that hasn't opened yet, nobody may carry on up the normal path:
-        /// anyone who gets past the barrier into a later level of that branch is put back below it.
+        /// anyone who gets past the block into a later level of that branch is put back below it.
         /// </summary>
         private void KeepOffNormalPath()
         {
@@ -608,12 +642,12 @@ namespace Belay.World
             }
         }
 
-        private static Material barrierMaterial;
-
         /// <summary>
-        /// A solid, see-through red slab across a path, the same on every PC. It's laid across the
-        /// spot's "up" (paths climb upward from entrances and exits) and parented to the level so it
-        /// follows the world and goes away with it.
+        /// Only for a way with nothing the game could keep shut (no door, hatch or lift): seals it with a
+        /// plate that looks like the level around it. It's a solid slab laid across the spot's "up" (paths
+        /// climb upward from entrances and exits), dressed in the material of the nearest wall, floor or
+        /// ceiling, and parented to the level so it follows the world and goes away with it. Same on
+        /// every PC.
         /// </summary>
         private static void PlaceBarrier(Transform at, M_Level level, string what)
         {
@@ -622,23 +656,52 @@ namespace Belay.World
                 return;
             }
             GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            wall.name = "Belay_Barrier_" + what;
+            wall.name = "Belay_Seal_" + what;
             wall.transform.SetParent(level != null ? level.transform : at, true);
             wall.transform.position = at.position;
             wall.transform.rotation = at.rotation;
             wall.transform.localScale = Vector3.one;
             Vector3 lossy = wall.transform.lossyScale;
-            wall.transform.localScale = new Vector3(6f / Mathf.Max(0.01f, Mathf.Abs(lossy.x)), 0.4f / Mathf.Max(0.01f, Mathf.Abs(lossy.y)), 6f / Mathf.Max(0.01f, Mathf.Abs(lossy.z)));
-            if (barrierMaterial == null)
-            {
-                barrierMaterial = new Material(Shader.Find("Sprites/Default")) { color = new Color(0.9f, 0.15f, 0.1f, 0.45f) };
-            }
+            wall.transform.localScale = new Vector3(6f / Mathf.Max(0.01f, Mathf.Abs(lossy.x)), 0.5f / Mathf.Max(0.01f, Mathf.Abs(lossy.y)), 6f / Mathf.Max(0.01f, Mathf.Abs(lossy.z)));
             Renderer r = wall.GetComponent<Renderer>();
+            Material look = LevelMaterialNear(at.position, wall);
             if (r != null)
             {
-                r.sharedMaterial = barrierMaterial;
+                if (look != null)
+                {
+                    var m = new Material(look);
+                    // A cube's faces are 0-1 in UV: tile the texture so it keeps roughly the level's scale.
+                    if (m.HasProperty("_MainTex")) m.mainTextureScale = new Vector2(3f, 3f);
+                    r.sharedMaterial = m;
+                }
+                else
+                {
+                    r.enabled = false; // nothing to dress it in: still blocks, just isn't drawn
+                }
             }
-            Plugin.Log.LogInfo($"Blocked the {what} path at {at.name}");
+            Plugin.Log.LogInfo($"Sealed the {what} path at {at.name}" + (look != null ? $" ({look.name})" : " (no material found)"));
+        }
+
+        /// <summary>The opaque material of the closest level surface around a spot.</summary>
+        private static Material LevelMaterialNear(Vector3 at, GameObject self)
+        {
+            Vector3[] dirs = { Vector3.left, Vector3.right, Vector3.forward, Vector3.back, Vector3.down, Vector3.up };
+            float best = float.MaxValue;
+            Material found = null;
+            foreach (Vector3 d in dirs)
+            {
+                foreach (RaycastHit hit in Physics.RaycastAll(at, d, 12f, ~0, QueryTriggerInteraction.Ignore))
+                {
+                    if (hit.collider == null || hit.collider.gameObject == self || hit.distance >= best) continue;
+                    if (hit.collider.GetComponentInParent<ENT_Player>() != null || hit.collider.GetComponentInParent<Rigidbody>() != null) continue;
+                    Renderer rend = hit.collider.GetComponent<Renderer>() ?? hit.collider.GetComponentInParent<Renderer>();
+                    Material mat = rend != null ? rend.sharedMaterial : null;
+                    if (mat == null || mat.renderQueue >= 2450) continue; // skip glass, decals and see-through bits
+                    best = hit.distance;
+                    found = mat;
+                }
+            }
+            return found;
         }
 
         private void Open(string id, string starter)
@@ -684,11 +747,12 @@ namespace Belay.World
 
         private void RetryNotLoaded()
         {
-            if (notLoadedYet.Count == 0 || Time.unscaledTime < nextNotLoadedTry)
+            if ((notLoadedYet.Count == 0 && lockLater.Count == 0) || Time.unscaledTime < nextNotLoadedTry)
             {
                 return;
             }
             nextNotLoadedTry = Time.unscaledTime + 2f;
+            RetryLocks();
             foreach (var pair in new List<KeyValuePair<string, string>>(notLoadedYet))
             {
                 if (Opened.Contains(pair.Key))
@@ -763,6 +827,7 @@ namespace Belay.World
                 Approved.Clear();
                 normalBlocked.Clear();
                 notLoadedYet.Clear();
+                lockLater.Clear();
                 wantsOpen.Clear();
                 queue.Clear();
                 earlyVotes.Clear();
