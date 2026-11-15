@@ -325,6 +325,57 @@ namespace Belay.World
             }
         }
 
+        /// <summary>
+        /// A bot on this PC (only the host runs bots) picks up a world item: it goes away for everyone, the
+        /// same as a player's pickup. One-off items (everyone's own copy) are left for you. The world object
+        /// is kept, switched off, so the bot can drop it again or hand it to you.
+        /// </summary>
+        internal bool BotTake(Item_Object obj, SteamId bot)
+        {
+            if (!Live || !NetSession.Instance.IsHost || obj == null || !idOf.TryGetValue(obj, out string id)
+                || IsOneOff(obj, id) || claims.ContainsKey(id))
+            {
+                return false;
+            }
+            Forget(obj);
+            RemoteCopies.Remove(obj);
+            claims[id] = bot.Value;
+            ulong winner = bot.Value;
+            NetSession.Instance.Send(PacketType.ItemTaken, w =>
+            {
+                w.Write(id);
+                w.Write(winner);
+                w.Write(false);
+            });
+            obj.gameObject.SetActive(false);
+            // It travels with the bot now, so the level it came from unloading mustn't take it.
+            obj.transform.SetParent(null, true);
+            DontDestroyOnLoad(obj.gameObject);
+            Plugin.Log.LogInfo($"{NetSession.NameOf(bot)} picked up {obj.itemData?.prefabName} ({id})");
+            return true;
+        }
+
+        /// <summary>A bot drops an item it carried (it died, or you asked): it shows up for everyone, like your drops.</summary>
+        internal void BotDrop(Item item, Vector3 localPos, Vector3 velocity)
+        {
+            Item_Object obj = item?.GetDropObject();
+            if (obj == null)
+            {
+                return;
+            }
+            obj.transform.position = localPos;
+            obj.gameObject.SetActive(true);
+            Rigidbody rb = obj.GetComponent<Rigidbody>();
+            if (rb != null && !rb.isKinematic)
+            {
+                rb.linearVelocity = velocity;
+            }
+            if (Live)
+            {
+                OnLocalDrop(item);
+            }
+        }
+
         /// <summary>Host: the first grab of a shared item keeps it; a later grab by someone else is undone.</summary>
         private void HostClaim(string id, SteamId taker, bool oneOff)
         {

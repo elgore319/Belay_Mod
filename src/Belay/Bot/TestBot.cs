@@ -40,6 +40,20 @@ namespace Belay.Bot
         public bool ReviveAtTerminal;
         public float ReviveSearch;
         public float ReviveRunTime;
+
+        /// <summary>Who it climbs with and revives: you (default) or another teammate.</summary>
+        public SteamId FollowId;
+
+        /// <summary>What it carries (see BotItems).</summary>
+        public readonly List<Item> Items = new List<Item>();
+        public bool PickUpItems = true;
+        public float ItemScan;
+        public string EatingItem;
+        public float EatingTimer;
+
+        /// <summary>The creature it's reacting to, if any (see BotThreats).</summary>
+        public string Threat;
+        public float StrikeTimer;
         public bool Anchored;
         public bool LookAtYou;
         public bool Dead;
@@ -98,7 +112,9 @@ namespace Belay.Bot
         private readonly List<Sample> trail = new List<Sample>();
 
         /// <summary>Where you've been (shared space), a point every CrumbSpacing meters: the way up a climbing bot takes.</summary>
-        private readonly List<Vector3> crumbs = new List<Vector3>();
+        private readonly Dictionary<ulong, List<Vector3>> routes = new Dictionary<ulong, List<Vector3>>();
+        /// <summary>The route of the bot being worked on right now (its leader's crumbs).</summary>
+        private List<Vector3> crumbs = new List<Vector3>();
         private const float CrumbSpacing = 0.8f;
         private const int MaxCrumbs = 900;
         private float trailTimer;
@@ -163,6 +179,10 @@ namespace Belay.Bot
 
         public void Remove(BotPlayer bot)
         {
+            if (WorldSpace.Ready && !bot.Dead)
+            {
+                BotItems.DropAll(bot);
+            }
             Bots.Remove(bot);
             NetSession.Instance.RemoveLocalBot(bot.Id);
             if (pov.Watched == bot)
@@ -221,7 +241,7 @@ namespace Belay.Bot
             // Start replaying from now, never from a point on your path where you're still standing.
             bot.Playhead = trail.Count > 0 ? trail[trail.Count - 1].Time : float.MaxValue;
             PlaceClimber(bot, bot.State.Position, you.Yaw);
-            bot.RouteIndex = crumbs.Count > 0 ? crumbs.Count - 1 : 0;
+            bot.RouteIndex = 0;
             Push(bot);
         }
 
@@ -353,17 +373,19 @@ namespace Belay.Bot
                 bot.Dead = true;
                 bot.State.Dead = true;
                 UI.DeathFeed.Instance?.Show(bot.Id, deathType);
+                BotItems.DropAll(bot);
+                bot.EatingItem = null;
                 Push(bot);
             }
         }
 
         private void HandleRevived(SteamId target, SteamId reviver, Vector3 sharedSpawn)
         {
-            if (target == NetSession.LocalId)
+            // Someone's back up: their way on starts again from where they are.
+            RouteOf(target).Clear();
+            foreach (BotPlayer b in Bots)
             {
-                // You're back up: the way on starts again from where you are.
-                crumbs.Clear();
-                foreach (BotPlayer b in Bots)
+                if (LeaderId(b) == target)
                 {
                     b.RouteIndex = 0;
                     b.HasReviveGoal = false;
@@ -386,7 +408,7 @@ namespace Belay.Bot
             // Pick up the trail from where you are now instead of replaying the climb it missed.
             bot.Playhead = trail.Count > 0 ? trail[trail.Count - 1].Time : -1f;
             PlaceClimber(bot, sharedSpawn, bot.State.Yaw);
-            bot.RouteIndex = crumbs.Count > 0 ? crumbs.Count - 1 : 0;
+            bot.RouteIndex = 0;
             Push(bot);
         }
 
@@ -436,6 +458,7 @@ namespace Belay.Bot
         private void Simulate()
         {
             Record();
+            RecordTeammates();
 
             Vector3 you = WorldSpace.ToShared(ENT_Player.playerObject.transform.position);
             bool youAlive = !ENT_Player.playerObject.dead;
@@ -511,7 +534,7 @@ namespace Belay.Bot
             {
                 return;
             }
-            RecordCrumb(WorldSpace.ToShared(player.transform.position));
+            RecordCrumb(NetSession.LocalId, WorldSpace.ToShared(player.transform.position));
             trailTimer -= Time.deltaTime;
             if (trailTimer > 0f)
             {
@@ -532,21 +555,78 @@ namespace Belay.Bot
 
         // ---------------------------------------------------------------- Climb mode
 
-        private void RecordCrumb(Vector3 you)
+        private List<Vector3> RouteOf(SteamId id)
         {
-            if (crumbs.Count > 0 && Vector3.Distance(crumbs[crumbs.Count - 1], you) < CrumbSpacing)
+            if (!routes.TryGetValue(id.Value, out List<Vector3> list))
+            {
+                routes[id.Value] = list = new List<Vector3>();
+            }
+            return list;
+        }
+
+        /// <summary>Who this bot climbs with: its chosen teammate while they're in the game, otherwise you.</summary>
+        private SteamId LeaderId(BotPlayer bot)
+        {
+            if (bot.FollowId.Value == 0 || bot.FollowId == NetSession.LocalId || IsBot(bot.FollowId))
+            {
+                return NetSession.LocalId;
+            }
+            if (PlayerSync.Instance.Remotes.TryGetValue(bot.FollowId, out RemotePlayer r) && r != null
+                && Time.unscaledTime - r.LastReceived < 5f)
+            {
+                return bot.FollowId;
+            }
+            return NetSession.LocalId;
+        }
+
+        private bool LeaderState(BotPlayer bot, out SteamId id, out Vector3 shared, out bool alive)
+        {
+            id = LeaderId(bot);
+            if (id == NetSession.LocalId)
+            {
+                shared = WorldSpace.ToShared(ENT_Player.playerObject.transform.position);
+                alive = !ENT_Player.playerObject.dead;
+                return true;
+            }
+            RemotePlayer r = PlayerSync.Instance.Remotes[id];
+            shared = r.Latest.Position;
+            alive = !r.Latest.Dead;
+            return true;
+        }
+
+        private void RecordCrumb(SteamId id, Vector3 at)
+        {
+            List<Vector3> list = RouteOf(id);
+            if (list.Count > 0 && Vector3.Distance(list[list.Count - 1], at) < CrumbSpacing)
             {
                 return;
             }
-            crumbs.Add(you);
-            if (crumbs.Count > MaxCrumbs)
+            list.Add(at);
+            if (list.Count > MaxCrumbs)
             {
-                int drop = crumbs.Count - MaxCrumbs;
-                crumbs.RemoveRange(0, drop);
+                int drop = list.Count - MaxCrumbs;
+                list.RemoveRange(0, drop);
                 foreach (BotPlayer bot in Bots)
                 {
-                    bot.RouteIndex = Mathf.Max(0, bot.RouteIndex - drop);
+                    if (LeaderId(bot) == id)
+                    {
+                        bot.RouteIndex = Mathf.Max(0, bot.RouteIndex - drop);
+                    }
                 }
+            }
+        }
+
+        /// <summary>Teammates' ways up, for bots that climb with them.</summary>
+        private void RecordTeammates()
+        {
+            foreach (KeyValuePair<SteamId, RemotePlayer> pair in PlayerSync.Instance.Remotes)
+            {
+                RemotePlayer r = pair.Value;
+                if (r == null || IsBot(pair.Key) || r.Latest.Dead || Time.unscaledTime - r.LastReceived > 2f)
+                {
+                    continue;
+                }
+                RecordCrumb(pair.Key, r.Latest.Position);
             }
         }
 
@@ -557,7 +637,7 @@ namespace Belay.Bot
         /// meters behind; while you're down, it heads for the nearest terminal (or the room ahead) to bring
         /// you back. How it gets there (walking, jumping, which holds, when to rest) is up to its body.
         /// </summary>
-        private void StepClimb(BotPlayer bot, Vector3 youShared, bool youAlive)
+        private void StepClimb(BotPlayer bot, Vector3 yourShared, bool youAreAlive)
         {
             BotClimber c = bot.Climber;
             if (c == null)
@@ -565,6 +645,9 @@ namespace Belay.Bot
                 PlaceClimber(bot, bot.State.Position, bot.State.Yaw);
                 c = bot.Climber;
             }
+            // "You" below is whoever it climbs with.
+            LeaderState(bot, out SteamId leader, out Vector3 youShared, out bool youAlive);
+            crumbs = RouteOf(leader);
             Vector3 me = WorldSpace.ToLocal(c.Shared);
             Vector3 goal;
             bool idle;
@@ -577,7 +660,7 @@ namespace Belay.Bot
             {
                 idle = !ReviveGoalFor(bot, me, out goal);
                 bot.ReviveRunTime += Time.deltaTime;
-                if (!idle && ReachedRevive(bot, me, goal, bot.ReviveRunTime > 75f))
+                if (!idle && ReachedRevive(bot, leader, me, goal, bot.ReviveRunTime > 75f))
                 {
                     idle = true;
                 }
@@ -587,18 +670,24 @@ namespace Belay.Bot
                 bot.ReviveRunTime = 0f;
             }
 
-            c.Step(Time.deltaTime, goal, bot.Style, idle);
+            bool alarmed = BotThreats.Step(bot);
+            // Something's close: it hurries on, whatever its usual pace.
+            c.Step(Time.deltaTime, goal, alarmed ? BotStyle.Bold : bot.Style, idle);
             if (bot.Dead)
             {
                 return;
             }
+            BotItems.Step(bot, youAlive);
             me = WorldSpace.ToLocal(c.Shared);
-            TrackProgress(bot, me, goal, idle, youAlive);
-            bot.Activity = !youAlive ? (bot.HasReviveGoal ? (bot.ReviveAtTerminal ? "heading for a terminal to revive you" : "climbing to the next room to revive you") : "looking for a way to revive you")
+            TrackProgress(bot, me, goal, idle, youAlive, leader, youShared);
+            string whom = leader == NetSession.LocalId ? "you" : NetSession.NameOf(leader);
+            bot.Activity = !youAlive ? (bot.HasReviveGoal ? (bot.ReviveAtTerminal ? "heading for a terminal to revive " + whom : "climbing to the next room to revive " + whom) : "looking for a way to revive " + whom)
+                : bot.EatingItem != null ? "eating"
+                : alarmed ? "hurrying away from " + bot.Threat
                 : c.Mantling ? "pulling up"
                 : c.Hanging ? (c.GripFraction < 0.3f ? "climbing, grip running out" : "climbing")
                 : c.Falling ? "falling"
-                : idle ? "waiting for you" : "walking";
+                : idle ? "waiting for " + whom : "walking";
 
             // Report it like a player.
             bool dead = bot.State.Dead;
@@ -611,7 +700,8 @@ namespace Belay.Bot
             bot.State.RightHanging = c.Hands[1].Holding;
             bot.State.Crouched = false;
             bot.State.InventoryOpen = false;
-            bot.State.LeftItem = bot.State.RightItem = null;
+            bot.State.LeftItem = null;
+            bot.State.RightItem = bot.EatingItem;
             bot.State.HeldTarget = 0;
             bot.State.Dead = dead;
             if (bot.LookAtYou && youAlive && !c.Hanging)
@@ -732,7 +822,7 @@ namespace Belay.Bot
         }
 
         /// <summary>At a terminal, or inside a room that waits for the team: bring you back next to it.</summary>
-        private bool ReachedRevive(BotPlayer bot, Vector3 me, Vector3 goal, bool givingUp)
+        private bool ReachedRevive(BotPlayer bot, SteamId target, Vector3 me, Vector3 goal, bool givingUp)
         {
             // A minute and more without finding a way: it brings you back where it is rather than leave you
             // spectating a bot that can't get anywhere.
@@ -744,9 +834,9 @@ namespace Belay.Bot
                 return false;
             }
             Vector3 spot = me + ClearSpotNear(me, bot.Climber.Yaw);
-            if (ReviveSystem.BotRevive(bot.Id, spot))
+            if (ReviveSystem.BotRevive(bot.Id, target, spot))
             {
-                Plugin.Log.LogInfo($"{bot.Name} reached {(bot.ReviveAtTerminal ? "a terminal" : "a room")} and is reviving you");
+                Plugin.Log.LogInfo($"{bot.Name} reached {(bot.ReviveAtTerminal ? "a terminal" : "a room")} and is reviving {NetSession.NameOf(target)}");
             }
             return true;
         }
@@ -755,7 +845,7 @@ namespace Belay.Bot
         /// Getting nowhere for a while: try a short hop along the way you went (only if nothing solid, like a
         /// shut door, is in the way); after a few failed tries, come to you.
         /// </summary>
-        private void TrackProgress(BotPlayer bot, Vector3 me, Vector3 goal, bool idle, bool youAlive)
+        private void TrackProgress(BotPlayer bot, Vector3 me, Vector3 goal, bool idle, bool youAlive, SteamId leader, Vector3 leaderShared)
         {
             Vector3 meShared = WorldSpace.ToShared(me);
             if (idle || Vector3.Distance(meShared, bot.ProgressAnchor) > 0.7f || Vector3.Distance(me, goal) < 1.2f)
@@ -809,7 +899,16 @@ namespace Belay.Bot
                 // The way is open but it can't make the move: after a few tries, it comes to you.
                 if (++bot.FailedHops >= 3)
                 {
-                    TeleportToYou(bot);
+                    if (leader == NetSession.LocalId)
+                    {
+                        TeleportToYou(bot);
+                    }
+                    else
+                    {
+                        Vector3 near = WorldSpace.ToLocal(leaderShared);
+                        bot.Climber.Place(WorldSpace.ToShared(near + ClearSpotNear(near, bot.Climber.Yaw)), bot.Climber.Yaw);
+                        bot.RouteIndex = 0;
+                    }
                 }
                 return;
             }
@@ -1240,7 +1339,8 @@ namespace Belay.Bot
             }
             GUILayout.Label("Bots are teammates that only exist in your game. In Climb mode a bot makes its own way up "
                 + "behind you: it grabs real holds, runs out of grip, rests on ledges, jumps gaps and can fall. If you "
-                + "go down, it heads for the nearest terminal and revives you.");
+                + "go down, it heads for the nearest terminal and revives you. It picks up items it passes (take them from it below), "
+                + "eats food when it's hurt or slipping, drops everything when it dies, and hurries on (or swings) when a creature gets close.");
             GUILayout.Space(4);
 
             if (!NetSession.SteamReady)
@@ -1399,6 +1499,49 @@ namespace Belay.Bot
                 GUILayout.Label("Playstyle", GUILayout.Width(90));
                 bot.Style = (BotStyle)GUILayout.Toolbar((int)bot.Style, StyleLabels);
                 GUILayout.EndHorizontal();
+
+                // Who it climbs with: you or any other (real) teammate.
+                var people = new List<SteamId> { NetSession.LocalId };
+                foreach (SteamId id in NetSession.Instance.MemberOrder())
+                {
+                    if (id != NetSession.LocalId && !IsBot(id))
+                    {
+                        people.Add(id);
+                    }
+                }
+                if (people.Count > 1)
+                {
+                    var names = new string[people.Count];
+                    for (int i = 0; i < people.Count; i++)
+                    {
+                        names[i] = i == 0 ? "You" : NetSession.NameOf(people[i]);
+                    }
+                    int current = Mathf.Max(0, people.IndexOf(LeaderId(bot)));
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Label("Climbs with", GUILayout.Width(90));
+                    int picked = GUILayout.Toolbar(current, names);
+                    GUILayout.EndHorizontal();
+                    if (picked != current)
+                    {
+                        bot.FollowId = picked == 0 ? default : people[picked];
+                        bot.RouteIndex = 0;
+                        bot.HasReviveGoal = false;
+                    }
+                }
+
+                GUILayout.BeginHorizontal();
+                bot.PickUpItems = GUILayout.Toggle(bot.PickUpItems, $"Picks up items ({bot.Items.Count}/{BotItems.MaxItems})");
+                GUILayout.EndHorizontal();
+                foreach (Item item in new List<Item>(bot.Items))
+                {
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Label("  " + BotItems.Label(item) + (BotItems.FoodOf(item) != null ? " (eats it when hurt or slipping)" : ""));
+                    if (GUILayout.Button("Take", GUILayout.Width(60)))
+                    {
+                        BotItems.GiveToYou(bot, item);
+                    }
+                    GUILayout.EndHorizontal();
+                }
             }
 
             GUILayout.BeginHorizontal();

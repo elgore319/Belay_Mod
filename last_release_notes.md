@@ -1,4 +1,4 @@
-## Belay 0.7.23
+## Belay 0.7.24
 
 Small fixes from going over the older co-op systems (doors, room gates, elevators, room sequences, props, placed objects, level checks, team progress, trinkets). Not tested in a real co-op run yet.
 
@@ -8,4 +8,4 @@ Small fixes from going over the older co-op systems (doors, room gates, elevator
 
 The doors, gates, elevators, props, placed objects and trinket budget code looked sound.
 
-No network changes, so it works with teammates on 0.7.22, but everyone should update.
+No network changes, so it works with teammates on 0.7.23, but everyone should update.

@@ -494,18 +494,17 @@ namespace Belay.Revive
         /// A climbing bot got to a terminal (or the room ahead) while you were down: it brings you back next
         /// to itself, free. Bots only run on the host, which approves its own revives.
         /// </summary>
-        internal static bool BotRevive(SteamId bot, Vector3 localSpawn)
+        internal static bool BotRevive(SteamId bot, SteamId target, Vector3 localSpawn)
         {
-            ENT_Player player = ENT_Player.playerObject;
-            if (!Active || Instance == null || player == null || !player.dead || !NetSession.Instance.IsHost)
+            if (!Active || Instance == null || !NetSession.Instance.IsHost || !DeadMembers().Contains(target))
             {
                 return false;
             }
-            if (Instance.recentRevives.TryGetValue(NetSession.LocalId, out float at) && Time.unscaledTime - at < 5f)
+            if (Instance.recentRevives.TryGetValue(target, out float at) && Time.unscaledTime - at < 5f)
             {
                 return false;
             }
-            Instance.HostApproveRevive(NetSession.LocalId, bot, WorldSpace.ToShared(localSpawn), true);
+            Instance.HostApproveRevive(target, bot, WorldSpace.ToShared(localSpawn), true);
             return true;
         }
 
