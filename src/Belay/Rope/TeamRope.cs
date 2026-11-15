@@ -100,7 +100,28 @@ namespace Belay.Rope
             return rope;
         }
 
+        /// <summary>
+        /// A rope strung between two fixed points (a harpoon line): both ends pinned, the middle sags and
+        /// can be climbed or swung on.
+        /// </summary>
+        public static TeamRope CreateFixed(Vector3 anchorShared, Vector3 otherShared, float length)
+        {
+            var go = new GameObject("Belay_FixedRope");
+            DontDestroyOnLoad(go);
+            var rope = go.AddComponent<TeamRope>();
+            rope.hanging = true;
+            rope.fixedEnd = true;
+            rope.AnchorShared = anchorShared;
+            rope.OtherShared = otherShared;
+            rope.Build(length);
+            return rope;
+        }
+
         private bool hanging;
+        private bool fixedEnd;
+
+        /// <summary>For a fixed rope: its second pinned end, in shared space.</summary>
+        public Vector3 OtherShared { get; private set; }
 
         /// <summary>For a hanging rope: its fixed top, in shared (offset-free) space.</summary>
         public Vector3 AnchorShared { get; private set; }
@@ -244,6 +265,11 @@ namespace Belay.Rope
         {
             if (hanging)
             {
+                if (end == 1 && fixedEnd)
+                {
+                    point = WorldSpace.ToLocal(OtherShared);
+                    return WorldSpace.Ready;
+                }
                 point = end == 0 ? WorldSpace.ToLocal(AnchorShared) : default;
                 return end == 0 && WorldSpace.Ready;
             }
@@ -257,7 +283,7 @@ namespace Belay.Rope
         /// <summary>Runs one physics step. Returns false (and hides the rope) when an end is missing.</summary>
         public bool Step(float dt, bool visible)
         {
-            bool freeEnd = hanging;
+            bool freeEnd = hanging && !fixedEnd;
             Vector3 b = default;
             if (!TryEndAt(0, out Vector3 a) || !freeEnd && !TryEndAt(1, out b))
             {
@@ -435,7 +461,7 @@ namespace Belay.Rope
 
         private void Collide()
         {
-            int moving = hanging ? count : count - 1;
+            int moving = hanging && !fixedEnd ? count : count - 1;
             for (int i = 1; i < moving; i++)
             {
                 Vector3 move = pos[i] - safe[i];
