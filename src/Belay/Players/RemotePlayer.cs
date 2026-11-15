@@ -5,8 +5,8 @@ using UnityEngine;
 namespace Belay.Players
 {
     /// <summary>
-    /// A teammate's body: the procedural climber from <see cref="ClimberAvatar"/> plus a name tag, smoothed
-    /// toward the latest network snapshot. It has no colliders, so it never blocks the local player.
+    /// A teammate's body: the procedural climber from <see cref="ClimberAvatar"/> plus a name tag, played back
+    /// smoothly from its network snapshots (see <see cref="MotionBuffer"/>). It has no colliders, so it never blocks the local player.
     /// </summary>
     public class RemotePlayer : MonoBehaviour
     {
@@ -28,6 +28,7 @@ namespace Belay.Players
         private bool hasState;
         private RemoteBody body;
         private bool bodyFailed;
+        private readonly MotionBuffer motion = new MotionBuffer();
 
         public Vector3 LocalPosition => transform.position;
         public bool IsHanging => Latest.LeftHanging || Latest.RightHanging;
@@ -76,6 +77,7 @@ namespace Belay.Players
         {
             Latest = state;
             LastReceived = Time.unscaledTime;
+            motion.Add(state, LastReceived);
             if (!hasState)
             {
                 hasState = true;
@@ -89,31 +91,13 @@ namespace Belay.Players
             avatar?.PlayAction(hand, action);
         }
 
-        /// <summary>
-        /// Where the body should be on this PC. A teammate riding an elevator is placed on our own copy of
-        /// it, so they stand on its floor here even if it's a little ahead or behind theirs.
-        /// </summary>
-        private Vector3 TargetBody()
-        {
-            Transform platform = PlatformRide.Resolve(Latest.PlatformId);
-            return platform != null ? platform.TransformPoint(Latest.PlatformPosition) : WorldSpace.ToLocal(Latest.Position);
-        }
-
-        private Vector3 TargetHand(int index)
-        {
-            Transform platform = PlatformRide.Resolve(Latest.PlatformId);
-            if (platform != null)
-            {
-                return platform.TransformPoint(index == 0 ? Latest.PlatformLeftHand : Latest.PlatformRightHand);
-            }
-            return WorldSpace.ToLocal(index == 0 ? Latest.LeftHand : Latest.RightHand);
-        }
-
         private void Snap()
         {
-            transform.position = TargetBody();
-            leftHand = TargetHand(0);
-            rightHand = TargetHand(1);
+            motion.Reset();
+            MotionBuffer.Frame frame = motion.Sample(Time.unscaledTime, 0f);
+            transform.position = frame.Body;
+            leftHand = frame.LeftHand;
+            rightHand = frame.RightHand;
             velocity = Vector3.zero;
         }
 
@@ -128,31 +112,25 @@ namespace Belay.Players
             }
 
             float dt = Mathf.Max(Time.unscaledDeltaTime, 1e-4f);
-            float t = 1f - Mathf.Exp(-15f * dt);
-            Vector3 target = TargetBody();
-            if ((target - transform.position).sqrMagnitude > 25f * 25f)
+            if ((MotionBuffer.Body(Latest) - transform.position).sqrMagnitude > 25f * 25f)
             {
                 Snap();
             }
-            // Smoothing trails the real player a little; never let it cut a corner through a wall.
-            if (WorldProbe.Blocked(transform.position, target))
-            {
-                t = 1f;
-            }
-            Vector3 before = transform.position;
-            transform.position = Vector3.Lerp(transform.position, target, t);
-            velocity = Vector3.Lerp(velocity, (transform.position - before) / dt, 1f - Mathf.Exp(-8f * dt));
-
-            // A gripping hand is pinned to its hold, so it snaps there faster than a free hand moves.
-            float gripT = 1f - Mathf.Exp(-30f * dt);
-            leftHand = Vector3.Lerp(leftHand, TargetHand(0), Latest.LeftHanging ? gripT : t);
-            rightHand = Vector3.Lerp(rightHand, TargetHand(1), Latest.RightHanging ? gripT : t);
+            // Drawn a few hundredths of a second in the past, on a curve through the snapshots, so the
+            // body glides at an even pace however unevenly the packets arrive.
+            MotionBuffer.Frame frame = motion.Sample(Time.unscaledTime, dt);
+            PlayerState shown = frame.State;
+            transform.position = frame.Body;
+            leftHand = frame.LeftHand;
+            rightHand = frame.RightHand;
+            // The avatar's walk/fall blending reads this; a light filter keeps footsteps from twitching.
+            velocity = Vector3.Lerp(velocity, frame.Velocity, 1f - Mathf.Exp(-12f * dt));
 
             HandSkins.PublishTick();
-            avatar.Pose(transform.position, Latest.Yaw, Latest.Pitch, leftHand, rightHand,
-                Latest.LeftHanging, Latest.RightHanging, velocity, Latest.InventoryOpen, dt,
-                HandSkins.SkinOf(SteamId, 0), HandSkins.SkinOf(SteamId, 1), Latest.LeftItem, Latest.RightItem,
-                Latest.Crouched);
+            avatar.Pose(transform.position, frame.Yaw, frame.Pitch, leftHand, rightHand,
+                shown.LeftHanging, shown.RightHanging, velocity, shown.InventoryOpen, dt,
+                HandSkins.SkinOf(SteamId, 0), HandSkins.SkinOf(SteamId, 1), shown.LeftItem, shown.RightItem,
+                shown.Crouched);
 
             UpdateNameTag();
         }
