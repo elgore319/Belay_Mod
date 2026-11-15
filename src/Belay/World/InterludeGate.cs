@@ -41,6 +41,13 @@ namespace Belay.World
             return level != null && (level.safeArea || level.name.ToLowerInvariant().Contains("interlude"));
         }
 
+        /// <summary>This spot is inside an interlude or breakroom (a room that waits for the team).</summary>
+        internal static bool InGatedRoom(Vector3 worldPos)
+        {
+            M_Level level = WorldCatchUp.LevelAt(worldPos);
+            return IsGatedRoom(level) && Inside(level, worldPos);
+        }
+
         private static bool Inside(M_Level level, Vector3 worldPos)
         {
             Vector3 local = level.transform.worldToLocalMatrix.MultiplyPoint(worldPos);
