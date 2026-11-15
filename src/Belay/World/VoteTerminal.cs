@@ -253,7 +253,7 @@ namespace Belay.World
             if (emptyDisk == null)
             {
                 emptyDisk = ScriptableObject.CreateInstance<OS_DiskData>();
-                emptyDisk.name = "Belay Vote";
+                emptyDisk.name = "Tethered Vote";
                 emptyDisk.diskName = "VOTE";
                 emptyDisk.id = "belay-vote";
                 emptyDisk.type = OS_DiskData.DiskDataType.standard;

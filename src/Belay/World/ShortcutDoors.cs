@@ -303,7 +303,7 @@ namespace Belay.World
             string dir = System.IO.Path.Combine(Paths.CachePath, "Belay");
             Directory.CreateDirectory(dir);
             string file = System.IO.Path.Combine(dir, "shortcut-report.txt");
-            File.WriteAllText(file, $"Belay {Plugin.Version}: {count} shortcuts in {levels.Count} levels\n\nNOTHING TO LOCK (sealed with a wall plate instead):\n{noDoor}\nDETAILS:\n{sb}");
+            File.WriteAllText(file, $"Tethered {Plugin.Version}: {count} shortcuts in {levels.Count} levels\n\nNOTHING TO LOCK (sealed with a wall plate instead):\n{noDoor}\nDETAILS:\n{sb}");
             Plugin.Log.LogInfo($"Wrote the shortcut report ({count} shortcuts): {file}");
         }
 

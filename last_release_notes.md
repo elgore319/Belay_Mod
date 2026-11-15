@@ -1,6 +1,6 @@
-## Belay 0.7.28
+## Tethered 0.7.29
 
-- **The mass before the Mother waits for the team.** Walking into the room after the hallway set the mass off behind you, and anyone still in the hallway died straight away. Triggers that start or move the mass now wait until every living player has walked through them, then fire for everyone at once.
-- **Scripted mass jumps no longer land on players they jump over.** When a level script moved the mass up, players it jumped past were counted as "already dead", so they didn't hold it back. Now the jump is checked against where the mass was before it moved.
+- **Belay is now called Tethered.** The menu entry in the main menu and pause menu now reads TETHERED, and the menu, update messages, installer and release files use the new name.
+- **Nothing to reinstall.** The mod updates itself as before, and your settings, outfit and keybinds stay as they are. The files on disk keep the old name (`BepInEx\plugins\Belay\Belay.dll`) so existing installs keep updating.
 
 Everyone in the lobby should update.

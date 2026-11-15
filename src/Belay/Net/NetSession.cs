@@ -428,7 +428,7 @@ namespace Belay.Net
             string hostVersion = lobby.GetData(KeyModVersion);
             if (lobby.GetData(KeyVersion) != ProtocolVersion)
             {
-                Status = "Version mismatch: host runs " + (string.IsNullOrEmpty(hostVersion) ? lobby.GetData(KeyVersion) : "Belay " + hostVersion);
+                Status = "Version mismatch: host runs " + (string.IsNullOrEmpty(hostVersion) ? lobby.GetData(KeyVersion) : "Tethered " + hostVersion);
                 lobby.Leave();
                 WarnVersion(hostVersion, "the host", joined: false);
                 return;
@@ -458,12 +458,12 @@ namespace Belay.Net
         private void WarnVersion(string theirs, string who, bool joined)
         {
             bool theyAreNewer = !string.IsNullOrEmpty(theirs) && UI.Updater.Compare(theirs, Plugin.Version) > 0;
-            string them = string.IsNullOrEmpty(theirs) ? "an older Belay" : "Belay " + theirs;
+            string them = string.IsNullOrEmpty(theirs) ? "an older Tethered" : "Tethered " + theirs;
             string head = joined ? "Version mismatch: " : "Can't join: ";
             string fix = theyAreNewer
                 ? "Updating, then restart."
                 : char.ToUpperInvariant(who[0]) + who.Substring(1) + " needs to restart to update.";
-            Plugin.Log.LogWarning($"Belay version mismatch: {who} has {them}, you have {Plugin.Version}");
+            Plugin.Log.LogWarning($"Tethered version mismatch: {who} has {them}, you have {Plugin.Version}");
             Run.RunFlow.Instance?.ShowNotice($"{head}{who} has {them}, you have {Plugin.Version}. {fix}", 12f);
             if (theyAreNewer && Plugin.AutoUpdate.Value)
             {
