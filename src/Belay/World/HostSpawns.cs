@@ -22,7 +22,9 @@ namespace Belay.World
     ///    Each enemy it spawns is sent (kind and spot) and spawned the same on the other PCs.
     ///  - Tick egg sacs (ENV_TickEggSack): burst on the host when any player comes close, and on every PC
     ///    at the same moment.
-    /// A PC that hasn't built that part of the map yet applies it once the level loads.
+    /// A PC that hasn't built that part of the map yet applies it once the level loads. If a teammate
+    /// reaches a trigger spawner the host hasn't built yet, the host hands that one spawn to the teammate,
+    /// who runs it (with the same seed) and tells everyone, the host included.
     /// </summary>
     public class HostSpawns : MonoBehaviour
     {
@@ -35,6 +37,10 @@ namespace Belay.World
         private readonly Dictionary<string, bool> spawnerFired = new Dictionary<string, bool>();
         private readonly Dictionary<string, List<(string kind, Vector3 shared)>> waveSpawns = new Dictionary<string, List<(string, Vector3)>>();
         private readonly HashSet<string> sacsBurst = new HashSet<string>();
+        /// <summary>Host: spawners that have gone off (or were handed to a teammate) this run.</summary>
+        private readonly HashSet<string> hostFired = new HashSet<string>();
+        /// <summary>Client: spawners we asked the host about.</summary>
+        private readonly HashSet<string> requested = new HashSet<string>();
         private int runId;
         private float nextPendingCheck;
 
@@ -53,6 +59,8 @@ namespace Belay.World
             NetSession.Instance.On(PacketType.SpawnerFired, HandleSpawner);
             NetSession.Instance.On(PacketType.WaveSpawned, HandleWave);
             NetSession.Instance.On(PacketType.TickSackBurst, HandleSac);
+            NetSession.Instance.On(PacketType.SpawnerRequest, HandleRequest);
+            NetSession.Instance.On(PacketType.SpawnerDelegate, HandleDelegate);
         }
 
         internal static bool Live => Instance != null && NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready && !Applying;
@@ -71,8 +79,10 @@ namespace Belay.World
                 spawnerFired.Clear();
                 waveSpawns.Clear();
                 sacsBurst.Clear();
+                hostFired.Clear();
+                requested.Clear();
             }
-            if (!net.IsHost && Time.unscaledTime >= nextPendingCheck && (spawnerFired.Count > 0 || waveSpawns.Count > 0 || sacsBurst.Count > 0))
+            if (Time.unscaledTime >= nextPendingCheck && (spawnerFired.Count > 0 || waveSpawns.Count > 0 || sacsBurst.Count > 0))
             {
                 nextPendingCheck = Time.unscaledTime + 1f;
                 ApplyPending();
@@ -178,12 +188,23 @@ namespace Belay.World
         /// <summary>Replaces UT_TriggerSpawner.FixedUpdate in a lobby. Returns false to skip the game's own.</summary>
         internal bool SpawnerTick(UT_TriggerSpawner s)
         {
-            if (!IsHost)
-            {
-                return false; // the host says when
-            }
             if (SpawnerStart(s) > Time.time || CL_GameManager.gMan == null || CL_GameManager.gMan.localPlayer == null)
             {
+                return false;
+            }
+            if (!IsHost)
+            {
+                // The host says when. If our player is right there, make sure the host knows (it may not
+                // have built this part of the map yet).
+                ENT_Player me = ENT_Player.playerObject;
+                if (me != null && !me.dead && Vector3.Distance(me.transform.position, s.transform.position) <= s.playerVicinity)
+                {
+                    string rid = ButtonSync.ObjectId(s);
+                    if (requested.Add(rid))
+                    {
+                        NetSession.Instance.Send(PacketType.SpawnerRequest, w => w.Write(rid));
+                    }
+                }
                 return false;
             }
             if (NearestPlayer(s.transform.position) > s.playerVicinity)
@@ -191,6 +212,17 @@ namespace Belay.World
                 return false;
             }
             string id = ButtonSync.ObjectId(s);
+            if (!hostFired.Add(id))
+            {
+                return false; // a teammate already ran this one
+            }
+            FireAndShare(s, id);
+            return false;
+        }
+
+        /// <summary>Rolls this spawner's own chance with the shared seed, tells everyone, and runs it here.</summary>
+        private static void FireAndShare(UT_TriggerSpawner s, string id)
+        {
             Random.State state = Random.state;
             bool pass;
             Random.InitState(SeedFor(id));
@@ -204,7 +236,39 @@ namespace Belay.World
             }
             NetSession.Instance.Send(PacketType.SpawnerFired, w => { w.Write(id); w.Write(pass); });
             RunSpawner(s, pass);
-            return false;
+        }
+
+        /// <summary>Host: a teammate is at a spawner. If we haven't built it, they run it.</summary>
+        private void HandleRequest(SteamId origin, BinaryReader r)
+        {
+            string id = r.ReadString();
+            if (!IsHost || hostFired.Contains(id))
+            {
+                return;
+            }
+            if (FindById<UT_TriggerSpawner>(id) != null)
+            {
+                return; // we have it: it goes off here as soon as they're close enough
+            }
+            hostFired.Add(id);
+            ulong to = origin.Value;
+            NetSession.Instance.Send(PacketType.SpawnerDelegate, w => { w.Write(id); w.Write(to); });
+            Plugin.Log.LogInfo($"Spawner not built here yet, handed to {NetSession.NameOf(origin)}: {id}");
+        }
+
+        private void HandleDelegate(SteamId origin, BinaryReader r)
+        {
+            string id = r.ReadString();
+            ulong to = r.ReadUInt64();
+            if (IsHost || to != NetSession.LocalId.Value)
+            {
+                return;
+            }
+            UT_TriggerSpawner s = FindById<UT_TriggerSpawner>(id);
+            if (s != null && s.gameObject.activeInHierarchy)
+            {
+                FireAndShare(s, id);
+            }
         }
 
         private static void RunSpawner(UT_TriggerSpawner s, bool pass)
@@ -234,9 +298,13 @@ namespace Belay.World
         {
             string id = r.ReadString();
             bool pass = r.ReadBoolean();
-            if (IsHost)
+            if (origin == NetSession.LocalId)
             {
                 return;
+            }
+            if (IsHost)
+            {
+                hostFired.Add(id); // a teammate ran one we handed them
             }
             UT_TriggerSpawner s = FindById<UT_TriggerSpawner>(id);
             if (s == null || !s.gameObject.activeInHierarchy)
