@@ -114,7 +114,7 @@ namespace Belay.UI
                 ModManager.Refresh();
                 // Stop mouse-look while clicking around, unless the game is paused anyway.
                 ENT_Player player = ENT_Player.playerObject;
-                if (player != null && CL_GameManager.gMan != null && !CL_GameManager.gMan.isPaused && !player.dead)
+                if (player != null && !World.CoopPause.InPauseMenu && !player.dead)
                 {
                     player.LockCamera();
                     lockedCamera = true;
@@ -148,7 +148,7 @@ namespace Belay.UI
             ENT_Player player = ENT_Player.playerObject;
             return Application.isFocused
                 && CL_GameManager.IsInGame()
-                && CL_GameManager.gMan != null && !CL_GameManager.gMan.isPaused
+                && !World.CoopPause.InPauseMenu
                 && !CL_GameManager.showCursor
                 && player != null && !player.dead
                 && !OS_Manager.inUse
@@ -197,7 +197,7 @@ namespace Belay.UI
         private void DrawMenuButton()
         {
             bool onMainMenu = !CL_GameManager.IsInGame();
-            bool paused = CL_GameManager.gMan != null && CL_GameManager.gMan.isPaused;
+            bool paused = World.CoopPause.InPauseMenu;
             if (open || (!onMainMenu && !paused))
             {
                 return;
@@ -226,7 +226,7 @@ namespace Belay.UI
             bool ready = up.State == Updater.UpdateState.Ready;
             if (!ready && up.State != Updater.UpdateState.Available) return;
             bool onMainMenu = !CL_GameManager.IsInGame();
-            bool paused = CL_GameManager.gMan != null && CL_GameManager.gMan.isPaused;
+            bool paused = World.CoopPause.InPauseMenu;
             if (!onMainMenu && !paused) return;
 
             var box = new Rect(Screen.width / 2f - 230f, 40f, 460f, 112f);
