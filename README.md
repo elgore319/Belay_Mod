@@ -1,6 +1,6 @@
 # Tethered
 
-_Formerly called Belay. The plugin keeps its old internal name (`Belay.dll`, `BepInEx\plugins\Belay\`, `elgore319.belay.cfg`, GUID `elgore319.belay`) so existing installs, settings and the auto-updater keep working._
+_Formerly called Belay. The plugin keeps its old internal name (`Belay.dll`, `BepInEx\plugins\Belay\`, namespaces) so existing installs and the auto-updater keep working. Settings are in `brasswhuckle.belay.cfg`; settings from older versions are carried over automatically._
 
 Seamless co-op for **White Knuckle**: up to 8 climbers in one superstructure, roped together.
 
@@ -44,4 +44,10 @@ dotnet build src/Belay -c Release -p:GameDir="D:\SteamLibrary\steamapps\common\W
 
 ## Config
 
-`BepInEx\config\elgore319.belay.cfg`: menu key, default rope length, rope visibility, network send rate.
+`BepInEx\config\brasswhuckle.belay.cfg`: menu key, default rope length, rope visibility, network send rate.
+
+## Downloads and license
+
+Releases: https://github.com/BrassWhuckle/Tethered/releases (download page: https://tinkerwithwandsanywhere.com).
+
+Tethered is open source under the MIT license (see [LICENSE.txt](LICENSE.txt)), copyright BrassWhuckle. The installer bundles BepInEx, which keeps its own licenses ([THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt)).
