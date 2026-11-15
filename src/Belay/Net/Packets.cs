@@ -52,6 +52,7 @@ namespace Belay.Net
         HandholdBroke = 104,
         PropShattered = 105,
         ItemInserted = 106,
+        ProjectileFired = 107,
     }
 
     public static class Channels
