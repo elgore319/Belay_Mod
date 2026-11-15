@@ -29,6 +29,9 @@ namespace Belay.World
 
         private static int unpausedFrame = -1;
         private static bool lockedCamera;
+        /// <summary>Whether input was already locked (a terminal, a cutscene, Teeth) when the menu opened.</summary>
+        private static bool inputWasLocked;
+        private static readonly AccessTools.FieldRef<ENT_Player, bool> CamLocked = AccessTools.FieldRefAccess<ENT_Player, bool>("camLocked");
 
         private void Awake()
         {
@@ -112,10 +115,16 @@ namespace Belay.World
             gMan.isPaused = false;
             CL_GameManager.SetTimescale(1f);
             AudioListener.pause = false;
+            if (!SoftPaused)
+            {
+                inputWasLocked = gMan.lockPlayerInput;
+            }
             gMan.lockPlayerInput = true;
             SoftPaused = true;
             ENT_Player player = ENT_Player.playerObject;
-            if (player != null && !lockedCamera)
+            // Only lock (and later unlock) the camera if nothing else already had it locked: closing the
+            // menu used to free the camera and controls while sat at a terminal or held by a cutscene.
+            if (player != null && !lockedCamera && !CamLocked(player))
             {
                 player.LockCamera();
                 lockedCamera = true;
@@ -132,13 +141,14 @@ namespace Belay.World
             CL_GameManager gMan = CL_GameManager.gMan;
             if (gMan != null)
             {
-                gMan.lockPlayerInput = CommandConsole.IsConsoleVisible();
+                gMan.lockPlayerInput = inputWasLocked || CommandConsole.IsConsoleVisible();
             }
             if (lockedCamera && ENT_Player.playerObject != null)
             {
                 ENT_Player.playerObject.UnlockCamera();
             }
             lockedCamera = false;
+            inputWasLocked = false;
         }
 
         internal static bool PausedThisFrame => unpausedFrame == Time.frameCount;

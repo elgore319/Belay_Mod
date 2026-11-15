@@ -1,6 +1,7 @@
-## Belay 0.7.21
+## Belay 0.7.22
 
-- **Outfits.** The Belay menu has a new **Outfit** tab for how teammates see your climber: pick your headgear (helmet, beanie, hood up or balaclava) and the color of your jacket, headgear, trousers and backpack from 14 colors. Leave everything on standard to keep your lobby color. Gloves still follow the hand skins you equip in the game. Test bots wear your outfit, so you can check it on one.
-- **Teammates' hands hang naturally.** A relaxed arm now has its palm toward the thigh and thumb forward, instead of the palm facing forward.
+- **Closing the pause menu no longer frees your camera at a terminal or during a cutscene.** Since 0.7.20 the co-op pause menu locks your camera while the game keeps running. Closing it always unlocked the camera, even when something else had it locked, such as sitting at a terminal or being held in a cutscene. Now it only unlocks the camera if the menu was what locked it. The console keeps its lock the same way.
 
-Teammates need 0.7.21 to see your outfit; older versions just show the standard look.
+I also went over tonight's other changes (teammate animations, the BELAY menu entry, co-op items, bot climbing, pause and carrying) and didn't find anything else that needed fixing. Not tested in a real co-op run yet.
+
+No network changes, so it works with teammates on 0.7.21, but everyone should update.
