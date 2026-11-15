@@ -64,6 +64,7 @@ namespace Belay.Net
         FlareLit = 115,
         AreaRequest = 116,
         AreaDelegate = 117,
+        TeamPause = 118,
     }
 
     public static class Channels

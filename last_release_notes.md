@@ -1,8 +1,7 @@
-## Belay 0.7.19
+## Belay 0.7.20
 
-More co-op fixes. None of these have been tested in a real co-op run yet.
+- **Pausing no longer stops the game in co-op.** Opening the pause menu only takes your hands off the controls. The world, the mass and your teammates keep going, so one player pausing can't freeze things for everyone (this also fixes the host's pause stopping the mass for the whole team). Mind your grip if you pause while hanging.
+- **Pause for everyone.** The pause menu has a PAUSE FOR EVERYONE button that stops the game on every PC and opens everyone's pause menu. Anyone can press RESUME FOR EVERYONE to start it again. While the team is paused, closing your own menu won't start your game alone.
+- **Carrying a teammate is hard work.** While you're lifting a teammate (standing, or with your other hand on the wall), the hand holding them loses grip much faster, and you walk slower. Run out of grip and you drop them. Hanging off a teammate who is climbing costs nothing extra.
 
-- **Enemy waves and tick egg sacs go off even when the host is far behind.** Only the host's game runs these. If the host hadn't built that part of the map yet, or had it switched off, nothing spawned for anyone. Now the host hands the area to the teammate who's there. That teammate's game runs it, and everyone else gets the same enemies.
-- **Less work per frame with a full lobby.** Belay used to read the Steam lobby's member list again for every packet it passed on and every check that needed it, sometimes thousands of times a second with 8 players. It now reads it once per frame. Waiting spawns no longer scan the whole map once per spawn every second, and the mass's per-level pace check from 0.7.13 runs twice a second instead of every frame.
-
-No network changes, so it works with teammates on 0.7.18, but everyone should update.
+Everyone in the lobby should update (network version changed).
