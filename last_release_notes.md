@@ -1,10 +1,11 @@
-## Belay 0.7.17
+## Belay 0.7.18
 
-Three more co-op items. Like the Plunger Gun, they're sold in vending machines during co-op runs and paid from your own wallet.
+Bots now climb on their own. This is the first step toward bots as real AI teammates.
 
-- **Anchor Bolt (2 roaches).** Hammer it into a wall like a piton, and it's a handhold for the whole team. It also works like climbing protection: climb past it and you clip in (a rope runs from the bolt to your harness). If you fall after that, the rope catches you just below the bolt instead of letting you drop. Step off onto a floor below it, or wander far away, and you unclip.
-- **Chalk Bag (2 roaches).** It does nothing in your own hands. Throw or drop it to a teammate, and when they catch it, both their hands' grip refills and the bag is used up.
-- **Signal Flare (2 roaches).** Throw it, and a moment later it lights up where it is. For 30 seconds everyone sees a red glow and a red beam over that spot, through walls. It's one use.
-- Vending machines now offer the four co-op items less often each, so they don't crowd out the game's own items.
-
-Everyone in the lobby should update (network version changed).
+- **Climb mode** is the new default for bots (F7 > Bot). A bot has its own body with gravity and collision. It walks, steps up, hops onto ledges, jumps gaps, grabs the same holds you can, pulls up over ledges and can fall. It follows the way you went a few meters behind you, but it makes the moves itself instead of copying yours on a delay.
+- **Grip stamina**: each of the bot's hands runs out of grip while it hangs and recovers when it rests, like yours. When grip runs out it lets go. It can catch itself on a hold while falling. Long falls hurt it, and very long ones kill it.
+- **Playstyle**: Careful, Steady or Bold. This changes how fast it climbs, how far behind you it stays, how long a gap it will jump and how early it rests.
+- **Revive run**: if you go down while a bot is alive, it heads for the nearest terminal (or the next interlude) and revives you there for free. If it can't find a way within about a minute, it revives you where it stands, so you're never stuck spectating.
+- If the bot gets stuck it tries a short hop along your route. A shut blast door still keeps it out, and "Bring to me" fetches it. If it keeps failing on an open route, it comes to you.
+- **Retrace** (the old "copy my path" bot) and **Hold here** are still there. If the climbing ever hits an error, that bot switches to Retrace by itself instead of breaking your game.
+- Not yet: bots don't use or pick up items, and barnacles and enemies don't target them on purpose. That comes next.
