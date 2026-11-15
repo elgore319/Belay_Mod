@@ -58,7 +58,8 @@ namespace Belay.Players.Avatar
         }
 
         private static Mesh packMesh, packLidMesh;
-        private static Mesh torsoMesh, headMesh, upperArmMesh, forearmMesh, thighMesh, shinMesh, bootMesh;
+        private static readonly Mesh[] headMeshes = new Mesh[AvatarDesign.HeadStyles];
+        private static Mesh torsoMesh, upperArmMesh, forearmMesh, thighMesh, shinMesh, bootMesh;
         private static Mesh fistLeft, fistRight, openLeft, openRight;
         private static Shader litShader;
 
@@ -69,6 +70,8 @@ namespace Belay.Players.Avatar
         private readonly Transform leftFist, rightFist, leftOpen, rightOpen;
         private readonly Transform pack, packLid;
         private readonly Material[] materials;
+        private readonly Color color;
+        private Outfit outfit;
         private readonly Material[] leftHandMaterials, rightHandMaterials;
         private readonly Light lamp;
         private float packOut;
@@ -116,6 +119,7 @@ namespace Belay.Players.Avatar
         public ClimberAvatar(Transform parent, Color color)
         {
             EnsureMeshes();
+            this.color = color;
             materials = MakeMaterials(color);
             leftHandMaterials = (Material[])materials.Clone();
             rightHandMaterials = (Material[])materials.Clone();
@@ -124,7 +128,7 @@ namespace Belay.Players.Avatar
             root.SetParent(parent, false);
 
             torso = Part("Torso", torsoMesh, materials);
-            head = Part("Head", headMesh, materials);
+            head = Part("Head", headMeshes[0], materials);
             pack = Part("Pack", packMesh, materials);
             packLid = Part("PackLid", packLidMesh, materials);
             leftArm = new Limb(Part("LeftUpperArm", upperArmMesh, materials), Part("LeftForearm", forearmMesh, materials),
@@ -153,6 +157,23 @@ namespace Belay.Players.Avatar
             lamp.intensity = 1.6f;
             lamp.color = new Color(1f, 0.93f, 0.8f);
             lamp.shadows = LightShadows.None;
+        }
+
+        /// <summary>Dresses the climber in a teammate's outfit choice. Cheap when nothing changed.</summary>
+        public void Wear(Outfit wanted)
+        {
+            if (wanted.Same(outfit))
+            {
+                return;
+            }
+            outfit = wanted;
+            head.GetComponent<MeshFilter>().sharedMesh = headMeshes[Mathf.Clamp(wanted.Headgear, 0, headMeshes.Length - 1)];
+            Paint(materials, AvatarDesign.Recipes(color, Swatch(wanted.Jacket), Swatch(wanted.Hat), Swatch(wanted.Pants), Swatch(wanted.Pack)));
+        }
+
+        private static Color? Swatch(int index)
+        {
+            return index > 0 && index < Outfits.Colors.Length ? Outfits.Colors[index].Color : (Color?)null;
         }
 
         public void SetVisible(bool visible)
@@ -580,9 +601,13 @@ namespace Belay.Players.Avatar
             Vector3 up = torsoRotation * Vector3.up;
             Vector3 elbowToWrist = arm.Solve(shoulder, wrist, pole, up, grip) - arm.Joint;
 
-            // Back of the hand faces up when reaching forward and away from the wall when reaching up.
+            // Back of the hand faces up when reaching forward, away from the wall when reaching up, and
+            // out to the side when the arm hangs down (palms toward the thighs, thumbs forward).
             Vector3 forearmDir = elbowToWrist.sqrMagnitude > 1e-6f ? elbowToWrist.normalized : dir;
-            Vector3 back = Vector3.Lerp(up, -(torsoRotation * Vector3.forward), Mathf.Abs(Vector3.Dot(forearmDir, up)));
+            float rise = Vector3.Dot(forearmDir, up);
+            Vector3 back = rise >= 0f
+                ? Vector3.Lerp(up, -(torsoRotation * Vector3.forward), rise)
+                : Vector3.Lerp(up, torsoRotation * Vector3.right * side, -rise);
             Quaternion handRotation = SafeLook(forearmDir, back);
             if (action.Weight > 0f && action.ThumbUp && !grip && !holdingPack)
             {
@@ -714,7 +739,11 @@ namespace Belay.Players.Avatar
             torsoMesh = Build("Belay_Torso", AvatarDesign.BuildTorso);
             packMesh = Build("Belay_Pack", AvatarDesign.BuildPack);
             packLidMesh = Build("Belay_PackLid", AvatarDesign.BuildPackLid);
-            headMesh = Build("Belay_Head", AvatarDesign.BuildHead);
+            for (int style = 0; style < headMeshes.Length; style++)
+            {
+                int which = style;
+                headMeshes[style] = Build("Belay_Head" + style, k => AvatarDesign.BuildHead(k, which));
+            }
             upperArmMesh = Build("Belay_UpperArm", AvatarDesign.BuildUpperArm);
             forearmMesh = Build("Belay_Forearm", AvatarDesign.BuildForearm);
             thighMesh = Build("Belay_Thigh", AvatarDesign.BuildThigh);
@@ -744,10 +773,29 @@ namespace Belay.Players.Avatar
                 litShader = probe.GetComponent<Renderer>().sharedMaterial.shader;
                 Object.Destroy(probe);
             }
-            PixelTextures.Recipe[] recipes = AvatarDesign.Recipes(color);
             var materials = new Material[Slot.Count];
             for (int i = 0; i < Slot.Count; i++)
             {
+                var material = new Material(litShader) { color = Color.white };
+                // Matte, like the game's characters; only the goggles and metal catch a little light.
+                float gloss = i == Slot.Visor ? 0.6f : i == Slot.Metal ? 0.35f : 0f;
+                if (material.HasProperty("_Glossiness"))
+                {
+                    material.SetFloat("_Glossiness", gloss);
+                }
+                materials[i] = material;
+            }
+            Paint(materials, AvatarDesign.Recipes(color));
+            return materials;
+        }
+
+        /// <summary>Gives every material slot a fresh texture from its recipe (the old one is freed).</summary>
+        private static void Paint(Material[] materials, PixelTextures.Recipe[] recipes)
+        {
+            for (int i = 0; i < Slot.Count; i++)
+            {
+                Material material = materials[i];
+                Texture old = material.mainTexture;
                 var texture = new Texture2D(PixelTextures.Size, PixelTextures.Size, TextureFormat.RGBA32, false)
                 {
                     name = "Belay_Avatar_" + i,
@@ -756,8 +804,7 @@ namespace Belay.Players.Avatar
                 };
                 texture.SetPixels32(PixelTextures.Generate(recipes[i], 101 + i * 7));
                 texture.Apply(false, true);
-
-                var material = new Material(litShader) { color = Color.white, mainTexture = texture };
+                material.mainTexture = texture;
                 // The game's levels are mostly self-lit textures in the dark, so plain lighting leaves the
                 // avatar near black. Give every surface a share of its own texture as glow.
                 if (material.HasProperty("_EmissionColor"))
@@ -767,15 +814,11 @@ namespace Belay.Players.Avatar
                     material.SetTexture("_EmissionMap", texture);
                     material.SetColor("_EmissionColor", i == Slot.Lamp ? recipes[i].Base * 2.5f : Color.white * SelfLight);
                 }
-                // Matte, like the game's characters; only the goggles and metal catch a little light.
-                float gloss = i == Slot.Visor ? 0.6f : i == Slot.Metal ? 0.35f : 0f;
-                if (material.HasProperty("_Glossiness"))
+                if (old != null)
                 {
-                    material.SetFloat("_Glossiness", gloss);
+                    Object.Destroy(old);
                 }
-                materials[i] = material;
             }
-            return materials;
         }
     }
 }
