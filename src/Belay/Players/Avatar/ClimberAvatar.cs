@@ -564,12 +564,12 @@ namespace Belay.Players.Avatar
                     GameObject model = HeldItems.Create(item);
                     if (model != null)
                     {
-                        // The fist is built at avatar scale; the item keeps its real size.
-                        float t = hand == 0 ? 1f : -1f;
+                        // Gripped by the handle, out of the thumb side, at hand size (see HeldGrip).
+                        Matrix4x4 inFist = HeldGrip.InFist(hand == 0, item, HeldItems.LengthOf(item), Scale);
                         model.transform.SetParent(fist, false);
-                        model.transform.localPosition = new Vector3(0f, -0.035f, 0.11f);
-                        model.transform.localRotation = t > 0 ? Quaternion.identity : Quaternion.Euler(0f, 0f, 180f);
-                        model.transform.localScale = Vector3.one / Mathf.Max(0.01f, Scale);
+                        model.transform.localPosition = inFist.GetColumn(3);
+                        model.transform.localRotation = inFist.rotation;
+                        model.transform.localScale = inFist.lossyScale;
                         SetLayerRecursive(model.transform, fist.gameObject.layer);
                         heldModels[hand] = model;
                     }
@@ -675,16 +675,16 @@ namespace Belay.Players.Avatar
             // Back of the hand faces up when reaching forward, away from the wall when reaching up, and
             // out to the side when the arm hangs down (palms toward the thighs, thumbs forward).
             Vector3 forearmDir = elbowToWrist.sqrMagnitude > 1e-6f ? elbowToWrist.normalized : dir;
-            float rise = Vector3.Dot(forearmDir, up);
-            Vector3 back = rise >= 0f
-                ? Vector3.Lerp(up, -(torsoRotation * Vector3.forward), rise)
-                : Vector3.Lerp(up, torsoRotation * Vector3.right * side, -rise);
+            // A hand holding an item keeps its back to the side instead (thumb, and the item, up).
+            Vector3 back = HeldGrip.HandBack(forearmDir, up, torsoRotation * Vector3.forward, torsoRotation * Vector3.right, side,
+                holdsItem && !grip && !holdingPack);
             Quaternion handRotation = SafeLook(forearmDir, back);
             if (action.Weight > 0f && action.ThumbUp && !grip && !holdingPack)
             {
-                // Hammer grip: roll the thumb (the side the item's handle comes out of) up, then bend
-                // the wrist sideways so the head swings through the strike.
-                handRotation *= Quaternion.Euler(0f, 0f, -side * 90f * action.Weight) * Quaternion.Euler(0f, side * wristBend, 0f);
+                // Hammer grip: the thumb (the side the item's handle comes out of) is up, so bending the
+                // wrist sideways swings the head through the strike. An empty hand rolls its thumb up first.
+                Quaternion roll = holdsItem ? Quaternion.identity : Quaternion.Euler(0f, 0f, -side * 90f * action.Weight);
+                handRotation *= roll * Quaternion.Euler(0f, side * wristBend, 0f);
             }
             else if (wristBend != 0f)
             {
@@ -872,6 +872,43 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>Gives every material slot a fresh texture from its recipe (the old one is freed).</summary>
+        /// <summary>Materials for our own item models, lit like the avatar (matte, with some self light).</summary>
+        internal static Material[] MakeItemMaterials(PixelTextures.Recipe[] recipes)
+        {
+            if (litShader == null)
+            {
+                GameObject probe = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                litShader = probe.GetComponent<Renderer>().sharedMaterial.shader;
+                Object.Destroy(probe);
+            }
+            var materials = new Material[recipes.Length];
+            for (int i = 0; i < recipes.Length; i++)
+            {
+                materials[i] = new Material(litShader) { color = Color.white };
+                if (materials[i].HasProperty("_Glossiness"))
+                {
+                    materials[i].SetFloat("_Glossiness", i == ItemModels.MetalSlot ? 0.45f : 0f);
+                }
+                var texture = new Texture2D(PixelTextures.Size, PixelTextures.Size, TextureFormat.RGBA32, false)
+                {
+                    name = "Belay_Item_" + i,
+                    filterMode = FilterMode.Point,
+                    wrapMode = TextureWrapMode.Repeat,
+                };
+                texture.SetPixels32(PixelTextures.Generate(recipes[i], 301 + i * 7));
+                texture.Apply(false, true);
+                materials[i].mainTexture = texture;
+                if (materials[i].HasProperty("_EmissionColor"))
+                {
+                    materials[i].EnableKeyword("_EMISSION");
+                    materials[i].globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+                    materials[i].SetTexture("_EmissionMap", texture);
+                    materials[i].SetColor("_EmissionColor", Color.white * SelfLight);
+                }
+            }
+            return materials;
+        }
+
         private static void Paint(Material[] materials, PixelTextures.Recipe[] recipes)
         {
             for (int i = 0; i < Slot.Count; i++)

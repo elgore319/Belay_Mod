@@ -100,6 +100,20 @@ internal static class Program
             }
         }
 
+        // Optional held items: ITEMS_JSON from scripts/export_items.py (game models, never committed).
+        string itemsJson = Environment.GetEnvironmentVariable("ITEMS_JSON");
+        var itemFigures = new List<string>();
+        if (itemsJson != null && File.Exists(itemsJson))
+        {
+            modelTexBase = textures.Count;
+            PixelTextures.Recipe[] rapier = ItemModels.RapierRecipes();
+            for (int i = 0; i < rapier.Length; i++)
+            {
+                textures.Add(Tex(PixelTextures.Generate(rapier[i], 301 + i * 7), PixelTextures.Size, PixelTextures.Size));
+            }
+            itemFigures = LoadItems(itemsJson, textures);
+        }
+
         var sb = new StringBuilder("{\"size\":" + PixelTextures.Size + ",\"textures\":[");
         sb.Append(string.Join(",", textures)).Append("],\"skins\":[");
         sb.Append(string.Join(",", skinNames.ConvertAll(n => "\"" + n + "\""))).Append("],\"figures\":{");
@@ -120,6 +134,25 @@ internal static class Program
         headStyle = 0;
         Figure("inventory", standing: true, leftGrip: true, rightGrip: true, Vector3.zero, Vector3.zero, inventory: true);
 
+        foreach (string item in itemFigures)
+        {
+            // Left hand held out in front (as when using it), right hand relaxed at the side.
+            Figure("hold:" + item, standing: true, leftGrip: false, rightGrip: false,
+                new Vector3(-0.2f, 1.3f, 0.42f), new Vector3(0.07f + AvatarDesign.ShoulderWidth, AvatarDesign.PelvisHeight + AvatarDesign.ShoulderHeight - 0.52f, 0.1f),
+                leftItem: item, rightItem: item);
+        }
+
+        foreach (string item in itemFigures)
+        {
+            // Close-up: a right fist, forearm pointing forward (+z), back of the hand out to the right.
+            tris = new StringBuilder();
+            Frame palm = Frame.Look(Vector3.zero, Vector3.forward, Vector3.right);
+            Emit(k => AvatarDesign.BuildForearm(k), Frame.Look(new Vector3(0, 0, -AvatarDesign.Forearm), Vector3.forward, Vector3.right, AvatarDesign.Forearm));
+            Emit(k => AvatarDesign.BuildFist(k, false), palm);
+            EmitItem(item, palm, false);
+            Figures.Add("\"grip:" + item + "\":[" + tris.ToString().TrimEnd(',') + "]");
+        }
+
         if (skinNames.Count > 0)
         {
             SkinFigure(skinNames.Count);
@@ -130,7 +163,7 @@ internal static class Program
     }
 
     private static void Figure(string name, bool standing, bool leftGrip, bool rightGrip, Vector3 leftHand, Vector3 rightHand,
-        bool inventory = false, bool crouch = false)
+        bool inventory = false, bool crouch = false, string leftItem = null, string rightItem = null)
     {
         tris = new StringBuilder();
         // Crouched: same offsets as ClimberAvatar, in the design's unscaled units.
@@ -168,8 +201,8 @@ internal static class Program
         float pitch = (inventory ? 40f : standing ? 10f : -25f) * Mathf.Deg2Rad;
         Emit(k => { if (LoreLooks.Valid(look)) LoreLooks.BuildHead(k, look); else AvatarDesign.BuildHead(k, headStyle); }, Frame.Look(neck, new Vector3(0, -Mathf.Sin(pitch), Mathf.Cos(pitch)), Vector3.up));
 
-        Arm(torso, -1, leftHand, leftGrip);
-        Arm(torso, 1, rightHand, rightGrip);
+        Arm(torso, -1, leftHand, leftGrip, leftItem);
+        Arm(torso, 1, rightHand, rightGrip, rightItem);
 
         float legLength = AvatarDesign.Thigh + AvatarDesign.Shin;
         for (int side = -1; side <= 1; side += 2)
@@ -187,7 +220,7 @@ internal static class Program
         Figures.Add("\"" + name + "\":[" + tris.ToString().TrimEnd(',') + "]");
     }
 
-    private static void Arm(Frame torso, int side, Vector3 hand, bool grip)
+    private static void Arm(Frame torso, int side, Vector3 hand, bool grip, string item = null)
     {
         Vector3 shoulder = torso.Apply(new Vector3(side * AvatarDesign.ShoulderWidth, AvatarDesign.ShoulderHeight - 0.02f, 0));
         Vector3 dir = (hand - shoulder).normalized;
@@ -198,10 +231,15 @@ internal static class Program
             AvatarDesign.BuildUpperArm, AvatarDesign.BuildForearm, true, e => elbow = e);
         Vector3 forearm = (end - elbow).normalized;
         Vector3 up = torso.Up;
-        Vector3 back = Vector3.Lerp(up, -torso.Forward, Mathf.Abs(Vector3.Dot(forearm, up)));
+        Vector3 back = HeldGrip.HandBack(forearm, up, torso.Forward, torso.Right, side, item != null && !OldGrip);
         bool left = side < 0;
-        Emit(k => { if (grip) AvatarDesign.BuildFist(k, left); else AvatarDesign.BuildOpenHand(k, left); },
-            Frame.Look(wrist, forearm, back));
+        bool fist = grip || item != null;
+        Frame palm = Frame.Look(wrist, forearm, back);
+        Emit(k => { if (fist) AvatarDesign.BuildFist(k, left); else AvatarDesign.BuildOpenHand(k, left); }, palm);
+        if (item != null)
+        {
+            EmitItem(item, palm, left);
+        }
     }
 
     private static Vector3 Limb(Vector3 start, Vector3 target, Vector3 pole, float a, float b,
@@ -301,6 +339,127 @@ internal static class Program
                 }
                 tris.Append("],");
             }
+        }
+    }
+
+    private class ItemMesh
+    {
+        public List<int> Tex = new List<int>();
+        public List<float[]> Tris = new List<float[]>();
+        public Matrix4x4 Fit;
+        public float Length;
+    }
+
+    private static readonly Dictionary<string, ItemMesh> Items = new Dictionary<string, ItemMesh>();
+
+    /// <summary>Reads exported item models (triangles in the item's root space) and fits each like HeldItems does.</summary>
+    private static List<string> LoadItems(string path, List<string> textures)
+    {
+        var names = new List<string>();
+        var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
+        int texBase = textures.Count;
+        foreach (var t in doc.RootElement.GetProperty("textures").EnumerateArray())
+        {
+            textures.Add("{\"w\":" + t.GetProperty("w").GetInt32() + ",\"h\":" + t.GetProperty("h").GetInt32() + ",\"data\":\"" + t.GetProperty("data").GetString() + "\"}");
+        }
+        string only = Environment.GetEnvironmentVariable("ITEMS");
+        foreach (var item in doc.RootElement.GetProperty("items").EnumerateObject())
+        {
+            if (only != null && Array.IndexOf(only.Split(','), item.Name) < 0)
+            {
+                continue;
+            }
+            var mesh = new ItemMesh();
+            Vector3 min = Vector3.one * 1e9f, max = Vector3.one * -1e9f, sum = Vector3.zero;
+            int count = 0;
+            foreach (var sub in item.Value.EnumerateArray())
+            {
+                int tex = texBase + sub.GetProperty("tex").GetInt32();
+                var f = new List<float>();
+                foreach (var x in sub.GetProperty("tris").EnumerateArray()) f.Add(x.GetSingle());
+                for (int i = 0; i + 15 <= f.Count; i += 15)
+                {
+                    mesh.Tex.Add(tex);
+                    mesh.Tris.Add(f.GetRange(i, 15).ToArray());
+                    for (int j = 0; j < 3; j++)
+                    {
+                        var p = new Vector3(f[i + j * 5], f[i + j * 5 + 1], f[i + j * 5 + 2]);
+                        min = Vector3.Min(min, p); max = Vector3.Max(max, p); sum += p; count++;
+                    }
+                }
+            }
+            if (count == 0) continue;
+            Vector3 size = max - min;
+            mesh.Length = Mathf.Max(size.x, Mathf.Max(size.y, size.z));
+            mesh.Fit = OldGrip ? HeldGrip.FitByShape(min, max, sum / count) : HeldGrip.Fit(min, max, sum / count, item.Name);
+            Items[item.Name] = mesh;
+            names.Add(item.Name);
+        }
+        return names;
+    }
+
+    private static int modelTexBase;
+
+    /// <summary>OLD=1: the grip before 0.7.35 (real world size, no tilt, back of the hand up), for comparisons.</summary>
+    private static readonly bool OldGrip = Environment.GetEnvironmentVariable("OLD") == "1";
+
+    private static Matrix4x4 OldInFist(bool left)
+    {
+        var m = Matrix4x4.identity;
+        float s = 1f / 0.83f, t = left ? 1f : -1f;
+        m.SetColumn(0, new Vector4(t * s, 0, 0, 0));
+        m.SetColumn(1, new Vector4(0, t * s, 0, 0));
+        m.SetColumn(2, new Vector4(0, 0, s, 0));
+        m.SetColumn(3, new Vector4(0, -0.035f, 0.11f, 1));
+        return m;
+    }
+
+    private static void EmitItem(string name, Frame hand, bool left)
+    {
+        if (!Items.TryGetValue(name, out ItemMesh mesh)) return;
+        if (ItemModels.HasModel(name) && !OldGrip)
+        {
+            var kit = new MeshKit(ItemModels.SlotCount);
+            ItemModels.BuildRapier(kit);
+            mesh = new ItemMesh { Fit = Matrix4x4.identity, Length = 1.05f };
+            for (int sub = 0; sub < kit.Submeshes.Length; sub++)
+            {
+                List<int> list = kit.Submeshes[sub];
+                for (int i = 0; i < list.Count; i += 3)
+                {
+                    var f = new float[15];
+                    for (int j = 0; j < 3; j++)
+                    {
+                        Vector3 v = kit.Vertices[list[i + j]];
+                        Vector2 uv = kit.UVs[list[i + j]];
+                        f[j * 5] = v.x; f[j * 5 + 1] = v.y; f[j * 5 + 2] = v.z; f[j * 5 + 3] = uv.x; f[j * 5 + 4] = uv.y;
+                    }
+                    mesh.Tex.Add(modelTexBase + sub);
+                    mesh.Tris.Add(f);
+                }
+            }
+        }
+        var fist = Matrix4x4.identity;
+        fist.SetColumn(0, new Vector4(hand.Right.x, hand.Right.y, hand.Right.z, 0));
+        fist.SetColumn(1, new Vector4(hand.Up.x, hand.Up.y, hand.Up.z, 0));
+        fist.SetColumn(2, new Vector4(hand.Forward.x, hand.Forward.y, hand.Forward.z, 0));
+        fist.SetColumn(3, new Vector4(hand.Origin.x, hand.Origin.y, hand.Origin.z, 1));
+        Matrix4x4 m = fist * (OldGrip ? OldInFist(left) : HeldGrip.InFist(left, name, mesh.Length, 0.83f)) * mesh.Fit;
+        for (int t = 0; t < mesh.Tris.Count; t++)
+        {
+            float[] f = mesh.Tris[t];
+            var p = new Vector3[3];
+            for (int j = 0; j < 3; j++) p[j] = m.MultiplyPoint3x4(new Vector3(f[j * 5], f[j * 5 + 1], f[j * 5 + 2]));
+            Vector3 n = Vector3.Cross(p[1] - p[0], p[2] - p[0]).normalized;
+            tris.Append('[').Append(mesh.Tex[t]);
+            for (int j = 0; j < 3; j++)
+            {
+                foreach (float v in new[] { p[j].x, p[j].y, p[j].z, n.x, n.y, n.z, f[j * 5 + 3], f[j * 5 + 4] })
+                {
+                    tris.Append(',').Append(F(v));
+                }
+            }
+            tris.Append("],");
         }
     }
 
