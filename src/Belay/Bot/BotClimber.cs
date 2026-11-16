@@ -892,6 +892,48 @@ namespace Belay.Bot
             return drop < 0.9f;
         }
 
+        /// <summary>
+        /// Could it walk straight from here to there: about the same level, nothing in the way, and floor
+        /// under every step (no gaps or drops to fall into).
+        /// </summary>
+        public bool CanWalkStraight(Vector3 from, Vector3 to)
+        {
+            Vector3 d = to - from;
+            Vector3 flat = new Vector3(d.x, 0f, d.z);
+            float length = flat.magnitude;
+            if (Mathf.Abs(d.y) > 0.9f || length > 10f)
+            {
+                return false;
+            }
+            if (length < 0.05f)
+            {
+                return true;
+            }
+            // Lifted a little so a low step or a bump in the floor isn't a wall.
+            Vector3 lift = Vector3.up * 0.25f;
+            if (CapsuleSweep(from + lift, d.normalized, d.magnitude, out _) && CapsuleSweep(from, d.normalized, d.magnitude, out _))
+            {
+                return false;
+            }
+            float lastFloor = from.y - HalfHeight;
+            int steps = Mathf.CeilToInt(length / 0.5f);
+            for (int i = 1; i <= steps; i++)
+            {
+                Vector3 p = Vector3.Lerp(from, to, (float)i / steps);
+                if (!CastDown(p + Vector3.up * 0.5f, HalfHeight + 1.5f, out RaycastHit ground) || ground.normal.y < 0.6f)
+                {
+                    return false;
+                }
+                float floor = ground.point.y;
+                if (Mathf.Abs(floor - lastFloor) > 0.55f)
+                {
+                    return false;
+                }
+                lastFloor = floor;
+            }
+            return true;
+        }
+
         private static readonly Collider[] overlap = new Collider[32];
 
         /// <summary>Would the body fit here without touching the level?</summary>

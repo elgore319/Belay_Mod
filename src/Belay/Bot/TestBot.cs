@@ -30,8 +30,12 @@ namespace Belay.Bot
         public BotClimber Climber;
         public int RouteIndex;
         public float Stuck;
-        public Vector3 ProgressAnchor;
+        public int ProgressIndex;
+        public float ProgressDistance = float.MaxValue;
         public int FailedHops;
+        /// <summary>A point further along your way that it can walk straight to, skipping your detours.</summary>
+        public int Shortcut = -1;
+        public float ShortcutCheck;
         public string Activity = "";
 
         /// <summary>You're down: where it's heading to bring you back.</summary>
@@ -248,6 +252,7 @@ namespace Belay.Bot
             bot.Playhead = trail.Count > 0 ? trail[trail.Count - 1].Time : float.MaxValue;
             PlaceClimber(bot, bot.State.Position, you.Yaw);
             bot.RouteIndex = 0;
+            bot.ProgressIndex = 0;
             Push(bot);
         }
 
@@ -276,7 +281,9 @@ namespace Belay.Bot
             bot.Climber.Place(shared, yaw);
             bot.Stuck = 0f;
             bot.FailedHops = 0;
-            bot.ProgressAnchor = shared;
+            bot.ProgressIndex = bot.RouteIndex;
+            bot.ProgressDistance = float.MaxValue;
+            bot.Shortcut = -1;
         }
 
         /// <summary>
@@ -404,6 +411,7 @@ namespace Belay.Bot
                 if (LeaderId(b) == target)
                 {
                     b.RouteIndex = 0;
+                    b.ProgressIndex = 0;
                     b.HasReviveGoal = false;
                 }
             }
@@ -425,6 +433,7 @@ namespace Belay.Bot
             bot.Playhead = trail.Count > 0 ? trail[trail.Count - 1].Time : -1f;
             PlaceClimber(bot, sharedSpawn, bot.State.Yaw);
             bot.RouteIndex = 0;
+            bot.ProgressIndex = 0;
             Push(bot);
         }
 
@@ -627,6 +636,8 @@ namespace Belay.Bot
                     if (LeaderId(bot) == id)
                     {
                         bot.RouteIndex = Mathf.Max(0, bot.RouteIndex - drop);
+                        bot.ProgressIndex = Mathf.Max(0, bot.ProgressIndex - drop);
+                        bot.Shortcut = bot.Shortcut >= drop ? bot.Shortcut - drop : -1;
                     }
                 }
             }
@@ -740,7 +751,9 @@ namespace Belay.Bot
             int start = Mathf.Clamp(bot.RouteIndex, 0, crumbs.Count - 1);
             int best = start;
             float bestDistance = Vector3.Distance(crumbs[start], meShared);
-            for (int i = start; i < Mathf.Min(crumbs.Count, start + 12); i++)
+            // Heading for a shortcut: look as far as that too, so it picks up the way again there.
+            int window = Mathf.Max(start + 12, bot.Shortcut + 3);
+            for (int i = start; i < Mathf.Min(crumbs.Count, window); i++)
             {
                 float d = Vector3.Distance(crumbs[i], meShared);
                 if (d < bestDistance)
@@ -758,6 +771,16 @@ namespace Belay.Bot
                     {
                         bestDistance = d;
                         best = i;
+                    }
+                }
+                // Your way crosses itself when you walk back and forth: take the latest pass by here, not the first.
+                for (int i = crumbs.Count - 1; i > best; i--)
+                {
+                    if (Vector3.Distance(crumbs[i], meShared) < bestDistance + 1f)
+                    {
+                        best = i;
+                        bestDistance = Vector3.Distance(crumbs[i], meShared);
+                        break;
                     }
                 }
             }
@@ -786,8 +809,55 @@ namespace Belay.Bot
                     break;
                 }
             }
+            int ahead = FindShortcut(bot, me, best, stopAt);
+            if (ahead > next)
+            {
+                next = ahead;
+            }
             goal = WorldSpace.ToLocal(crumbs[next]);
             return Vector3.Distance(goal, me) > 0.3f;
+        }
+
+        private const int ShortcutLookahead = 30;
+
+        /// <summary>
+        /// The furthest point along your way it can walk straight to from where it stands, so it doesn't
+        /// copy every turn, loop and step back you made (picking things up, looking around). Checked a few
+        /// times a second; -1 when there's none.
+        /// </summary>
+        private int FindShortcut(BotPlayer bot, Vector3 me, int best, int stopAt)
+        {
+            BotClimber c = bot.Climber;
+            if (!c.Grounded || c.Hanging || c.Mantling)
+            {
+                bot.Shortcut = -1;
+                return -1;
+            }
+            if (bot.Shortcut > best && bot.Shortcut <= stopAt && Time.time < bot.ShortcutCheck)
+            {
+                return bot.Shortcut;
+            }
+            bot.ShortcutCheck = Time.time + 0.3f;
+            bot.Shortcut = -1;
+            int last = Mathf.Min(stopAt, best + ShortcutLookahead);
+            // Not past a ride (an elevator, a revive): that part can't be walked.
+            for (int i = best; i < last; i++)
+            {
+                if (Vector3.Distance(crumbs[i], crumbs[i + 1]) > 4f)
+                {
+                    last = i;
+                    break;
+                }
+            }
+            for (int j = last; j > best + 2; j--)
+            {
+                if (c.CanWalkStraight(me, WorldSpace.ToLocal(crumbs[j])))
+                {
+                    bot.Shortcut = j;
+                    break;
+                }
+            }
+            return bot.Shortcut;
         }
 
         /// <summary>
@@ -865,9 +935,15 @@ namespace Belay.Bot
         private void TrackProgress(BotPlayer bot, Vector3 me, Vector3 goal, bool idle, bool youAlive, SteamId leader, Vector3 leaderShared)
         {
             Vector3 meShared = WorldSpace.ToShared(me);
-            if (idle || Vector3.Distance(meShared, bot.ProgressAnchor) > 0.7f || Vector3.Distance(me, goal) < 1.2f)
+            float toGoal = Vector3.Distance(me, goal);
+            // Progress is getting further along your way or closer to where it's going, not just moving:
+            // running around in circles isn't getting anywhere.
+            bool along = youAlive && bot.RouteIndex > bot.ProgressIndex;
+            bool closer = toGoal < bot.ProgressDistance - 0.7f;
+            if (idle || along || closer || toGoal < 1.2f)
             {
-                bot.ProgressAnchor = meShared;
+                bot.ProgressIndex = bot.RouteIndex;
+                bot.ProgressDistance = toGoal;
                 bot.Stuck = 0f;
                 bot.Blocked = 0f;
                 if (idle || Vector3.Distance(me, goal) < 1.2f)
@@ -886,7 +962,8 @@ namespace Belay.Bot
                 return;
             }
             bot.Stuck = 0f;
-            bot.ProgressAnchor = meShared;
+            bot.ProgressIndex = bot.RouteIndex;
+            bot.ProgressDistance = toGoal;
             if (youAlive)
             {
                 int from = Mathf.Clamp(bot.RouteIndex, 0, crumbs.Count - 1);
@@ -904,6 +981,7 @@ namespace Belay.Bot
                 {
                     bot.Climber.Place(crumbs[to], bot.Climber.Yaw);
                     bot.RouteIndex = to;
+                    bot.ProgressIndex = to;
                     bot.FailedHops = 0;
                     return;
                 }
@@ -925,6 +1003,7 @@ namespace Belay.Bot
                         Vector3 near = WorldSpace.ToLocal(leaderShared);
                         bot.Climber.Place(WorldSpace.ToShared(near + ClearSpotNear(near, bot.Climber.Yaw)), bot.Climber.Yaw);
                         bot.RouteIndex = 0;
+                        bot.ProgressIndex = 0;
                     }
                 }
                 return;
@@ -1543,6 +1622,7 @@ namespace Belay.Bot
                     {
                         bot.FollowId = picked == 0 ? default : people[picked];
                         bot.RouteIndex = 0;
+                        bot.ProgressIndex = 0;
                         bot.HasReviveGoal = false;
                     }
                 }
