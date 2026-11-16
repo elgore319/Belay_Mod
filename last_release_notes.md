@@ -1,6 +1,6 @@
-## Tethered 0.7.30
+## Tethered 0.7.31
 
-- **Moving on takes a team vote.** Interludes with a way on (an elevator's button, a lockdown switch) now have an amber vote terminal next to the room's own terminal. Sit at it and vote Move on or Not yet. Elevator buttons and lockdown switches do nothing until more than half of the living players have voted to move on. Doors and hatches still open freely, so anyone behind can get in to vote. Bots don't vote.
-- **Shortcut wins in the Silo to Pipeworks interlude: the far landing door stays shut.** Picking the Expulsion Chute used to put a floating brick plate in the elevator shaft. Now the elevator button still opens the near door and the elevator still drops, but the landing door across the shaft stays shut, so the way on is up the shaft into the chute.
+- **Bots stop running in circles.** A climbing bot used to copy every step you took, so when you walked around a room (picking things up, looking around) it ran the same loops after you. Now it heads straight for the furthest point along your way that it can walk to directly, skipping your detours, and only follows your exact steps where it has to (climbs, jumps, narrow ledges).
+- **Bots notice when they're going nowhere.** Moving used to count as progress, so a bot running in circles never gave up. Now only getting further along your way, or closer to where it's going, counts. After a few seconds without that, it hops ahead along your way, and if that keeps failing it comes to you.
 
-Everyone in the lobby should update (network version changed).
+Bots only run on the host, so only the host needs this update for the fix.
