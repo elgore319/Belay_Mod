@@ -96,6 +96,7 @@ namespace Belay
             gameObject.AddComponent<GrabSync>();
             gameObject.AddComponent<ElevatorHold>();
             gameObject.AddComponent<LevelCheck>();
+            gameObject.AddComponent<Players.Avatar.OutfitPreview>();
             gameObject.AddComponent<ReviveSystem>();
             gameObject.AddComponent<Items.CoopItems>();
             gameObject.AddComponent<Items.Harpoon>();

@@ -8,7 +8,7 @@ namespace Belay.Players
     /// <summary>Sends the local player's state and keeps one RemotePlayer per teammate.</summary>
     public class PlayerSync : MonoBehaviour
     {
-        private static readonly Color[] Palette =
+        internal static readonly Color[] Palette =
         {
             new Color(1f, 0.45f, 0.2f),
             new Color(0.3f, 0.75f, 1f),
@@ -99,6 +99,17 @@ namespace Belay.Players
                 Remotes[id] = remote;
             }
             remote.Apply(state);
+        }
+
+        /// <summary>The color the local player has in teammates' eyes (their lobby slot), for previews.</summary>
+        public static Color LocalColor
+        {
+            get
+            {
+                NetSession net = NetSession.Instance;
+                int index = net != null && net.CurrentLobby.HasValue ? net.MemberOrder().IndexOf(NetSession.LocalId) : 0;
+                return Palette[Mathf.Max(0, index) % Palette.Length];
+            }
         }
 
         private Color ColorFor(SteamId id)
