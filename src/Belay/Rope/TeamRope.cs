@@ -20,9 +20,13 @@ namespace Belay.Rope
         private const float Radius = 0.017f;
         /// <summary>How far points are kept off surfaces.</summary>
         private const float SurfaceGap = 0.03f;
-        private const float Gravity = 9.81f;
+        /// <summary>
+        /// Matches how hard things fall in this game (the player drops far faster than real-world 9.81, and
+        /// the bots use 16); at 9.81 with light drag the rope drifted and swung like it was underwater.
+        /// </summary>
+        private const float Gravity = 18f;
         /// <summary>Velocity kept per step (air drag).</summary>
-        private const float Damping = 0.992f;
+        private const float Damping = 0.98f;
         /// <summary>Share of sliding speed lost per step while touching a surface.</summary>
         private const float Friction = 0.35f;
         private const int Iterations = 24;
@@ -32,7 +36,7 @@ namespace Belay.Rope
         private const float NoGrabNearHarness = 1.2f;
 
         // The game's swinging ropes: swingSpeed 4 * 2.5 as push, swingDrag 20 on the hands.
-        private const float SwingAccel = 9f;
+        private const float SwingAccel = 16f;
         private const float SwingHandDrag = 20f;
         /// <summary>ENT_Player velocity units per m/s (it moves vel * 175 m per second), and AddForce(v) adds v / 10.</summary>
         private const float VelToMetersPerSecond = 175f;
@@ -63,6 +67,7 @@ namespace Belay.Rope
         private Vector3 lastA, lastB;
         private Vector3 heldVelocity;
         private readonly int[] heldPivots = new int[2];
+        private int slackFrom = -1, slackTo = -1;
 
         private RopeHold[] holds;
         private ENT_Player holdsIgnoreFor;
@@ -314,11 +319,21 @@ namespace Belay.Rope
             int held = FindHeldNode(player);
             if (held != HeldNode && held >= 0 && HeldNode < 0)
             {
-                // First grab: the rope takes the climber's momentum at the grab point.
+                // First grab: the rope takes the climber's momentum at the grab point. Never upward: a rope
+                // can't be thrown up by grabbing it (jumping and regrabbing would climb the air).
                 Vector3 v = player.GetVelocity() * VelToMetersPerSecond;
+                v.y = Mathf.Min(v.y, 0f);
                 prev[held] = pos[held] - v * dt;
             }
             HeldNode = held;
+            // Holding your own rope: the bit between your harness and your hands is slack and must never
+            // lift the point you hang from, or climbing up would drag the grip up with you, forever.
+            slackFrom = slackTo = -1;
+            if (held > 0 && held < count - 1)
+            {
+                if (IsLocal(0)) { slackFrom = 0; slackTo = held; }
+                else if (IsLocal(1)) { slackFrom = held; slackTo = count - 1; }
+            }
 
             for (int i = 0; i < count; i++)
             {
@@ -411,6 +426,11 @@ namespace Belay.Rope
         private void Constrain(int j)
         {
             float w0 = invMass[j], w1 = invMass[j + 1];
+            if (j >= slackFrom && j + 1 <= slackTo)
+            {
+                if (j == HeldNode) w0 = 0f;
+                if (j + 1 == HeldNode) w1 = 0f;
+            }
             float w = w0 + w1;
             if (w <= 0f)
             {
