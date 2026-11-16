@@ -50,7 +50,9 @@ internal static class Program
                     float.Parse(c[2], System.Globalization.CultureInfo.InvariantCulture));
             }
         }
-        PixelTextures.Recipe[] recipes = AvatarDesign.Recipes(new Color(1f, 0.45f, 0.2f), outfit[0], outfit[1], outfit[2], outfit[3]);
+        // Optional lore look: LOOK=<index into LoreLooks.All>.
+        int.TryParse(Environment.GetEnvironmentVariable("LOOK") ?? "0", out look);
+        PixelTextures.Recipe[] recipes = LoreLooks.Recipes(look, new Color(1f, 0.45f, 0.2f), outfit[0], outfit[1], outfit[2], outfit[3]);
         var textures = new List<string>();
         for (int i = 0; i < recipes.Length; i++)
         {
@@ -138,6 +140,10 @@ internal static class Program
         float rad = lean * Mathf.Deg2Rad;
         Frame torso = Frame.Look(pelvis, new Vector3(0, -Mathf.Sin(rad), Mathf.Cos(rad)), Vector3.up);
         Emit(AvatarDesign.BuildTorso, torso);
+        if (LoreLooks.Valid(look))
+        {
+            Emit(k => LoreLooks.BuildExtra(k, look), torso);
+        }
 
         // Backpack on the back, or held open in front (same placement as ClimberAvatar).
         Frame pack;
@@ -160,7 +166,7 @@ internal static class Program
 
         Vector3 neck = torso.Apply(new Vector3(0, AvatarDesign.NeckHeight, 0.01f));
         float pitch = (inventory ? 40f : standing ? 10f : -25f) * Mathf.Deg2Rad;
-        Emit(k => AvatarDesign.BuildHead(k, headStyle), Frame.Look(neck, new Vector3(0, -Mathf.Sin(pitch), Mathf.Cos(pitch)), Vector3.up));
+        Emit(k => { if (LoreLooks.Valid(look)) LoreLooks.BuildHead(k, look); else AvatarDesign.BuildHead(k, headStyle); }, Frame.Look(neck, new Vector3(0, -Mathf.Sin(pitch), Mathf.Cos(pitch)), Vector3.up));
 
         Arm(torso, -1, leftHand, leftGrip);
         Arm(torso, 1, rightHand, rightGrip);
@@ -222,6 +228,7 @@ internal static class Program
     }
 
     private static int headStyle;
+    private static int look;
     private static int gloveSlot = Slot.Glove;
 
     /// <summary>Each skin on a left open hand, left fist, right fist and right open hand, in a row.</summary>

@@ -19,7 +19,9 @@ namespace Belay.Players.Avatar
         public const int Helmet = 11;
         public const int Rope = 12;
         public const int Pad = 13;
-        public const int Count = 14;
+        public const int Flesh = 14;   // lore looks: bone, growths
+        public const int Accent = 15;  // lore looks: badges, stripes, pustules
+        public const int Count = 16;
     }
 
     /// <summary>
@@ -87,6 +89,8 @@ namespace Belay.Players.Avatar
             r[Slot.Helmet] = R(hat ?? Muted(player, 0.7f, 0.8f), 0.4f, 0.1f, 0.4f, RustColor);
             r[Slot.Rope] = R(Color.Lerp(Muted(player, 0.5f, 0.9f), BoneColor, 0.5f), 0.15f, 0.08f);
             r[Slot.Pad] = R(BoneColor * 0.85f, 0.45f, 0.12f, 0.45f, RustColor);
+            r[Slot.Flesh] = R(BoneColor, 0.35f, 0.15f);
+            r[Slot.Accent] = R(BoneColor * 0.8f, 0.2f, 0.05f);
             return r;
         }
 

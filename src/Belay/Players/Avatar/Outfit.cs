@@ -15,14 +15,17 @@ namespace Belay.Players.Avatar
     {
         public int Headgear, Jacket, Hat, Pants, Pack;
 
+        /// <summary>A lore look (<see cref="LoreLooks"/>); 0 is the standard climber.</summary>
+        public int Look;
+
         public bool Same(Outfit o)
         {
-            return Headgear == o.Headgear && Jacket == o.Jacket && Hat == o.Hat && Pants == o.Pants && Pack == o.Pack;
+            return Headgear == o.Headgear && Jacket == o.Jacket && Hat == o.Hat && Pants == o.Pants && Pack == o.Pack && Look == o.Look;
         }
 
         public override string ToString()
         {
-            return Headgear + "," + Jacket + "," + Hat + "," + Pants + "," + Pack;
+            return Headgear + "," + Jacket + "," + Hat + "," + Pants + "," + Pack + "," + Look;
         }
 
         /// <summary>Reads what <see cref="ToString"/> wrote; anything unknown or out of range becomes standard.</summary>
@@ -39,6 +42,7 @@ namespace Belay.Players.Avatar
             o.Hat = Part(parts, 2, Outfits.Colors.Length);
             o.Pants = Part(parts, 3, Outfits.Colors.Length);
             o.Pack = Part(parts, 4, Outfits.Colors.Length);
+            o.Look = Part(parts, 5, LoreLooks.Count);
             return o;
         }
 
@@ -57,6 +61,9 @@ namespace Belay.Players.Avatar
         private const string Key = "belay_outfit";
 
         public static readonly string[] HeadgearNames = { "Helmet", "Beanie", "Hood up", "Balaclava" };
+
+        /// <summary>Names of the lore looks, for the menu.</summary>
+        public static readonly string[] LookNames = System.Array.ConvertAll(LoreLooks.All, l => l.Name);
 
         public struct Swatch
         {
@@ -84,7 +91,7 @@ namespace Belay.Players.Avatar
             new Swatch { Name = "Charcoal", Color = new Color(0.16f, 0.15f, 0.16f) },
         };
 
-        private static ConfigEntry<int> headgear, jacket, hat, pants, pack;
+        private static ConfigEntry<int> headgear, jacket, hat, pants, pack, look;
         private static string published;
         private static float nextPublish;
         private static readonly Dictionary<ulong, KeyValuePair<float, Outfit>> cache = new Dictionary<ulong, KeyValuePair<float, Outfit>>();
@@ -105,6 +112,7 @@ namespace Belay.Players.Avatar
             hat = config.Bind("Outfit", "HeadgearColor", 0, "Helmet or beanie color (0 = your lobby color).");
             pants = config.Bind("Outfit", "TrousersColor", 0, "Trousers color (0 = standard).");
             pack = config.Bind("Outfit", "PackColor", 0, "Backpack color (0 = standard).");
+            look = config.Bind("Outfit", "Look", 0, "Lore look (0 climber, 1 Delta Labs researcher, 2 Pipeworks maintenance, 3 pier worker, 4 Habitation scavenger, 5 Chimney expedition, 6 infested, 7 denizen).");
             return true;
         }
 
@@ -117,7 +125,7 @@ namespace Belay.Players.Avatar
                 {
                     return default;
                 }
-                return Outfit.Parse(headgear.Value + "," + jacket.Value + "," + hat.Value + "," + pants.Value + "," + pack.Value);
+                return Outfit.Parse(headgear.Value + "," + jacket.Value + "," + hat.Value + "," + pants.Value + "," + pack.Value + "," + look.Value);
             }
             set
             {
@@ -130,6 +138,7 @@ namespace Belay.Players.Avatar
                 hat.Value = value.Hat;
                 pants.Value = value.Pants;
                 pack.Value = value.Pack;
+                look.Value = value.Look;
                 nextPublish = 0f;
                 cache.Clear();
             }

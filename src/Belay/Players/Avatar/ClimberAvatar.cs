@@ -59,12 +59,14 @@ namespace Belay.Players.Avatar
 
         private static Mesh packMesh, packLidMesh;
         private static readonly Mesh[] headMeshes = new Mesh[AvatarDesign.HeadStyles];
+        private static readonly Mesh[] lookHeads = new Mesh[LoreLooks.Count];
+        private static readonly Mesh[] lookExtras = new Mesh[LoreLooks.Count];
         private static Mesh torsoMesh, upperArmMesh, forearmMesh, thighMesh, shinMesh, bootMesh;
         private static Mesh fistLeft, fistRight, openLeft, openRight;
         private static Shader litShader;
 
         private readonly Transform root;
-        private readonly Transform torso, head;
+        private readonly Transform torso, head, extra;
         private readonly Limb leftArm, rightArm, leftLeg, rightLeg;
         private readonly Transform leftBoot, rightBoot;
         private readonly Transform leftFist, rightFist, leftOpen, rightOpen;
@@ -129,6 +131,11 @@ namespace Belay.Players.Avatar
 
             torso = Part("Torso", torsoMesh, materials);
             head = Part("Head", headMeshes[0], materials);
+            // A lore look's coat, tool belt or growths, worn over the torso and moving with it.
+            extra = Part("Extra", null, materials);
+            extra.SetParent(torso, false);
+            extra.localScale = Vector3.one;
+            extra.gameObject.SetActive(false);
             pack = Part("Pack", packMesh, materials);
             packLid = Part("PackLid", packLidMesh, materials);
             leftArm = new Limb(Part("LeftUpperArm", upperArmMesh, materials), Part("LeftForearm", forearmMesh, materials),
@@ -167,8 +174,13 @@ namespace Belay.Players.Avatar
                 return;
             }
             outfit = wanted;
-            head.GetComponent<MeshFilter>().sharedMesh = headMeshes[Mathf.Clamp(wanted.Headgear, 0, headMeshes.Length - 1)];
-            Paint(materials, AvatarDesign.Recipes(color, Swatch(wanted.Jacket), Swatch(wanted.Hat), Swatch(wanted.Pants), Swatch(wanted.Pack)));
+            bool lore = LoreLooks.Valid(wanted.Look);
+            head.GetComponent<MeshFilter>().sharedMesh = lore
+                ? lookHeads[wanted.Look]
+                : headMeshes[Mathf.Clamp(wanted.Headgear, 0, headMeshes.Length - 1)];
+            extra.GetComponent<MeshFilter>().sharedMesh = lore ? lookExtras[wanted.Look] : null;
+            extra.gameObject.SetActive(lore);
+            Paint(materials, LoreLooks.Recipes(wanted.Look, color, Swatch(wanted.Jacket), Swatch(wanted.Hat), Swatch(wanted.Pants), Swatch(wanted.Pack)));
         }
 
         private static Color? Swatch(int index)
@@ -743,6 +755,12 @@ namespace Belay.Players.Avatar
             {
                 int which = style;
                 headMeshes[style] = Build("Belay_Head" + style, k => AvatarDesign.BuildHead(k, which));
+            }
+            for (int look = 1; look < LoreLooks.Count; look++)
+            {
+                int which = look;
+                lookHeads[look] = Build("Belay_LookHead" + look, k => LoreLooks.BuildHead(k, which));
+                lookExtras[look] = Build("Belay_LookExtra" + look, k => LoreLooks.BuildExtra(k, which));
             }
             upperArmMesh = Build("Belay_UpperArm", AvatarDesign.BuildUpperArm);
             forearmMesh = Build("Belay_Forearm", AvatarDesign.BuildForearm);
