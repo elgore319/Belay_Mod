@@ -198,10 +198,73 @@ namespace Belay.World
             return sides;
         }
 
+        /// <summary>Where a door actually is: the middle of its renderers (its root can sit far from the mesh).</summary>
+        internal static Vector3 DoorPoint(Transform t)
+        {
+            bool any = false;
+            var b = new Bounds(t.position, Vector3.zero);
+            foreach (Renderer r in t.GetComponentsInChildren<Renderer>(true))
+            {
+                if (r == null || r.bounds.size.sqrMagnitude < 0.0001f) continue; // a prefab not in the world has no bounds
+                if (!any) { b = r.bounds; any = true; }
+                else b.Encapsulate(r.bounds);
+            }
+            return any ? b.center : t.position;
+        }
+
+        /// <summary>
+        /// Main-path doors a level animates as part of a scripted sequence, so nothing above can find them.
+        /// Named by hand, by their path in the level. When the team picks the shortcut they're held in the
+        /// pose they're in (shut) and made solid, while the rest of the sequence plays as normal.
+        ///  - Silo to Pipeworks interlude: the elevator button opens the landing door on the button side,
+        ///    the elevator drops, and the landing door across the shaft opens onto the way to Pipeworks.
+        ///    The far landing door (and its grate) stays shut, so the way on is up the shaft into the
+        ///    Expulsion Chute. The button-side door (Door_Elevator_01) and the room's grate
+        ///    (Scripting/Doors/Door_Grate_01) are never touched, so nobody is shut in.
+        /// </summary>
+        private static readonly Dictionary<string, string[]> HeldShut = new Dictionary<string, string[]>
+        {
+            ["Campaign_Interlude_Silo_To_Pipeworks_01"] = new[]
+            {
+                "Scripting/Elevator/Elevator_Fakeout/Door_Elevator_01.01",
+                "Scripting/Elevator/Elevator_Fakeout/Door_Grate_01",
+            },
+        };
+
+        private static bool HoldShutByName(M_Level level)
+        {
+            string name = level.name.Replace("(Clone)", "").Trim();
+            if (!HeldShut.TryGetValue(name, out string[] paths))
+            {
+                return false;
+            }
+            bool any = false;
+            foreach (string path in paths)
+            {
+                Transform t = level.transform.Find(path);
+                if (t == null)
+                {
+                    Plugin.Log.LogWarning($"Main path door not found in {level.name}: {path}");
+                    continue;
+                }
+                if (t.GetComponent<HoldShut>() == null)
+                {
+                    t.gameObject.AddComponent<HoldShut>();
+                }
+                any = true;
+                Plugin.Log.LogInfo($"Holding the main path door shut in {level.name}: {path}");
+            }
+            return any;
+        }
+
         /// <summary>Locks the losing side. Returns false when there was nothing to lock.</summary>
         internal static bool LockSide(UT_BranchGenerator g, bool shortcutSide)
         {
             M_Level level = g != null ? (g.currentLevel ?? g.GetComponentInParent<M_Level>()) : null;
+            if (!shortcutSide && level != null && HoldShutByName(level))
+            {
+                return true;
+            }
             Sides sides = Analyze(g, level);
             List<UT_Door> doors = shortcutSide ? sides.ShortcutDoors : sides.MainDoors;
             List<Component> movers = shortcutSide ? sides.ShortcutMovers : sides.MainMovers;
@@ -292,7 +355,8 @@ namespace Belay.World
                     }
                     foreach (UT_SimpleAnimatorController a in level.GetComponentsInChildren<UT_SimpleAnimatorController>(true))
                     {
-                        sb.AppendLine($"    animated {Path(a.transform, level.transform)}");
+                        float toExit = exit != null ? Vector3.Distance(DoorPoint(a.transform), exit.position) : -1f;
+                        sb.AppendLine($"    animated {Path(a.transform, level.transform)} ({toExit:0} m from exit)");
                     }
                     if (!sides.HasShortcutSide || !sides.HasMainSide)
                     {
@@ -602,5 +666,46 @@ namespace Belay.World
         [HarmonyPriority(Priority.First)]
         private static bool Animate(UT_SimpleAnimatorController __instance, string s)
             => s == null || s.EndsWith(":false", System.StringComparison.OrdinalIgnoreCase) || !ShortcutDoors.IsLocked(__instance);
+    }
+
+    /// <summary>
+    /// Keeps an animated door in the pose it had when this was added (shut), whatever its animator does,
+    /// and gives its panels solid colliders (some only have them while the level means them to block).
+    /// </summary>
+    [DefaultExecutionOrder(10000)]
+    internal class HoldShut : MonoBehaviour
+    {
+        private Transform[] parts;
+        private Vector3[] positions;
+        private Quaternion[] rotations;
+        private Vector3[] scales;
+
+        private void Awake()
+        {
+            parts = GetComponentsInChildren<Transform>(true);
+            positions = parts.Select(p => p.localPosition).ToArray();
+            rotations = parts.Select(p => p.localRotation).ToArray();
+            scales = parts.Select(p => p.localScale).ToArray();
+            foreach (MeshFilter mf in GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (mf.GetComponent<Collider>() == null && mf.sharedMesh != null)
+                {
+                    var box = mf.gameObject.AddComponent<BoxCollider>();
+                    box.center = mf.sharedMesh.bounds.center;
+                    box.size = mf.sharedMesh.bounds.size;
+                }
+            }
+        }
+
+        private void LateUpdate()
+        {
+            for (int i = 0; i < parts.Length; i++)
+            {
+                if (parts[i] == null) continue;
+                parts[i].localPosition = positions[i];
+                parts[i].localRotation = rotations[i];
+                parts[i].localScale = scales[i];
+            }
+        }
     }
 }
