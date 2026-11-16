@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Belay.Net;
 using Belay.Players;
 using HarmonyLib;
@@ -96,6 +97,8 @@ namespace Belay.World
         internal enum GateKind { Free, Room, Elevator, Gathered }
 
         private static readonly Dictionary<int, GateKind> kinds = new Dictionary<int, GateKind>();
+        /// <summary>Controls that take the team on to the next area (see AreaVote).</summary>
+        private static readonly HashSet<int> wayOn = new HashSet<int>();
 
         /// <summary>How far from an elevator's button every teammate has to be before it goes (meters).</summary>
         private const float ElevatorReach = 8f;
@@ -156,6 +159,10 @@ namespace Belay.World
                 kind = GateKind.Room;
             }
             kinds[key] = kind;
+            if (kind == GateKind.Elevator || kind == GateKind.Gathered || (kind == GateKind.Room && SealsOrMovesMass(all)))
+            {
+                wayOn.Add(key);
+            }
             Plugin.Log.LogInfo($"Interlude control {ButtonSync.ObjectId(control)}: {kind} ({all})");
             return kind;
         }
@@ -198,6 +205,28 @@ namespace Belay.World
             return new UnityEngine.Events.UnityEventBase[0];
         }
 
+        /// <summary>This room has a control that takes the team on to the next area (an elevator's button, say).</summary>
+        internal static bool HasWayOn(M_Level level)
+        {
+            if (level == null)
+            {
+                return false;
+            }
+            foreach (Component c in level.GetComponentsInChildren<CL_Button>(true).Cast<Component>().Concat(level.GetComponentsInChildren<CL_HoldButton>(true)))
+            {
+                if (c == null || c.GetComponentInParent<VoteTerminalMarker>() != null)
+                {
+                    continue;
+                }
+                Classify(c, level, EventsOf(c));
+                if (wayOn.Contains(c.GetInstanceID()))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         /// <summary>True when this control is in an interlude that's still waiting for teammates.</summary>
         public static bool Blocked(Component control, bool notify)
         {
@@ -214,6 +243,10 @@ namespace Belay.World
             if (kind == GateKind.Free)
             {
                 return false;
+            }
+            if (wayOn.Contains(control.GetInstanceID()) && AreaVote.Holds(level))
+            {
+                return true; // the team hasn't voted to move on yet
             }
             Vector3 at = control.transform.position;
             float reach = kind == GateKind.Elevator ? ElevatorReach : GatherReach;

@@ -18,6 +18,8 @@ namespace Belay.World
     /// one on-screen choice per shortcut ahead: Shortcut or Normal path. The first choice starts the team
     /// vote, everyone sees the banner, and anyone can vote at their own copy of the terminal (or with the
     /// vote keys). Results, barriers and seeded shortcut generation are unchanged (see ShortcutSync).
+    /// In an interlude or breakroom with a way on (an elevator's button, a lockdown) the copy goes in even
+    /// with no shortcut ahead: it's where the team votes to move on to the next area (AreaVote), asked before any shortcut.
     /// The game's own terminals never start votes. If there's no clear spot beside the terminal, the
     /// copy goes in the least blocked one.
     /// </summary>
@@ -104,7 +106,7 @@ namespace Belay.World
                     continue; // placing needs the level's colliders, so only levels that are loaded
                 }
                 OS_Computer_Interface anchor = GameTerminalIn(level);
-                if (anchor == null || ShortcutSync.ShortcutsAfter(level, true).Count == 0)
+                if (anchor == null || (ShortcutSync.ShortcutsAfter(level, true).Count == 0 && !(InterludeGate.IsGatedRoom(level) && InterludeGate.HasWayOn(level))))
                 {
                     continue;
                 }
@@ -279,15 +281,36 @@ namespace Belay.World
                 yield break;
             }
             VoteTerminalMarker marker = os.worldInterface.GetComponentInParent<VoteTerminalMarker>();
-            List<string> all = ShortcutSync.ShortcutsAfter(marker != null ? marker.Level : ShortcutSync.LevelOf(os), true);
+            M_Level room = marker != null ? marker.Level : ShortcutSync.LevelOf(os);
+            if (AreaVote.Holds(room))
+            {
+                Show(os, "TEAM VOTE\n\nMove on to the next area?",
+                    "Move on", () => { AreaVote.Instance?.Cast(room, true); AskShortcuts(os, room); },
+                    "Not yet", () => { AreaVote.Instance?.Cast(room, false); AskShortcuts(os, room); });
+                yield break;
+            }
+            AskShortcuts(os, room);
+        }
+
+        private void AskShortcuts(OS_Manager os, M_Level room)
+        {
+            if (os == null || os.messageManager == null || !os.canControl)
+            {
+                return;
+            }
+            List<string> all = ShortcutSync.ShortcutsAfter(room, true);
             var open = all.FindAll(id => !ShortcutSync.IsDecided(id, out _));
             if (open.Count == 0)
             {
                 string text = all.Count == 0
                     ? "SHORTCUT VOTE\n\nThere's no shortcut ahead to vote on yet."
                     : "SHORTCUT VOTE\n\nEvery shortcut ahead is decided:\n" + Decisions(all);
+                if (all.Count == 0 && InterludeGate.IsGatedRoom(room))
+                {
+                    text = AreaVote.HasPassed(room) ? "TEAM VOTE\n\nThe team is moving on." : "TEAM VOTE\n\nVote sent.";
+                }
                 Show(os, text, "OK", null, null, null);
-                yield break;
+                return;
             }
             Ask(os, open, 0);
         }

@@ -63,6 +63,8 @@ namespace Belay.Net
         ItemDenied = 114,
         AreaRequest = 116,
         AreaDelegate = 117,
+        MoveOnVote = 119,
+        MoveOnPassed = 120,
         // 118 was TeamPause (removed); keep the number unused.
     }
 
