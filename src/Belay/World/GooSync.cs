@@ -308,6 +308,53 @@ namespace Belay.World
             }
         }
 
+        /// <summary>After the lowest climber drops out, how fast (m/s) the paced-on distance may grow back.</summary>
+        private const float DistanceRegrowth = 0.15f;
+        /// <summary>The lowest climber jumping up by more than this in one frame means they dropped out (died or left).</summary>
+        private const float DropoutJump = 5f;
+        private static float lastLowestY = float.NaN;
+        private static float lastDistance = float.NaN;
+        private static float cappedDistance = float.NaN;
+        private static float lastFrameAt;
+
+        /// <summary>
+        /// The mass speeds up with its distance to the lowest living climber. When that climber died, the
+        /// next lowest could be a hundred meters higher, the distance jumped, and the mass raced up at many
+        /// times its speed. After a drop-out, the distance it paces on stays where it was and only grows
+        /// back very slowly, until the mass has caught up to the normal gap again.
+        /// </summary>
+        private static float PacedDistance(float actual, float lowestY)
+        {
+            float now = Time.time;
+            float dt = Mathf.Max(now - lastFrameAt, 0f);
+            bool stale = float.IsNaN(lastLowestY) || dt > 2f;
+            if (!stale && lowestY - lastLowestY > DropoutJump && actual > lastDistance)
+            {
+                if (float.IsNaN(cappedDistance))
+                {
+                    Plugin.Log.LogInfo($"Lowest climber dropped out; mass keeps pacing on {lastDistance:F0} m instead of {actual:F0} m");
+                }
+                cappedDistance = float.IsNaN(cappedDistance) ? lastDistance : Mathf.Min(cappedDistance, lastDistance);
+            }
+            float result = actual;
+            if (!float.IsNaN(cappedDistance))
+            {
+                if (stale || actual <= cappedDistance)
+                {
+                    cappedDistance = float.NaN;
+                }
+                else
+                {
+                    cappedDistance += DistanceRegrowth * dt;
+                    result = cappedDistance;
+                }
+            }
+            lastLowestY = lowestY;
+            lastDistance = result;
+            lastFrameAt = now;
+            return result;
+        }
+
         [HarmonyPrefix]
         private static void Prefix(DEN_DeathFloor __instance, ref float ___rubberbandMult, ref float ___speedMultFrameStorage, out float __state)
         {
@@ -324,7 +371,7 @@ namespace Belay.World
                 float gooY = ((Component)__instance).transform.position.y;
                 float hostDistance = Mathf.Abs(gooY - ENT_Player.playerObject.transform.position.y);
                 Vector3 lowestPos = GooSync.LowestPlayerPosition();
-                float lowestDistance = Mathf.Abs(gooY - lowestPos.y);
+                float lowestDistance = PacedDistance(Mathf.Abs(gooY - lowestPos.y), WorldSpace.ToShared(lowestPos).y);
                 float pace = GooSync.LevelPaceRatio(lowestPos);
                 if (pace != 1f)
                 {

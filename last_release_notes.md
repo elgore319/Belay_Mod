@@ -1,5 +1,6 @@
-## Tethered 0.7.32
+## Tethered 0.7.33
 
-- **Everyone gets their own artifact offer.** Alien artifact devices used to show every player the same two artifacts, because they rolled from the shared level seed. Each player's offer is now rolled on its own, so teammates can be offered different artifacts. The level itself is still the same for everyone.
+- **A death no longer makes the mass race.** The mass follows the lowest living climber and speeds up the further behind them it is. When that climber died, the next lowest could be a hundred meters higher, so the mass suddenly shot up at many times its speed. Now, after someone drops out, the mass keeps its pace from just before and only speeds up again very slowly.
+- Includes 0.7.32: each player rolls their own alien artifact offer.
 
-Everyone needs this update for the fix.
+Everyone in the lobby should update.
