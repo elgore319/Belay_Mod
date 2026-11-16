@@ -51,6 +51,11 @@ namespace Belay.Patches
             harmony.Patch(AccessTools.Method(typeof(DEN_HadalDiver), nameof(DEN_HadalDiver.GenerateDiver)),
                 prefix: new HarmonyMethod(typeof(LevelRandomPatches), nameof(ComponentPrefix)));
 
+            // Alien artifacts are each player's own pick: the device rolls its offer from a seed that also
+            // includes who this player is, so teammates are offered different artifacts.
+            harmony.Patch(AccessTools.Method(typeof(ENV_ArtifactDevice), "Start"),
+                prefix: new HarmonyMethod(typeof(LevelRandomPatches), nameof(PersonalPrefix)));
+
             var componentPrefix = new HarmonyMethod(typeof(LevelRandomPatches), nameof(ComponentPrefix));
             int patched = 0;
             foreach (MethodInfo method in FindRandomSetupMethods())
@@ -112,6 +117,19 @@ namespace Belay.Patches
             }
             string path = PathInLevel(__instance, level);
             UnityEngine.Random.InitState(Hash(NetSession.Instance.Seed, LevelId(level), path));
+        }
+
+        /// <summary>Like ComponentPrefix, but the roll differs per player (still stable for that player).</summary>
+        private static void PersonalPrefix(Component __instance)
+        {
+            if (!Active || __instance == null)
+            {
+                return;
+            }
+            M_Level level = __instance.GetComponentInParent<M_Level>(true);
+            string path = level != null ? PathInLevel(__instance, level) : __instance.name;
+            int levelId = level != null ? LevelId(level) : 0;
+            UnityEngine.Random.InitState(Hash(NetSession.Instance.Seed, levelId, path + "|player:" + NetSession.LocalId.Value));
         }
 
         private static string LevelName(M_Level level)
@@ -185,6 +203,10 @@ namespace Belay.Patches
                 if (type.ContainsGenericParameters || !typeof(MonoBehaviour).IsAssignableFrom(type))
                 {
                     continue;
+                }
+                if (type == typeof(ENV_ArtifactDevice))
+                {
+                    continue; // patched on its own, per player
                 }
                 if (typeof(ENT_Player).IsAssignableFrom(type) || type.Name.StartsWith("UI_") || type.Name.StartsWith("CL_") || type.Name.StartsWith("DEN_"))
                 {

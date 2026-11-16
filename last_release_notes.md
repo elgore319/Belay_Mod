@@ -1,6 +1,5 @@
-## Tethered 0.7.31
+## Tethered 0.7.32
 
-- **Bots stop running in circles.** A climbing bot used to copy every step you took, so when you walked around a room (picking things up, looking around) it ran the same loops after you. Now it heads straight for the furthest point along your way that it can walk to directly, skipping your detours, and only follows your exact steps where it has to (climbs, jumps, narrow ledges).
-- **Bots notice when they're going nowhere.** Moving used to count as progress, so a bot running in circles never gave up. Now only getting further along your way, or closer to where it's going, counts. After a few seconds without that, it hops ahead along your way, and if that keeps failing it comes to you.
+- **Everyone gets their own artifact offer.** Alien artifact devices used to show every player the same two artifacts, because they rolled from the shared level seed. Each player's offer is now rolled on its own, so teammates can be offered different artifacts. The level itself is still the same for everyone.
 
-Bots only run on the host, so only the host needs this update for the fix.
+Everyone needs this update for the fix.
