@@ -1,6 +1,6 @@
-## Tethered 0.7.33
+## Belay 0.7.34
 
-- **A death no longer makes the mass race.** The mass follows the lowest living climber and speeds up the further behind them it is. When that climber died, the next lowest could be a hundred meters higher, so the mass suddenly shot up at many times its speed. Now, after someone drops out, the mass keeps its pace from just before and only speeds up again very slowly.
-- Includes 0.7.32: each player rolls their own alien artifact offer.
+- **The rope is less floaty.** It now falls as fast as things do in this game and settles quicker, instead of drifting and swinging slowly. Swinging on it pushes harder to match.
+- **Fixed flying on the rope.** Holding your own rope and climbing upward used to drag your grip up with you forever. The slack rope between your harness and your hands no longer lifts the spot you're hanging from. Grabbing the rope also no longer passes your upward speed into it, so jumping and regrabbing can't climb the air either.
 
 Everyone in the lobby should update.
