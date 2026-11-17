@@ -138,7 +138,7 @@ internal static class Program
         {
             // Left hand held out in front (as when using it), right hand relaxed at the side.
             Figure("hold:" + item, standing: true, leftGrip: false, rightGrip: false,
-                new Vector3(-0.2f, 1.3f, 0.42f), new Vector3(0.07f + AvatarDesign.ShoulderWidth, AvatarDesign.PelvisHeight + AvatarDesign.ShoulderHeight - 0.52f, 0.1f),
+                new Vector3(-0.21f, 1.38f, 0.5f), new Vector3(0.07f + AvatarDesign.ShoulderWidth, AvatarDesign.PelvisHeight + AvatarDesign.ShoulderHeight - 0.52f, 0.1f),
                 leftItem: item, rightItem: item);
         }
 
@@ -231,6 +231,11 @@ internal static class Program
             AvatarDesign.BuildUpperArm, AvatarDesign.BuildForearm, true, e => elbow = e);
         Vector3 forearm = (end - elbow).normalized;
         Vector3 up = torso.Up;
+        if (item != null && !OldGrip)
+        {
+            // Held out in front (not hanging at the side): guns point where the player looks.
+            forearm = HeldGrip.HandForward(forearm, new Vector3(0, 0, 1), item, hand.y > 1.1f ? 1f : 0f);
+        }
         Vector3 back = HeldGrip.HandBack(forearm, up, torso.Forward, torso.Right, side, item != null && !OldGrip);
         bool left = side < 0;
         bool fist = grip || item != null;

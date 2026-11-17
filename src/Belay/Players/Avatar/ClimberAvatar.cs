@@ -675,6 +675,12 @@ namespace Belay.Players.Avatar
             // Back of the hand faces up when reaching forward, away from the wall when reaching up, and
             // out to the side when the arm hangs down (palms toward the thighs, thumbs forward).
             Vector3 forearmDir = elbowToWrist.sqrMagnitude > 1e-6f ? elbowToWrist.normalized : dir;
+            // A gun held out points where the player looks, bending at the wrist.
+            if (holdsItem && !grip && !holdingPack)
+            {
+                float aimReach = Mathf.Max(reachBlend[index], action.Weight);
+                forearmDir = HeldGrip.HandForward(forearmDir, look * Vector3.forward, heldNames[index], aimReach);
+            }
             // A hand holding an item keeps its back to the side instead (thumb, and the item, up).
             Vector3 back = HeldGrip.HandBack(forearmDir, up, torsoRotation * Vector3.forward, torsoRotation * Vector3.right, side,
                 holdsItem && !grip && !holdingPack);

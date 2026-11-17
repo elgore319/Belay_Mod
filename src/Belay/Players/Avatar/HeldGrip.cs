@@ -74,7 +74,14 @@ namespace Belay.Players.Avatar
                 t.GripAt = 0f;
                 t.Tilt = 30f;
             }
-            else if (n.Contains("hammer") || n.Contains("cleaver") || n.Contains("pipewrench"))
+            else if (n.Contains("cleaver"))
+            {
+                // A machete: by the handle, blade up and leaning forward, cutting edge to the front.
+                t.GripAt = 0.12f;
+                t.Roll = 180f;
+                t.Tilt = 35f;
+            }
+            else if (n.Contains("hammer") || n.Contains("pipewrench"))
             {
                 t.GripAt = 0.12f;
             }
@@ -92,11 +99,14 @@ namespace Belay.Players.Avatar
             }
             else if (n.Contains("handgun"))
             {
-                t = Pistol(new Vector3(0f, 0f, -0.2f), Vector3.left, Vector3.forward);
+                // The fist closes right under the slide, the barrel running on along the forearm.
+                t = Pistol(new Vector3(0.01f, 0f, -0.01f), Vector3.left, Vector3.forward);
             }
             else if (n.Contains("flaregun"))
             {
-                t = Pistol(new Vector3(0f, -0.05f, 0.12f), Vector3.up, Vector3.back);
+                // Its grip is raked far back; turn the gun so the grip runs down through the fist, with
+                // the fist up under the trigger guard.
+                t = Pistol(new Vector3(0f, 0f, 0.07f), new Vector3(0f, 1f, 0.22f).normalized, new Vector3(0f, 0.22f, -1f).normalized);
             }
             else if (length * HeldScale < 0.14f)
             {
@@ -234,6 +244,27 @@ namespace Belay.Players.Avatar
             m.SetColumn(2, new Vector4(z.x, z.y, z.z, 0f) * s);
             m.SetColumn(3, new Vector4(hole.x, hole.y, hole.z, 1f));
             return m;
+        }
+
+        /// <summary>Guns and gadgets you point at things.</summary>
+        public static bool Aims(string prefabName)
+        {
+            string n = (prefabName ?? "").ToLowerInvariant();
+            return n.Contains("gun") || n.Contains("scanner") || n.Contains("flashlight") || n.Contains("remote");
+        }
+
+        /// <summary>
+        /// Which way the hand points: along the forearm, except that a hand held out with a gun bends at
+        /// the wrist to point it where the player looks (by <paramref name="reach"/>, 0 at rest by the side).
+        /// </summary>
+        public static Vector3 HandForward(Vector3 forearm, Vector3 look, string prefabName, float reach)
+        {
+            if (!Aims(prefabName) || reach <= 0f)
+            {
+                return forearm;
+            }
+            Vector3 f = Vector3.Lerp(forearm, look, Mathf.Clamp01(reach));
+            return f.sqrMagnitude > 1e-6f ? f.normalized : forearm;
         }
 
         /// <summary>
