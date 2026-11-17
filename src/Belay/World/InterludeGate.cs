@@ -159,7 +159,10 @@ namespace Belay.World
                 kind = GateKind.Room;
             }
             kinds[key] = kind;
-            if (kind == GateKind.Elevator || kind == GateKind.Gathered || (kind == GateKind.Room && SealsOrMovesMass(all)))
+            // Only controls that carry the team on wait for the area vote. A lockdown that seals the hatch
+            // behind the team (Silo to Pipeworks' pressure seal) is how you make the room safe, not how you
+            // leave it: it only waits until everyone is in the room.
+            if (kind == GateKind.Elevator || kind == GateKind.Gathered)
             {
                 wayOn.Add(key);
             }
