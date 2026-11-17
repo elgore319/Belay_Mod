@@ -17,3 +17,14 @@ player's 1.5 m capsule (`ClimberAvatar.Scale`).
 `SKINS_DIR=<dir> dotnet run ...` adds the game's hand cosmetics on the 3D hands (render with
 `VIEWS='[["skins",0,"..."]]'`). Build `<dir>` from your own install with `scripts/make_skins.py`.
 Skin art comes from the local game files and is never committed.
+
+## Held items
+
+Teammates hold a hand-sized copy of each item's world model, posed by `HeldGrip.cs` (the rapier is
+our own model, `ItemModels.cs`). To preview the grips with the real game models (never committed):
+pull the item models out of the game's Addressables bundle
+(`StreamingAssets/aa/StandaloneWindows64/defaultlocalgroup_assets_all_*.bundle`) with UnityPy
+(`python3 scripts/export_items.py Item_Hammer,Item_Piton,...` then `python3 scripts/items_to_preview.py`),
+then `ITEMS_JSON=items_preview.json dotnet run ...` adds a `hold:<item>` figure (left hand out in front,
+right hand at the side) and a `grip:<item>` close-up of a right fist. `OLD=1` poses them the way
+0.7.34 and earlier did, for comparisons.

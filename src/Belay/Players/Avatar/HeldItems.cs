@@ -18,6 +18,13 @@ namespace Belay.Players.Avatar
         /// </summary>
         private static readonly Dictionary<string, GameObject> templates = new Dictionary<string, GameObject>();
         private static readonly Dictionary<string, float> failedUntil = new Dictionary<string, float>();
+        private static readonly Dictionary<string, float> lengths = new Dictionary<string, float>();
+
+        /// <summary>The item's longest size in the world (before it's shrunk to hand size).</summary>
+        public static float LengthOf(string prefabName)
+        {
+            return prefabName != null && lengths.TryGetValue(prefabName, out float length) ? length : 0.3f;
+        }
         private static Transform holder;
 
         /// <summary>A fresh copy of the item's model, or null if it has no model (or isn't loaded).</summary>
@@ -75,6 +82,10 @@ namespace Belay.Players.Avatar
 
         private static GameObject Build(string prefabName)
         {
+            if (ItemModels.HasModel(prefabName))
+            {
+                return BuildOwnModel(prefabName);
+            }
             GameObject prefab = FindPrefab(prefabName);
             if (prefab == null)
             {
@@ -85,6 +96,17 @@ namespace Belay.Players.Avatar
             foreach (Renderer renderer in prefab.GetComponentsInChildren<Renderer>(true))
             {
                 if (!renderer.enabled || renderer.GetType().Name.Contains("Particle") || renderer is LineRenderer || renderer is TrailRenderer)
+                {
+                    continue;
+                }
+                // The scanner's target marker only shows through the scanner; on the avatar's layer it
+                // would be a pixel square stuck to the item. The game drops it the same way.
+                if (renderer.gameObject.layer == ScannerLayer || renderer.name.Contains("Target_Circle"))
+                {
+                    continue;
+                }
+                // The piton carries a model for each cosmetic; only the standard one is shown by default.
+                if (renderer.name.Contains("Enthusiast") && prefabName.ToLowerInvariant().Contains("piton"))
                 {
                     continue;
                 }
@@ -145,42 +167,11 @@ namespace Belay.Players.Avatar
                     massTotal += volume;
                 }
             }
-            Vector3 size = bounds.size;
-            int longest = 0;
-            for (int i = 1; i < 3; i++)
-            {
-                if (size[i] > size[longest])
-                {
-                    longest = i;
-                }
-            }
-            int second = (longest + 1) % 3, third = (longest + 2) % 3;
-            if (size[third] > size[second])
-            {
-                second = third;
-            }
-            Vector3 axis = Vector3.zero, across = Vector3.zero;
-            axis[longest] = 1f;
-            across[second] = 1f;
             Vector3 mass = massTotal > 0f ? massSum / massTotal : bounds.center;
-            float heavySide = Vector3.Dot(mass - bounds.center, axis);
-            if (heavySide < 0f)
-            {
-                axis = -axis;
-            }
-            float acrossSide = Vector3.Dot(mass - bounds.center, across);
-            if (acrossSide < 0f)
-            {
-                across = -across;
-            }
-
-            // Hold it a fifth of the way up from the light end, or by the middle if it's small.
-            float length = size[longest];
-            float gripFromEnd = length > 0.25f ? 0.2f : 0.5f;
-            Vector3 grip = bounds.center + axis * (length * (gripFromEnd - 0.5f));
-            Quaternion orient = Quaternion.Inverse(Quaternion.LookRotation(across, Vector3.Cross(across, axis)));
-            // LookRotation(forward=across, up=across x axis) maps +Z to across and +X to axis; invert it so
-            // the item's axis lands on +X and its across direction on +Z.
+            Vector3 size = bounds.size;
+            lengths[prefabName] = Mathf.Max(size.x, Mathf.Max(size.y, size.z));
+            // Root space to grip space: the fist closes at the origin, the item runs along +X.
+            Matrix4x4 fit = HeldGrip.Fit(bounds.min, bounds.max, mass, prefabName);
 
             if (holder == null)
             {
@@ -193,8 +184,8 @@ namespace Belay.Players.Avatar
             root.transform.SetParent(holder, false);
             var model = new GameObject("Model");
             model.transform.SetParent(root.transform, false);
-            model.transform.localRotation = orient;
-            model.transform.localPosition = orient * -grip;
+            model.transform.localRotation = fit.rotation;
+            model.transform.localPosition = fit.GetColumn(3);
             foreach (Piece piece in pieces)
             {
                 var part = new GameObject(piece.Mesh != null ? piece.Mesh.name : piece.Sprite.name);
@@ -221,6 +212,45 @@ namespace Belay.Players.Avatar
             }
             root.SetActive(false);
             return root;
+        }
+
+        private static int ScannerLayer => LayerMask.NameToLayer("Scanner");
+
+        private static Material[] ownMaterials;
+
+        /// <summary>Items we model ourselves (the rapier as the sword it becomes in the hand).</summary>
+        private static GameObject BuildOwnModel(string prefabName)
+        {
+            var kit = new MeshKit(ItemModels.SlotCount);
+            ItemModels.BuildRapier(kit);
+            if (ownMaterials == null)
+            {
+                ownMaterials = ClimberAvatar.MakeItemMaterials(ItemModels.RapierRecipes());
+            }
+            lengths[prefabName] = 1.06f;
+            Transform parent = Holder();
+            var root = new GameObject("Belay_HeldTemplate_" + prefabName);
+            root.transform.SetParent(parent, false);
+            var model = new GameObject("Model");
+            model.transform.SetParent(root.transform, false);
+            model.AddComponent<MeshFilter>().sharedMesh = kit.ToMesh("Belay_" + prefabName);
+            MeshRenderer r = model.AddComponent<MeshRenderer>();
+            r.sharedMaterials = ownMaterials;
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            root.SetActive(false);
+            return root;
+        }
+
+        private static Transform Holder()
+        {
+            if (holder == null)
+            {
+                var go = new GameObject("Belay_HeldItemTemplates");
+                go.SetActive(false);
+                UnityEngine.Object.DontDestroyOnLoad(go);
+                holder = go.transform;
+            }
+            return holder;
         }
 
         private static Bounds Transform(Bounds b, Matrix4x4 m)

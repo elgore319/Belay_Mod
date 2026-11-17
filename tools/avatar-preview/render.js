@@ -65,7 +65,7 @@ const page = `<html><body style="margin:0;background:#16171a"><canvas id="c"></c
       }
       const floor = new THREE.Mesh(new THREE.CircleGeometry(0.6, 32), new THREE.MeshStandardMaterial({ color: 0x24262b }));
       floor.rotation.x = -Math.PI / 2;
-      if (name !== 'hanging' && name !== 'skins') scene.add(floor);
+      if (name !== 'hanging' && name !== 'skins' && !name.startsWith('grip:')) scene.add(floor);
       scenes[name] = scene;
     }
     views.forEach(([name, angle, label], i) => {

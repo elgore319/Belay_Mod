@@ -1,4 +1,4 @@
-## Tethered 0.7.38
+## Tethered 0.7.39
 
 - **Teammates' items sound and look right.** Every sound a teammate's held item makes (gunshots, reloads, swings, pumps, clicks) now plays from where they are. Their shots flash at the hand.
 - **Shots and throws land for everyone.** A teammate's bullets, flares, spears and grenades already flew on your screen. Now they also play their impact: sparks, the hit sound, a flare burning where it landed, a spear staying stuck in the wall.
