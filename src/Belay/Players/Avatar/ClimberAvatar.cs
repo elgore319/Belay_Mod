@@ -9,7 +9,7 @@ namespace Belay.Players.Avatar
     /// hand is (closed fists on a hold, open hands otherwise), legs walk, dangle while hanging and splay
     /// while falling, the head follows the camera pitch, and the torso leans into the climb.
     /// </summary>
-    public class ClimberAvatar
+    public partial class ClimberAvatar
     {
         /// <summary>
         /// Height of the player's transform above the soles of the feet. ENT_Player's position is the
@@ -744,7 +744,7 @@ namespace Belay.Players.Avatar
         /// <summary>Two segments (upper arm and forearm, or thigh and shin) solved with two-bone IK.</summary>
         private class Limb
         {
-            private readonly Transform upper, lower;
+            internal readonly Transform upper, lower;
             private readonly float upperLength, lowerLength;
 
             public Vector3 Joint { get; private set; }

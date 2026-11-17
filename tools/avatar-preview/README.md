@@ -34,3 +34,6 @@ right hand at the side) and a `grip:<item>` close-up of a right fist. `OLD=1` po
 `TOTEM=1 dotnet run ...` adds the co-op disk totem (`src/Belay/Items/TotemLook.cs`): a `totem` figure at world
 size and a `hold:Item_Floppy_T1` / `grip:Item_Floppy_T1` figure, and writes its first-person hand sprite to
 `totem-sprite.raw` (128x128 RGBA, rows bottom-up).
+
+`REFORM=0.3,0.9,1.5 dotnet run ...` adds `reform:<seconds>` figures: the totem revive (`Reform.cs`) at those
+times, with the bones and the glowing heart.
