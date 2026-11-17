@@ -9,8 +9,8 @@ namespace Belay.World
 {
     /// <summary>
     /// Moving on to the next area takes a team vote. In an interlude or breakroom with a vote terminal
-    /// (see VoteTerminal), whatever takes the team on (an elevator's button, the lockdown that seals
-    /// the way behind, a button that carries everyone off) does nothing until more than half of the
+    /// (see VoteTerminal), whatever takes the team on (an elevator's button, a button that carries
+    /// everyone off; not the lockdown that seals the hatch behind, which only waits for everyone) does nothing until more than half of the
     /// living players have voted to move on at the vote terminal. Doors and hatches stay free, so
     /// anyone still behind can get into the room to vote. Nothing on screen: the controls just don't
     /// work until the vote passes. Bots don't vote and aren't counted.
