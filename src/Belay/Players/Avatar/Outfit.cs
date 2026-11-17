@@ -18,14 +18,17 @@ namespace Belay.Players.Avatar
         /// <summary>A lore look (<see cref="LoreLooks"/>); 0 is the standard climber.</summary>
         public int Look;
 
+        /// <summary>In Roach Mode right now (not a choice: follows the binding), drawn as the giant roach.</summary>
+        public bool Roach;
+
         public bool Same(Outfit o)
         {
-            return Headgear == o.Headgear && Jacket == o.Jacket && Hat == o.Hat && Pants == o.Pants && Pack == o.Pack && Look == o.Look;
+            return Headgear == o.Headgear && Jacket == o.Jacket && Hat == o.Hat && Pants == o.Pants && Pack == o.Pack && Look == o.Look && Roach == o.Roach;
         }
 
         public override string ToString()
         {
-            return Headgear + "," + Jacket + "," + Hat + "," + Pants + "," + Pack + "," + Look;
+            return Headgear + "," + Jacket + "," + Hat + "," + Pants + "," + Pack + "," + Look + "," + (Roach ? 1 : 0);
         }
 
         /// <summary>Reads what <see cref="ToString"/> wrote; anything unknown or out of range becomes standard.</summary>
@@ -43,6 +46,7 @@ namespace Belay.Players.Avatar
             o.Pants = Part(parts, 3, Outfits.Colors.Length);
             o.Pack = Part(parts, 4, Outfits.Colors.Length);
             o.Look = Part(parts, 5, LoreLooks.Count);
+            o.Roach = Part(parts, 6, 2) == 1;
             return o;
         }
 
@@ -125,7 +129,9 @@ namespace Belay.Players.Avatar
                 {
                     return default;
                 }
-                return Outfit.Parse(headgear.Value + "," + jacket.Value + "," + hat.Value + "," + pants.Value + "," + pack.Value + "," + look.Value);
+                Outfit o = Outfit.Parse(headgear.Value + "," + jacket.Value + "," + hat.Value + "," + pants.Value + "," + pack.Value + "," + look.Value);
+                o.Roach = RoachMode.Local;
+                return o;
             }
             set
             {

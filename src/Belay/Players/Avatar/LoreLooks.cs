@@ -15,7 +15,8 @@ namespace Belay.Players.Avatar
     public static class LoreLooks
     {
         public const int Climber = 0, Researcher = 1, Maintenance = 2, PierWorker = 3, Scavenger = 4,
-            Expedition = 5, Infested = 6, Denizen = 7, Count = 8;
+            Expedition = 5, Infested = 6, Denizen = 7, ZombieScientist = 8, ZombieSecurity = 9,
+            Shopkeeper = 10, Count = 11;
 
         public struct Look
         {
@@ -24,6 +25,8 @@ namespace Belay.Players.Avatar
             public Color Jacket, Trim, Pants, Pack, Hat, Accent, Flesh, Boot, Glove;
             /// <summary>How filthy the cloth is, 0..1 (the standard climber is about 0.3).</summary>
             public float Grime;
+            /// <summary>Set for looks that wear one of the game's own models (see <see cref="GameModelAvatar"/>).</summary>
+            public string Model;
         }
 
         public static readonly Look[] All =
@@ -93,6 +96,24 @@ namespace Belay.Players.Avatar
                 Hat = new Color(0.3f, 0.3f, 0.3f), Accent = new Color(0.45f, 0.08f, 0.08f),
                 Flesh = new Color(0.74f, 0.68f, 0.6f), Boot = new Color(0.15f, 0.13f, 0.13f),
                 Glove = new Color(0.36f, 0.3f, 0.28f), Grime = 0.4f,
+            },
+            new Look
+            {
+                Name = "Zombie scientist",
+                Blurb = "The game's own Delta Labs casualty: torn lab coat, injector still in the pocket.",
+                Model = GameModelAvatar.ZombieScientist,
+            },
+            new Look
+            {
+                Name = "Zombie security",
+                Blurb = "The game's own security guard, armor plates, radio and all, long past saving.",
+                Model = GameModelAvatar.ZombieSecurity,
+            },
+            new Look
+            {
+                Name = "Soach shopkeeper",
+                Blurb = "The Bazaar's roach trader, goggles, rope and wares strapped on.",
+                Model = GameModelAvatar.Soach,
             },
         };
 

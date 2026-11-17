@@ -180,6 +180,7 @@ namespace Belay.Players.Avatar
                 : headMeshes[Mathf.Clamp(wanted.Headgear, 0, headMeshes.Length - 1)];
             extra.GetComponent<MeshFilter>().sharedMesh = lore ? lookExtras[wanted.Look] : null;
             extra.gameObject.SetActive(lore);
+            modelKind = ModelFor(wanted);
             Paint(materials, LoreLooks.Recipes(wanted.Look, color, Swatch(wanted.Jacket), Swatch(wanted.Hat), Swatch(wanted.Pants), Swatch(wanted.Pack)));
         }
 
@@ -193,6 +194,63 @@ namespace Belay.Players.Avatar
             if (root.gameObject.activeSelf != visible)
             {
                 root.gameObject.SetActive(visible);
+            }
+            model?.SetVisible(visible);
+        }
+
+        /// <summary>The climber's joints as last posed, for a game model that copies the pose.</summary>
+        public struct Skeleton
+        {
+            public Vector3 Pelvis;
+            public Quaternion Torso, Head;
+            public Vector3 LeftHand, RightHand, LeftElbow, RightElbow, LeftFoot, RightFoot, LeftKnee, RightKnee;
+        }
+
+        public Skeleton Bones => new Skeleton
+        {
+            Pelvis = torso.position, Torso = torso.rotation, Head = head.rotation,
+            LeftHand = leftArm.Tip, RightHand = rightArm.Tip, LeftElbow = leftArm.Bend, RightElbow = rightArm.Bend,
+            LeftFoot = leftLeg.Tip, RightFoot = rightLeg.Tip, LeftKnee = leftLeg.Bend, RightKnee = rightLeg.Bend,
+        };
+
+        // A game model worn instead of the climber (Roach Mode's giant roach, zombie and Soach looks).
+        private GameModelAvatar model;
+        private string modelKind;
+        private bool climberHidden;
+        private float nextHideCheck;
+
+        /// <summary>Which game model the outfit calls for, or null for our own climber.</summary>
+        private static string ModelFor(Outfit o)
+        {
+            if (o.Roach)
+            {
+                return GameModelAvatar.GiantRoach;
+            }
+            return LoreLooks.Valid(o.Look) ? LoreLooks.All[o.Look].Model : null;
+        }
+
+        private void UpdateModel(Vector3 position, Vector3 velocity, bool hanging, float dt)
+        {
+            if (modelKind != (model != null ? model.Kind : null))
+            {
+                model?.Destroy();
+                model = modelKind != null ? GameModelAvatar.Create(modelKind, root.parent) : null;
+            }
+            bool useModel = model != null;
+            if (useModel)
+            {
+                model.SetVisible(root.gameObject.activeInHierarchy);
+                model.Follow(Bones, position + Vector3.down * FeetDrop, bodyYaw, velocity, hanging, dt);
+            }
+            if (useModel != climberHidden || (useModel && Time.unscaledTime >= nextHideCheck))
+            {
+                climberHidden = useModel;
+                nextHideCheck = Time.unscaledTime + 1f;
+                foreach (Renderer r in root.GetComponentsInChildren<Renderer>(true))
+                {
+                    r.enabled = !useModel;
+                }
+                lamp.gameObject.SetActive(!useModel);
             }
         }
 
@@ -438,6 +496,7 @@ namespace Belay.Players.Avatar
             rightBoot.SetPositionAndRotation(ankleRight, Quaternion.Slerp(rightBoot.rotation, bootRotation, posed ? follow : 1f));
 
             posed = true;
+            UpdateModel(position, velocity, hanging, dt);
         }
 
         /// <summary>0 with open space in front of the legs, 1 with a wall right against them.</summary>
@@ -683,6 +742,11 @@ namespace Belay.Players.Avatar
             private readonly float upperLength, lowerLength;
 
             public Vector3 Joint { get; private set; }
+
+            /// <summary>Where the limb starts (shoulder or hip), bends (elbow or knee) and ends (wrist or ankle) as last posed.</summary>
+            public Vector3 Root => upper.position;
+            public Vector3 Bend => lower.position;
+            public Vector3 Tip => lower.position + lower.forward * lower.localScale.z;
 
             public Limb(Transform upper, Transform lower, float upperLength, float lowerLength)
             {
