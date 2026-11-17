@@ -18,6 +18,8 @@
     <Compile Include="..\..\src\Belay\Players\Avatar\LoreLooks.cs" />
     <Compile Include="..\..\src\Belay\Players\Avatar\PixelTextures.cs" />
     <Compile Include="..\..\src\Belay\Players\Avatar\SkinBaker.cs" />
+    <Compile Include="..\..\src\Belay\Players\Avatar\HeldGrip.cs" />
+    <Compile Include="..\..\src\Belay\Players\Avatar\ItemModels.cs" />
     <Reference Include="UnityEngine.CoreModule" HintPath="$(GameDir)\White Knuckle_Data\Managed\UnityEngine.CoreModule.dll" />
   </ItemGroup>
 </Project>
