@@ -546,8 +546,16 @@ namespace Belay.UI
             GUILayout.Label("How teammates see your climber. Your gloves follow the hand skins you equip in the game.");
             GUILayout.Space(8);
 
-            GUILayout.Label("Headgear");
-            outfit.Headgear = GUILayout.Toolbar(outfit.Headgear, Players.Avatar.Outfits.HeadgearNames, BelayTheme.Tab ?? GUI.skin.button);
+            GUILayout.Label("Look");
+            outfit.Look = GUILayout.SelectionGrid(outfit.Look, Players.Avatar.Outfits.LookNames, 4, BelayTheme.Tab ?? GUI.skin.button);
+            GUILayout.Label(Players.Avatar.LoreLooks.All[Mathf.Clamp(outfit.Look, 0, Players.Avatar.LoreLooks.Count - 1)].Blurb,
+                BelayTheme.Hint ?? GUI.skin.label);
+            GUILayout.Space(8);
+            if (!Players.Avatar.LoreLooks.Valid(outfit.Look))
+            {
+                GUILayout.Label("Headgear");
+                outfit.Headgear = GUILayout.Toolbar(outfit.Headgear, Players.Avatar.Outfits.HeadgearNames, BelayTheme.Tab ?? GUI.skin.button);
+            }
             GUILayout.Space(8);
             outfit.Jacket = DrawOutfitColor("Jacket", outfit.Jacket, "Lobby color");
             outfit.Hat = DrawOutfitColor("Helmet / beanie", outfit.Hat, "Lobby color");

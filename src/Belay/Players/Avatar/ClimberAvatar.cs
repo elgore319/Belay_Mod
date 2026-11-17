@@ -59,12 +59,14 @@ namespace Belay.Players.Avatar
 
         private static Mesh packMesh, packLidMesh;
         private static readonly Mesh[] headMeshes = new Mesh[AvatarDesign.HeadStyles];
+        private static readonly Mesh[] lookHeads = new Mesh[LoreLooks.Count];
+        private static readonly Mesh[] lookExtras = new Mesh[LoreLooks.Count];
         private static Mesh torsoMesh, upperArmMesh, forearmMesh, thighMesh, shinMesh, bootMesh;
         private static Mesh fistLeft, fistRight, openLeft, openRight;
         private static Shader litShader;
 
         private readonly Transform root;
-        private readonly Transform torso, head;
+        private readonly Transform torso, head, extra;
         private readonly Limb leftArm, rightArm, leftLeg, rightLeg;
         private readonly Transform leftBoot, rightBoot;
         private readonly Transform leftFist, rightFist, leftOpen, rightOpen;
@@ -129,6 +131,11 @@ namespace Belay.Players.Avatar
 
             torso = Part("Torso", torsoMesh, materials);
             head = Part("Head", headMeshes[0], materials);
+            // A lore look's coat, tool belt or growths, worn over the torso and moving with it.
+            extra = Part("Extra", null, materials);
+            extra.SetParent(torso, false);
+            extra.localScale = Vector3.one;
+            extra.gameObject.SetActive(false);
             pack = Part("Pack", packMesh, materials);
             packLid = Part("PackLid", packLidMesh, materials);
             leftArm = new Limb(Part("LeftUpperArm", upperArmMesh, materials), Part("LeftForearm", forearmMesh, materials),
@@ -167,8 +174,14 @@ namespace Belay.Players.Avatar
                 return;
             }
             outfit = wanted;
-            head.GetComponent<MeshFilter>().sharedMesh = headMeshes[Mathf.Clamp(wanted.Headgear, 0, headMeshes.Length - 1)];
-            Paint(materials, AvatarDesign.Recipes(color, Swatch(wanted.Jacket), Swatch(wanted.Hat), Swatch(wanted.Pants), Swatch(wanted.Pack)));
+            bool lore = LoreLooks.Valid(wanted.Look);
+            head.GetComponent<MeshFilter>().sharedMesh = lore
+                ? lookHeads[wanted.Look]
+                : headMeshes[Mathf.Clamp(wanted.Headgear, 0, headMeshes.Length - 1)];
+            extra.GetComponent<MeshFilter>().sharedMesh = lore ? lookExtras[wanted.Look] : null;
+            extra.gameObject.SetActive(lore);
+            modelKind = ModelFor(wanted);
+            Paint(materials, LoreLooks.Recipes(wanted.Look, color, Swatch(wanted.Jacket), Swatch(wanted.Hat), Swatch(wanted.Pants), Swatch(wanted.Pack)));
         }
 
         private static Color? Swatch(int index)
@@ -181,6 +194,63 @@ namespace Belay.Players.Avatar
             if (root.gameObject.activeSelf != visible)
             {
                 root.gameObject.SetActive(visible);
+            }
+            model?.SetVisible(visible);
+        }
+
+        /// <summary>The climber's joints as last posed, for a game model that copies the pose.</summary>
+        public struct Skeleton
+        {
+            public Vector3 Pelvis;
+            public Quaternion Torso, Head;
+            public Vector3 LeftHand, RightHand, LeftElbow, RightElbow, LeftFoot, RightFoot, LeftKnee, RightKnee;
+        }
+
+        public Skeleton Bones => new Skeleton
+        {
+            Pelvis = torso.position, Torso = torso.rotation, Head = head.rotation,
+            LeftHand = leftArm.Tip, RightHand = rightArm.Tip, LeftElbow = leftArm.Bend, RightElbow = rightArm.Bend,
+            LeftFoot = leftLeg.Tip, RightFoot = rightLeg.Tip, LeftKnee = leftLeg.Bend, RightKnee = rightLeg.Bend,
+        };
+
+        // A game model worn instead of the climber (Roach Mode's giant roach, zombie and Soach looks).
+        private GameModelAvatar model;
+        private string modelKind;
+        private bool climberHidden;
+        private float nextHideCheck;
+
+        /// <summary>Which game model the outfit calls for, or null for our own climber.</summary>
+        private static string ModelFor(Outfit o)
+        {
+            if (o.Roach)
+            {
+                return GameModelAvatar.GiantRoach;
+            }
+            return LoreLooks.Valid(o.Look) ? LoreLooks.All[o.Look].Model : null;
+        }
+
+        private void UpdateModel(Vector3 position, Vector3 velocity, bool hanging, float dt)
+        {
+            if (modelKind != (model != null ? model.Kind : null))
+            {
+                model?.Destroy();
+                model = modelKind != null ? GameModelAvatar.Create(modelKind, root.parent) : null;
+            }
+            bool useModel = model != null;
+            if (useModel)
+            {
+                model.SetVisible(root.gameObject.activeInHierarchy);
+                model.Follow(Bones, position + Vector3.down * FeetDrop, bodyYaw, velocity, hanging, dt);
+            }
+            if (useModel != climberHidden || (useModel && Time.unscaledTime >= nextHideCheck))
+            {
+                climberHidden = useModel;
+                nextHideCheck = Time.unscaledTime + 1f;
+                foreach (Renderer r in root.GetComponentsInChildren<Renderer>(true))
+                {
+                    r.enabled = !useModel;
+                }
+                lamp.gameObject.SetActive(!useModel);
             }
         }
 
@@ -426,6 +496,7 @@ namespace Belay.Players.Avatar
             rightBoot.SetPositionAndRotation(ankleRight, Quaternion.Slerp(rightBoot.rotation, bootRotation, posed ? follow : 1f));
 
             posed = true;
+            UpdateModel(position, velocity, hanging, dt);
         }
 
         /// <summary>0 with open space in front of the legs, 1 with a wall right against them.</summary>
@@ -672,6 +743,11 @@ namespace Belay.Players.Avatar
 
             public Vector3 Joint { get; private set; }
 
+            /// <summary>Where the limb starts (shoulder or hip), bends (elbow or knee) and ends (wrist or ankle) as last posed.</summary>
+            public Vector3 Root => upper.position;
+            public Vector3 Bend => lower.position;
+            public Vector3 Tip => lower.position + lower.forward * lower.localScale.z;
+
             public Limb(Transform upper, Transform lower, float upperLength, float lowerLength)
             {
                 this.upper = upper;
@@ -743,6 +819,12 @@ namespace Belay.Players.Avatar
             {
                 int which = style;
                 headMeshes[style] = Build("Belay_Head" + style, k => AvatarDesign.BuildHead(k, which));
+            }
+            for (int look = 1; look < LoreLooks.Count; look++)
+            {
+                int which = look;
+                lookHeads[look] = Build("Belay_LookHead" + look, k => LoreLooks.BuildHead(k, which));
+                lookExtras[look] = Build("Belay_LookExtra" + look, k => LoreLooks.BuildExtra(k, which));
             }
             upperArmMesh = Build("Belay_UpperArm", AvatarDesign.BuildUpperArm);
             forearmMesh = Build("Belay_Forearm", AvatarDesign.BuildForearm);
