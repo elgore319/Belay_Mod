@@ -68,7 +68,13 @@ namespace Belay.Players.Avatar
         {
             var t = new Tweak { GripAt = -1f, Tilt = DefaultTilt };
             string n = (prefabName ?? "").ToLowerInvariant();
-            if (n.Contains("rapier"))
+            if (ItemModels.IsTotem(prefabName))
+            {
+                // Our own totem model is built with the grip at the origin, standing straight up.
+                t.GripAt = 0f;
+                t.Tilt = 0f;
+            }
+            else if (n.Contains("rapier"))
             {
                 // Our own sword model is built with the grip at the origin and the blade along +X.
                 t.GripAt = 0f;

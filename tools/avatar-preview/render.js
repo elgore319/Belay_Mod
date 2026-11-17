@@ -37,7 +37,7 @@ const page = `<html><body style="margin:0;background:#16171a"><canvas id="c"></c
       const tex = new THREE.DataTexture(bytes, t.w, t.h, THREE.RGBAFormat);
       tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter;
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true;
-      return new THREE.MeshLambertMaterial({ map: tex, emissive: i === 9 ? 0xfff0c0 : 0x000000, side: THREE.DoubleSide });
+      return new THREE.MeshLambertMaterial({ map: tex, emissive: [9].concat(model.emissive || []).includes(i) ? 0xfff0c0 : 0x000000, side: THREE.DoubleSide });
     });
     const scenes = {};
     for (const name of Object.keys(model.figures)) {

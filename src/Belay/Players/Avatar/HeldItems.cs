@@ -216,18 +216,40 @@ namespace Belay.Players.Avatar
 
         private static int ScannerLayer => LayerMask.NameToLayer("Scanner");
 
-        private static Material[] ownMaterials;
+        private static Material[] rapierMaterials, totemMaterials;
 
-        /// <summary>Items we model ourselves (the rapier as the sword it becomes in the hand).</summary>
+        /// <summary>Items we model ourselves (the rapier as the sword it becomes in the hand, disks as totems).</summary>
         private static GameObject BuildOwnModel(string prefabName)
         {
-            var kit = new MeshKit(ItemModels.SlotCount);
-            ItemModels.BuildRapier(kit);
-            if (ownMaterials == null)
+            MeshKit kit;
+            Material[] ownMaterials;
+            if (ItemModels.IsTotem(prefabName))
             {
-                ownMaterials = ClimberAvatar.MakeItemMaterials(ItemModels.RapierRecipes());
+                kit = new MeshKit(Belay.Items.TotemLook.SlotCount);
+                ItemModels.BuildTotem(kit);
+                if (totemMaterials == null)
+                {
+                    totemMaterials = ClimberAvatar.MakeItemMaterials(Belay.Items.TotemLook.Recipes(), -1);
+                    Material glow = totemMaterials[Belay.Items.TotemLook.GlowSlot];
+                    if (glow.HasProperty("_EmissionColor"))
+                    {
+                        glow.SetColor("_EmissionColor", new Color(1f, 0.6f, 0.15f));
+                    }
+                }
+                ownMaterials = totemMaterials;
+                lengths[prefabName] = ItemModels.HeldTotemLength;
             }
-            lengths[prefabName] = 1.06f;
+            else
+            {
+                kit = new MeshKit(ItemModels.SlotCount);
+                ItemModels.BuildRapier(kit);
+                if (rapierMaterials == null)
+                {
+                    rapierMaterials = ClimberAvatar.MakeItemMaterials(ItemModels.RapierRecipes());
+                }
+                ownMaterials = rapierMaterials;
+                lengths[prefabName] = 1.06f;
+            }
             Transform parent = Holder();
             var root = new GameObject("Belay_HeldTemplate_" + prefabName);
             root.transform.SetParent(parent, false);
