@@ -18,7 +18,7 @@ namespace Belay
     {
         public const string Guid = "elgore319.belay";
         public const string Name = "Tethered";
-        public const string Version = "0.7.38";
+        public const string Version = "0.7.39";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
@@ -94,6 +94,10 @@ namespace Belay
             gameObject.AddComponent<LevelBreaks>();
             gameObject.AddComponent<ThrownSync>();
             gameObject.AddComponent<GrabSync>();
+            gameObject.AddComponent<ItemFx>();
+            gameObject.AddComponent<Blasts>();
+            gameObject.AddComponent<LevelPulses>();
+            gameObject.AddComponent<SeatLock>();
             gameObject.AddComponent<ElevatorHold>();
             gameObject.AddComponent<LevelCheck>();
             gameObject.AddComponent<Players.Avatar.OutfitPreview>();

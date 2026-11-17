@@ -12,7 +12,8 @@ namespace Belay.Players
     /// When something catches you (a barnacle's tongue, the vent hand, a bear trap), it happens on your
     /// own PC, so teammates only saw you float up or stop dead with nothing holding you. Now the catch
     /// shows on their screens too: a tongue-like line from whatever has you to your body, for as long as
-    /// it holds you. (A trap at your feet needs no line: your body just stays stuck in it.)
+    /// it holds you. (A trap at your feet needs no line: your body just stays stuck in it, and the trap
+    /// snaps shut on everyone's screen.)
     ///
     /// Turret shots also show: when a turret fires at you on your PC, your teammates see the same turret
     /// flash and its tracer fly at you.
@@ -66,6 +67,10 @@ namespace Belay.Players
             {
                 return;
             }
+            if (grabs.TryGetValue(origin, out Grab old) && old.Enemy is ENV_BearTrap oldTrap && !on)
+            {
+                Snap(oldTrap, false);
+            }
             Clear(origin);
             if (!on || !PlayerSync.Instance.Remotes.TryGetValue(origin, out RemotePlayer victim) || victim == null)
             {
@@ -75,6 +80,10 @@ namespace Belay.Players
             if (kind.Length > 0)
             {
                 g.Enemy = EnemySync.Instance.Find(kind, spawn, at);
+            }
+            if (g.Enemy is ENV_BearTrap trap)
+            {
+                Snap(trap, true);
             }
             var go = new GameObject("Belay_Grab");
             g.Line = go.AddComponent<LineRenderer>();
@@ -88,6 +97,27 @@ namespace Belay.Players
             g.Line.sharedMaterial = lineMaterial;
             g.Line.enabled = false;
             grabs[origin] = g;
+        }
+
+        private static readonly AccessTools.FieldRef<ENV_BearTrap, UT_AudioClipHandler> TrapSounds =
+            AccessTools.FieldRefAccess<ENV_BearTrap, UT_AudioClipHandler>("clipHandler");
+
+        /// <summary>A bear trap that caught (or let go of) a teammate on their PC shuts (or opens) here too.</summary>
+        private static void Snap(ENV_BearTrap trap, bool shut)
+        {
+            try
+            {
+                if (trap == null || trap.dead || trap.animator == null || trap.animator.GetBool("Holding") == shut)
+                {
+                    return;
+                }
+                trap.animator.SetBool("Holding", shut);
+                TrapSounds(trap)?.PlaySound(shut ? "trap:activate" : "trap:release");
+            }
+            catch (System.Exception e)
+            {
+                Plugin.Log.LogWarning("Bear trap not shown: " + e.Message);
+            }
         }
 
         private void Clear(SteamId id)
