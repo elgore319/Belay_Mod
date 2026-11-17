@@ -879,7 +879,7 @@ namespace Belay.Players.Avatar
 
         /// <summary>Gives every material slot a fresh texture from its recipe (the old one is freed).</summary>
         /// <summary>Materials for our own item models, lit like the avatar (matte, with some self light).</summary>
-        internal static Material[] MakeItemMaterials(PixelTextures.Recipe[] recipes)
+        internal static Material[] MakeItemMaterials(PixelTextures.Recipe[] recipes, int glossySlot = ItemModels.MetalSlot)
         {
             if (litShader == null)
             {
@@ -893,7 +893,7 @@ namespace Belay.Players.Avatar
                 materials[i] = new Material(litShader) { color = Color.white };
                 if (materials[i].HasProperty("_Glossiness"))
                 {
-                    materials[i].SetFloat("_Glossiness", i == ItemModels.MetalSlot ? 0.45f : 0f);
+                    materials[i].SetFloat("_Glossiness", i == glossySlot ? 0.45f : 0f);
                 }
                 var texture = new Texture2D(PixelTextures.Size, PixelTextures.Size, TextureFormat.RGBA32, false)
                 {

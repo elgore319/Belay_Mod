@@ -20,6 +20,7 @@
     <Compile Include="..\..\src\Belay\Players\Avatar\SkinBaker.cs" />
     <Compile Include="..\..\src\Belay\Players\Avatar\HeldGrip.cs" />
     <Compile Include="..\..\src\Belay\Players\Avatar\ItemModels.cs" />
+    <Compile Include="..\..\src\Belay\Items\TotemLook.cs" />
     <Reference Include="UnityEngine.CoreModule" HintPath="$(GameDir)\White Knuckle_Data\Managed\UnityEngine.CoreModule.dll" />
   </ItemGroup>
 </Project>

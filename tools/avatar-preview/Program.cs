@@ -114,9 +114,33 @@ internal static class Program
             itemFigures = LoadItems(itemsJson, textures);
         }
 
+        // TOTEM=1: the co-op disk totem on its own (world size), held by a climber, and its hand sprite.
+        bool totem = Environment.GetEnvironmentVariable("TOTEM") == "1";
+        if (totem)
+        {
+            totemTexBase = textures.Count;
+            foreach (PixelTextures.Recipe r in Belay.Items.TotemLook.Recipes())
+            {
+                textures.Add(Tex(PixelTextures.Generate(r, 401 + (textures.Count - totemTexBase) * 7), PixelTextures.Size, PixelTextures.Size));
+            }
+            itemFigures.Add(TotemItem);
+            Color32[] sprite = Belay.Items.TotemLook.DrawSprite();
+            var raw = new byte[sprite.Length * 4];
+            for (int i = 0; i < sprite.Length; i++)
+            {
+                raw[i * 4] = sprite[i].r; raw[i * 4 + 1] = sprite[i].g; raw[i * 4 + 2] = sprite[i].b; raw[i * 4 + 3] = sprite[i].a;
+            }
+            File.WriteAllBytes("totem-sprite.raw", raw);
+        }
+
         var sb = new StringBuilder("{\"size\":" + PixelTextures.Size + ",\"textures\":[");
         sb.Append(string.Join(",", textures)).Append("],\"skins\":[");
-        sb.Append(string.Join(",", skinNames.ConvertAll(n => "\"" + n + "\""))).Append("],\"figures\":{");
+        sb.Append(string.Join(",", skinNames.ConvertAll(n => "\"" + n + "\""))).Append("],");
+        if (totem)
+        {
+            sb.Append("\"emissive\":[" + (totemTexBase + Belay.Items.TotemLook.GlowSlot) + "],");
+        }
+        sb.Append("\"figures\":{");
 
         Figure("standing", standing: true, leftGrip: false, rightGrip: false,
             new Vector3(-0.22f, 1.25f, 0.45f), new Vector3(0.22f, 1.25f, 0.45f));
@@ -151,6 +175,16 @@ internal static class Program
             Emit(k => AvatarDesign.BuildFist(k, false), palm);
             EmitItem(item, palm, false);
             Figures.Add("\"grip:" + item + "\":[" + tris.ToString().TrimEnd(',') + "]");
+        }
+
+        if (totem)
+        {
+            // Standing on the floor at world size.
+            tris = new StringBuilder();
+            var kit = new MeshKit(Belay.Items.TotemLook.SlotCount);
+            Belay.Items.TotemLook.Build(kit, Vector3.zero, new Vector3(0, 1, 0), new Vector3(0, 0, 1));
+            EmitKit(kit, totemTexBase);
+            Figures.Add("\"totem\":[" + tris.ToString().TrimEnd(',') + "]");
         }
 
         if (skinNames.Count > 0)
@@ -419,14 +453,43 @@ internal static class Program
         return m;
     }
 
+    private const string TotemItem = "Item_Floppy_T1";
+    private static int totemTexBase;
+
+    /// <summary>Triangles of a kit built in place (no frame), with texture slots from <paramref name="texBase"/>.</summary>
+    private static void EmitKit(MeshKit kit, int texBase)
+    {
+        for (int s = 0; s < kit.Submeshes.Length; s++)
+        {
+            List<int> list = kit.Submeshes[s];
+            for (int i = 0; i < list.Count; i += 3)
+            {
+                tris.Append('[').Append(texBase + s);
+                for (int j = 0; j < 3; j++)
+                {
+                    int v = list[i + j];
+                    Vector3 p = kit.Vertices[v], n = kit.Normals[v];
+                    Vector2 uv = kit.UVs[v];
+                    foreach (float f in new[] { p.x, p.y, p.z, n.x, n.y, n.z, uv.x, uv.y })
+                    {
+                        tris.Append(',').Append(F(f));
+                    }
+                }
+                tris.Append("],");
+            }
+        }
+    }
+
     private static void EmitItem(string name, Frame hand, bool left)
     {
-        if (!Items.TryGetValue(name, out ItemMesh mesh)) return;
+        Items.TryGetValue(name, out ItemMesh mesh);
         if (ItemModels.HasModel(name) && !OldGrip)
         {
-            var kit = new MeshKit(ItemModels.SlotCount);
-            ItemModels.BuildRapier(kit);
-            mesh = new ItemMesh { Fit = Matrix4x4.identity, Length = 1.05f };
+            bool isTotem = ItemModels.IsTotem(name);
+            var kit = new MeshKit(isTotem ? Belay.Items.TotemLook.SlotCount : ItemModels.SlotCount);
+            if (isTotem) ItemModels.BuildTotem(kit); else ItemModels.BuildRapier(kit);
+            int texBase = isTotem ? totemTexBase : modelTexBase;
+            mesh = new ItemMesh { Fit = Matrix4x4.identity, Length = isTotem ? ItemModels.HeldTotemLength : 1.05f };
             for (int sub = 0; sub < kit.Submeshes.Length; sub++)
             {
                 List<int> list = kit.Submeshes[sub];
@@ -439,11 +502,12 @@ internal static class Program
                         Vector2 uv = kit.UVs[list[i + j]];
                         f[j * 5] = v.x; f[j * 5 + 1] = v.y; f[j * 5 + 2] = v.z; f[j * 5 + 3] = uv.x; f[j * 5 + 4] = uv.y;
                     }
-                    mesh.Tex.Add(modelTexBase + sub);
+                    mesh.Tex.Add(texBase + sub);
                     mesh.Tris.Add(f);
                 }
             }
         }
+        if (mesh == null) return;
         var fist = Matrix4x4.identity;
         fist.SetColumn(0, new Vector4(hand.Right.x, hand.Right.y, hand.Right.z, 0));
         fist.SetColumn(1, new Vector4(hand.Up.x, hand.Up.y, hand.Up.z, 0));

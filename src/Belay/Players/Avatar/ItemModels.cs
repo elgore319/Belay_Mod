@@ -46,7 +46,31 @@ namespace Belay.Players.Avatar
         /// <summary>Whether we draw this item ourselves instead of copying its world model.</summary>
         public static bool HasModel(string prefabName)
         {
-            return prefabName != null && prefabName.ToLowerInvariant().Contains("rapier");
+            return prefabName != null && (prefabName.ToLowerInvariant().Contains("rapier") || IsTotem(prefabName));
+        }
+
+        /// <summary>
+        /// Disks: in co-op they're revive totems (see Items/TotemLook.cs), and teammates only exist in
+        /// co-op, so a teammate holding a disk always holds the totem.
+        /// </summary>
+        public static bool IsTotem(string prefabName)
+        {
+            return prefabName != null && prefabName.StartsWith("Item_Floppy", System.StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>The held totem is a bit smaller than the one on the ground, like other held items.</summary>
+        public const float HeldTotemScale = 0.75f;
+
+        /// <summary>Length of the held totem from its base to its horn tips.</summary>
+        public static float HeldTotemLength => Belay.Items.TotemLook.Height * HeldTotemScale;
+
+        /// <summary>
+        /// The totem in template space: standing up out of the thumb side of the fist (+X), faces toward
+        /// the knuckles (+Z), gripped round the lower faces.
+        /// </summary>
+        public static void BuildTotem(MeshKit k)
+        {
+            Belay.Items.TotemLook.Build(k, new Vector3(-0.065f, 0f, 0f), new Vector3(1f, 0f, 0f), new Vector3(0f, 0f, 1f), HeldTotemScale);
         }
 
         public static void BuildRapier(MeshKit k)
