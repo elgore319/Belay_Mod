@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using HarmonyLib;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
+using UnityEngine.ResourceManagement.AsyncOperations;
 
 namespace Belay.Players.Avatar
 {
@@ -98,8 +101,12 @@ namespace Belay.Players.Avatar
             {
                 source = spec.Source();
             }
-            catch (Exception)
+            catch (Exception e)
             {
+                if (!retryAt.ContainsKey(kind))
+                {
+                    Plugin.Log.LogWarning("Couldn't find the " + kind + " model: " + e.Message);
+                }
             }
             if (source == null)
             {
@@ -382,26 +389,121 @@ namespace Belay.Players.Avatar
             return CL_AssetManager.GetAssetGameObject(name);
         }
 
-        /// <summary>The shopkeeper stands in the Bazaar level; take just him out of it.</summary>
+        private static readonly Dictionary<string, AsyncOperationHandle<GameObject>> bazaarLoads = new Dictionary<string, AsyncOperationHandle<GameObject>>();
+        private static float nextSceneScan;
+
+        /// <summary>
+        /// The shopkeeper stands in the Bazaar level, and levels aren't loaded until the run reaches them
+        /// (they live behind Addressables, so the holder's level field is empty). Ask Addressables for the
+        /// Bazaar prefabs ourselves, on our own handle so the game's loading is untouched, and take just him
+        /// out once they arrive. Until then this returns null and the caller retries in a few seconds.
+        /// </summary>
         private static GameObject SoachTrader()
         {
-            foreach (string level in new[] { "C_Roach_Bazaar_01", "C_Roach_Bazaar_Small_01" })
+            foreach (M_Level.LevelAssetHolder holder in BazaarLevels())
             {
-                M_Level.LevelAssetHolder holder = CL_AssetManager.GetLevelAsset(level);
-                GameObject levelObject = holder?.level != null ? holder.level.gameObject : null;
-                if (levelObject == null)
+                GameObject found = FindTrader(holder.level != null ? holder.level.gameObject : null);
+                if (found != null)
+                {
+                    return found;
+                }
+                if (holder.levelAssetReference == null || !holder.levelAssetReference.RuntimeKeyIsValid())
                 {
                     continue;
                 }
-                foreach (Transform t in levelObject.GetComponentsInChildren<Transform>(true))
+                if (!bazaarLoads.TryGetValue(holder.id, out AsyncOperationHandle<GameObject> handle))
                 {
-                    if (t.name == "DEN_Soach_Trader_01")
+                    handle = Addressables.LoadAssetAsync<GameObject>(holder.levelAssetReference.RuntimeKey);
+                    bazaarLoads[holder.id] = handle;
+                }
+                if (!handle.IsValid())
+                {
+                    continue;
+                }
+                if (handle.Status == AsyncOperationStatus.Succeeded)
+                {
+                    found = FindTrader(handle.Result);
+                    if (found != null)
+                    {
+                        return found;
+                    }
+                }
+                else if (handle.Status == AsyncOperationStatus.Failed)
+                {
+                    Plugin.Log.LogWarning("Couldn't load " + holder.id + " for the soach model: " + handle.OperationException?.Message);
+                    bazaarLoads[holder.id] = default(AsyncOperationHandle<GameObject>);
+                }
+            }
+            // Last resort: a Bazaar the run already spawned.
+            if (Time.unscaledTime >= nextSceneScan)
+            {
+                nextSceneScan = Time.unscaledTime + 30f;
+                foreach (Transform t in Resources.FindObjectsOfTypeAll<Transform>())
+                {
+                    if (t.name == TraderName)
                     {
                         return t.gameObject;
                     }
                 }
             }
             return null;
+        }
+
+        private const string TraderName = "DEN_Soach_Trader_01";
+
+        private static GameObject FindTrader(GameObject level)
+        {
+            if (level == null)
+            {
+                return null;
+            }
+            foreach (Transform t in level.GetComponentsInChildren<Transform>(true))
+            {
+                if (t.name == TraderName)
+                {
+                    return t.gameObject;
+                }
+            }
+            return null;
+        }
+
+        private static List<M_Level.LevelAssetHolder> bazaarLevels;
+
+        /// <summary>Every level in the game's databases whose id names the Bazaar.</summary>
+        private static List<M_Level.LevelAssetHolder> BazaarLevels()
+        {
+            if (bazaarLevels != null && bazaarLevels.Count > 0)
+            {
+                return bazaarLevels;
+            }
+            var list = new List<M_Level.LevelAssetHolder>();
+            foreach (string id in new[] { "C_Roach_Bazaar_01", "C_Roach_Bazaar_Small_01" })
+            {
+                M_Level.LevelAssetHolder holder = CL_AssetManager.GetLevelAsset(id);
+                if (holder != null)
+                {
+                    list.Add(holder);
+                }
+            }
+            if (list.Count == 0 && AccessTools.Field(typeof(CL_AssetManager), "databases")?.GetValue(null) is System.Collections.IEnumerable databases)
+            {
+                foreach (CL_AssetManager.WKDatabaseHolder db in databases)
+                {
+                    foreach (M_Level.LevelAssetHolder holder in db.database.levelAssets)
+                    {
+                        if (holder?.id != null && holder.id.IndexOf("bazaar", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            list.Add(holder);
+                        }
+                    }
+                }
+            }
+            if (list.Count == 0)
+            {
+                Plugin.Log.LogWarning("No Bazaar level found for the soach model.");
+            }
+            bazaarLevels = list;
+            return list;
         }
     }
 }
