@@ -7,7 +7,7 @@
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Version>0.7.35</Version>
+    <Version>0.7.36</Version>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
 
@@ -43,6 +43,8 @@
     <Reference Include="UnityEngine.UI" HintPath="$(ManagedDir)\UnityEngine.UI.dll" Private="false" />
     <Reference Include="UnityEngine.UIModule" HintPath="$(ManagedDir)\UnityEngine.UIModule.dll" Private="false" />
     <Reference Include="Unity.TextMeshPro" HintPath="$(ManagedDir)\Unity.TextMeshPro.dll" Private="false" />
+    <Reference Include="Unity.Addressables" HintPath="$(ManagedDir)\Unity.Addressables.dll" Private="false" />
+    <Reference Include="Unity.ResourceManager" HintPath="$(ManagedDir)\Unity.ResourceManager.dll" Private="false" />
     <Reference Include="netstandard" HintPath="$(ManagedDir)\netstandard.dll" Private="false" />
   </ItemGroup>
 
