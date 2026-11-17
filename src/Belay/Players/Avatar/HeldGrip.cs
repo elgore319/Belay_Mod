@@ -99,8 +99,9 @@ namespace Belay.Players.Avatar
             }
             else if (n.Contains("handgun"))
             {
-                // The fist closes right under the slide, the barrel running on along the forearm.
-                t = Pistol(new Vector3(0.01f, 0f, -0.01f), Vector3.left, Vector3.forward);
+                // The model lies flat: the barrel runs along -Z and the grip sticks out to -X at the back
+                // (+Z) end. The fist closes round the middle of that grip.
+                t = Pistol(new Vector3(-0.15f, 0f, 0.21f), Vector3.back, Vector3.right);
             }
             else if (n.Contains("flaregun"))
             {
