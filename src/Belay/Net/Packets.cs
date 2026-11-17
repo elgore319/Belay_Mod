@@ -65,6 +65,12 @@ namespace Belay.Net
         AreaDelegate = 117,
         MoveOnVote = 119,
         MoveOnPassed = 120,
+        ItemSound = 121,
+        HeldLight = 122,
+        Blast = 123,
+        LevelPulse = 124,
+        GantryDrones = 125,
+        SeatTaken = 126,
         // 118 was TeamPause (removed); keep the number unused.
     }
 

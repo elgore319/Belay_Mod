@@ -8,7 +8,7 @@ using UnityEngine;
 namespace Belay.Players
 {
     /// <summary>
-    /// What a teammate shoots or throws (spears, rebar, grenades, grapples) used to show only as the throw
+    /// What a teammate shoots or throws (bullets, flares, spears, rebar, grenades, grapples) used to show only as the throw
     /// animation. Now the shot flies on everyone's screen: the same projectile model, on the same path
     /// (same speed, drop and drag). It's only a look-alike: it hits nothing and leaves nothing, because
     /// the real one already does its damage on the thrower's PC and that damage is shared on its own.
@@ -64,9 +64,10 @@ namespace Belay.Players
                 GameObject ghost = Instantiate(prefab.gameObject, pos, vel.sqrMagnitude > 0.001f ? Quaternion.LookRotation(vel) : Quaternion.identity);
                 ghost.name = "Belay_Shot_" + kind;
                 // Strip everything that could hit, hurt, press or spawn: just the model is left.
+                // Lights and glows stay (a flare's glow, a grenade's blinking light).
                 foreach (MonoBehaviour b in ghost.GetComponentsInChildren<MonoBehaviour>(true))
                 {
-                    if (b != null) DestroyImmediate(b);
+                    if (b != null && !KeepOnGhost(b)) DestroyImmediate(b);
                 }
                 foreach (Collider c in ghost.GetComponentsInChildren<Collider>(true))
                 {
@@ -76,11 +77,37 @@ namespace Belay.Players
                 {
                     if (rb != null) rb.isKinematic = true;
                 }
-                ghost.AddComponent<GhostShot>().Set(vel, gravity, drag, prefab.faceVelocity);
+                ghost.AddComponent<GhostShot>().Set(prefab, vel, gravity, drag);
+                PlayLaunch(prefab, pos, vel);
             }
             catch (System.Exception e)
             {
                 Plugin.Log.LogWarning($"Couldn't show a teammate's {kind}: {e.Message}");
+            }
+        }
+
+        private static bool KeepOnGhost(MonoBehaviour b)
+        {
+            return b is CL_Lamp || b is FX_RunningLightFlare || b is FX_FadeFlareHit;
+        }
+
+        /// <summary>What the real shot does as it leaves: its sound, muzzle flash and tracer.</summary>
+        private static void PlayLaunch(Projectile prefab, Vector3 pos, Vector3 vel)
+        {
+            if (prefab.spawnSound != null && prefab.spawnSound.Count > 0)
+            {
+                AudioManager.PlaySound(prefab.spawnSound[Random.Range(0, prefab.spawnSound.Count)], pos);
+            }
+            if (prefab.useTracer)
+            {
+                if (!string.IsNullOrEmpty(prefab.particleTracerInfo.muzzleID))
+                {
+                    FXManager.PlayParticle(prefab.particleTracerInfo.muzzleID, pos, 15);
+                }
+                if (!string.IsNullOrEmpty(prefab.particleTracerInfo.tracerID) && vel.sqrMagnitude > 0.01f)
+                {
+                    FXManager.PlayTracer(prefab.particleTracerInfo.tracerID, pos, pos + vel * 0.5f, vel.magnitude);
+                }
             }
         }
 
@@ -102,29 +129,40 @@ namespace Belay.Players
         }
     }
 
-    /// <summary>A teammate's shot: flies like the real one until it meets something, then goes.</summary>
+    /// <summary>
+    /// A teammate's shot: flies like the real one until it meets something, then plays the same impact
+    /// (sound, sparks, a burning flare, an explosion's blast). Shots that stick (spears, flares) stay
+    /// where they landed for as long as the real one would.
+    /// </summary>
     internal class GhostShot : MonoBehaviour
     {
-        private const float Life = 8f;
+        private const float MaxLife = 30f;
+        private Projectile prefab;
         private Vector3 velocity;
-        private float gravity, drag, age;
+        private float gravity, drag, age, life;
         private bool face, stuck;
         private int mask;
 
-        internal void Set(Vector3 v, float g, float d, bool faceVelocity)
+        internal void Set(Projectile p, Vector3 v, float g, float d)
         {
+            prefab = p;
             velocity = v;
             gravity = g;
             drag = d;
-            face = faceVelocity;
+            face = p.faceVelocity;
+            life = Mathf.Clamp(p.lifetime, 1f, MaxLife);
             mask = ~LayerMask.GetMask("Ignore Raycast");
         }
 
         private void Update()
         {
             age += Time.deltaTime;
-            if (age > Life)
+            if (age > life)
             {
+                if (!stuck && prefab != null && prefab.lifetimeBreakEffectPrefab != null)
+                {
+                    Spawn(prefab.lifetimeBreakEffectPrefab, transform.position, transform.rotation, null);
+                }
                 Destroy(gameObject);
                 return;
             }
@@ -140,13 +178,65 @@ namespace Belay.Players
             {
                 transform.position = hit.point;
                 stuck = true;
-                Destroy(gameObject, 0.6f);
+                Impact(hit);
+                if (prefab == null || prefab.destroyOnHit)
+                {
+                    Destroy(gameObject);
+                }
+                else
+                {
+                    // Stuck in the wall like the real one; it goes when the real one would.
+                    transform.SetParent(hit.collider.transform, true);
+                }
                 return;
             }
             transform.position += step;
             if (face && velocity.sqrMagnitude > 0.01f)
             {
                 transform.rotation = Quaternion.LookRotation(velocity);
+            }
+        }
+
+        private void Impact(RaycastHit hit)
+        {
+            if (prefab == null)
+            {
+                return;
+            }
+            try
+            {
+                if (prefab.hitSound != null && prefab.hitSound.Count > 0)
+                {
+                    AudioManager.PlaySound(prefab.hitSound[Random.Range(0, prefab.hitSound.Count)], hit.point);
+                }
+                if (prefab.useHitEffects && prefab.hitEffect != null)
+                {
+                    Quaternion rot = Quaternion.Lerp(transform.rotation, Quaternion.LookRotation(-hit.normal), prefab.hitFaceNormalBlend);
+                    if (prefab.flipHitEffect)
+                    {
+                        rot *= Quaternion.Euler(0f, 180f, 0f);
+                    }
+                    Spawn(prefab.hitEffect, hit.point, rot, hit.collider != null ? hit.collider.transform : null);
+                }
+            }
+            catch (System.Exception e)
+            {
+                Plugin.Log.LogWarning("Teammate's impact not shown: " + e.Message);
+            }
+        }
+
+        /// <summary>An impact effect as a copy: any blast in it shakes and shoves, but hurts no one here.</summary>
+        private static void Spawn(GameObject effect, Vector3 at, Quaternion rot, Transform parent)
+        {
+            GameObject go = Instantiate(effect, at, rot);
+            World.Blasts.MarkCopy(go);
+            if (parent != null)
+            {
+                go.transform.SetParent(parent, true);
+            }
+            else if (WorldLoader.initialized)
+            {
+                go.transform.parent = WorldLoader.GetCurrentLevelParentRoot();
             }
         }
     }
