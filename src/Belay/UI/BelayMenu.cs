@@ -472,7 +472,7 @@ namespace Belay.UI
                     net.SetLobbyData(NetSession.KeyRopeLength, newLength.ToString(CultureInfo.InvariantCulture));
                 }
                 float doorDelay = DoorSync.Instance.CloseDelay;
-                GUILayout.Label($"Door close countdown: {doorDelay:0} s");
+                GUILayout.Label($"Door shuts {doorDelay:0} s after the last teammate is through");
                 float newDelay = Mathf.Round(GUILayout.HorizontalSlider(doorDelay, DoorSync.MinCloseDelay, DoorSync.MaxCloseDelay));
                 if (!Mathf.Approximately(newDelay, doorDelay))
                 {
@@ -489,7 +489,7 @@ namespace Belay.UI
             else
             {
                 GUILayout.Label($"Rope: {(tether ? "on" : "off")}, {length:0} m");
-                GUILayout.Label($"Door close countdown: {DoorSync.Instance.CloseDelay:0} s");
+                GUILayout.Label($"Door shuts {DoorSync.Instance.CloseDelay:0} s after the last teammate is through");
                 GUILayout.Label($"Revive cost: {ReviveSystem.Instance.Cost} roaches (paid by the reviver)");
             }
 

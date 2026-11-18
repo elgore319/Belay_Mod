@@ -1,5 +1,5 @@
-## Tethered 0.7.46
+## Tethered 0.7.47
 
-- **Free camera while spectating.** When you're dead, move the mouse (or right stick) to orbit the camera around the teammate you're watching, instead of being stuck behind their back. It uses your look sensitivity and invert-Y settings, stays on your side of walls and floors, and starts behind each teammate when you switch to them.
+- **Shorter waits at doors.** Doors and blast doors (like the one into Habitation Yellow) no longer run a 15 second countdown from the first player through. They still stay open until every living player has passed, then shut for everyone 1 second after the last one is through. The host can set that delay from 0 to 10 seconds in the lobby settings.
 
 No network change.
