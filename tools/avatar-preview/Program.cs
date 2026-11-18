@@ -203,6 +203,7 @@ internal static class Program
             foreach (string part in reform.Split(','))
             {
                 reformT = float.Parse(part, CultureInfo.InvariantCulture);
+                reformSeed = 0;
                 Figure("reform:" + part, standing: true, leftGrip: false, rightGrip: false,
                     new Vector3(-0.22f, 1.25f, 0.45f), new Vector3(0.22f, 1.25f, 0.45f));
             }
@@ -397,21 +398,27 @@ internal static class Program
             return;
         }
         Reform.Part kind = part.Value;
-        Vector3 fs = Reform.FleshScale(kind, reformT);
-        if (fs.x > 0.001f)
+        int seed = ++reformSeed;
+        // Clothes and gear spread over the skin, patch by patch.
+        float clothes = Reform.Progress(kind, Reform.Layer.Clothes, reformT);
+        if (clothes > 0f)
         {
-            Emit(k => { build(k); Squash(k, fs); }, frame);
+            Emit(k => { build(k); Grow(k, kind, clothes, seed); }, frame);
         }
-        // Muscle and skin: the part's own shape, smaller, in the flesh textures.
-        foreach (Reform.Layer layer in new[] { Reform.Layer.Muscle, Reform.Layer.Skin })
+        // Skin: the part's own shape, just inside the clothes, spreading the same way.
+        if (Reform.LayerShows(kind, Reform.Layer.Skin, reformT))
         {
-            if (!Reform.LayerShows(kind, layer, reformT))
-            {
-                continue;
-            }
-            Vector3 ls = Reform.LayerScale(kind, layer, reformT);
-            forceTex = layer == Reform.Layer.Muscle ? muscleTex : skinTex;
-            Emit(k => { build(k); Squash(k, ls); }, frame);
+            float skin = Reform.Progress(kind, Reform.Layer.Skin, reformT);
+            forceTex = skinTex;
+            Emit(k => { build(k); Grow(k, kind, skin, seed + 1000); Squash(k, Reform.SkinScale(kind)); }, frame);
+            forceTex = -1;
+        }
+        // Muscle: strands knitting over the bones.
+        if (Reform.LayerShows(kind, Reform.Layer.Muscle, reformT))
+        {
+            float muscle = Reform.Progress(kind, Reform.Layer.Muscle, reformT);
+            forceTex = muscleTex;
+            Emit(k => { var tmp = new MeshKit(1) { TileSize = 0.12f }; Reform.BuildMuscle(tmp, kind, muscle, seed); Copy(tmp, k, 0); }, frame);
             forceTex = -1;
         }
         if (kind != Reform.Part.Gear && Reform.BoneShows(kind, reformT))
@@ -428,6 +435,19 @@ internal static class Program
             Emit(k => { k.Use(Slot.Glove).Ellipsoid(Reform.CorePosition, Vector3.one * c, 4, 8); }, frame);
             gloveSlot = Slot.Glove;
         }
+    }
+
+    /// <summary>Counts the parts of each figure, so each one spreads in its own pattern.</summary>
+    private static int reformSeed;
+
+    private static void Grow(MeshKit k, Reform.Part kind, float progress, int seed)
+    {
+        var tris = new List<int>();
+        foreach (List<int> sub in k.Submeshes) tris.AddRange(sub);
+        float[] keys = Reform.SpreadKeys(k.Vertices, tris, kind, seed);
+        var output = k.Vertices.ToArray();
+        Reform.Spread(k.Vertices, tris, keys, progress, output);
+        for (int i = 0; i < output.Length; i++) k.Vertices[i] = output[i];
     }
 
     private static void Squash(MeshKit k, Vector3 s)

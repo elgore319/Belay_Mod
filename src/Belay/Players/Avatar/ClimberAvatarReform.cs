@@ -6,12 +6,74 @@ namespace Belay.Players.Avatar
     /// <summary>Plays the totem revive (<see cref="Reform"/>) on the climber.</summary>
     public partial class ClimberAvatar
     {
-        private struct ReformPiece
+        private class ReformPiece
         {
             public Transform Flesh;
             public Transform Bone;
             public Transform Muscle, Skin;
             public Reform.Part Kind;
+            public int Seed;
+            public Mesh MuscleMesh;
+            public MeshKit MuscleKit;
+            public float MuscleBuilt = -1f;
+            public SpreadMesh Clothes, Skins;
+        }
+
+        /// <summary>
+        /// A copy of a part's mesh that grows over the body patch by patch (<see cref="Reform.Spread"/>).
+        /// Rebuilt if the part's own mesh changes mid-revive (outfits, grips).
+        /// </summary>
+        private class SpreadMesh
+        {
+            public Mesh Source, Copy;
+            private Vector3[] vertices, output;
+            private int[] triangles;
+            private float[] keys;
+            private float built = -1f;
+
+            public Mesh For(Mesh source, Reform.Part kind, int seed)
+            {
+                if (source == Source && Copy != null)
+                {
+                    return Copy;
+                }
+                Free();
+                Source = source;
+                if (source == null || !source.isReadable)
+                {
+                    return null;
+                }
+                Copy = Object.Instantiate(source);
+                Copy.name = source.name + "_Reform";
+                Copy.MarkDynamic();
+                vertices = source.vertices;
+                triangles = source.triangles;
+                keys = Reform.SpreadKeys(vertices, triangles, kind, seed);
+                output = (Vector3[])vertices.Clone();
+                built = -1f;
+                return Copy;
+            }
+
+            public void Grow(float progress)
+            {
+                if (Copy == null || Mathf.Abs(progress - built) < 0.002f)
+                {
+                    return;
+                }
+                built = progress;
+                Reform.Spread(vertices, triangles, keys, progress, output);
+                Copy.vertices = output;
+            }
+
+            public void Free()
+            {
+                if (Copy != null)
+                {
+                    Object.Destroy(Copy);
+                }
+                Copy = null;
+                Source = null;
+            }
         }
 
         private static readonly Dictionary<int, Mesh> boneMeshes = new Dictionary<int, Mesh>();
@@ -111,7 +173,20 @@ namespace Belay.Players.Avatar
                 muscle = LayerObject(flesh, "Muscle", muscleMaterial);
                 skin = LayerObject(flesh, "Skin", skinMaterial);
             }
-            reformPieces.Add(new ReformPiece { Flesh = flesh, Bone = bone, Muscle = muscle, Skin = skin, Kind = kind });
+            var piece = new ReformPiece { Flesh = flesh, Bone = bone, Muscle = muscle, Skin = skin, Kind = kind, Seed = 17 + reformPieces.Count * 31 };
+            if (muscle != null)
+            {
+                piece.MuscleMesh = new Mesh { name = flesh.name + "Muscle" };
+                piece.MuscleMesh.MarkDynamic();
+                piece.MuscleKit = new MeshKit(1) { TileSize = 0.12f };
+                muscle.GetComponent<MeshFilter>().sharedMesh = piece.MuscleMesh;
+            }
+            piece.Clothes = new SpreadMesh();
+            if (skin != null)
+            {
+                piece.Skins = new SpreadMesh();
+            }
+            reformPieces.Add(piece);
         }
 
         private Transform LayerObject(Transform flesh, string layer, Material material)
@@ -239,9 +314,9 @@ namespace Belay.Players.Avatar
                         piece.Bone.localScale = Vector3.Scale(posed, Reform.BoneScale(piece.Kind, t));
                     }
                 }
-                ShowLayer(piece.Muscle, flesh, posed, piece.Kind, Reform.Layer.Muscle, t, showBones);
-                ShowLayer(piece.Skin, flesh, posed, piece.Kind, Reform.Layer.Skin, t, showBones);
-                flesh.localScale = Vector3.Scale(posed, Reform.FleshScale(piece.Kind, t));
+                ShowMuscle(piece, posed, t, showBones);
+                ShowSkin(piece, posed, t, showBones);
+                ShowClothes(piece, t);
             }
             float core = Reform.Core(t);
             bool coreShows = showBones && core > 0.001f;
@@ -251,46 +326,113 @@ namespace Belay.Players.Avatar
             }
             if (coreShows)
             {
-                // Torso scale is already shrunk this frame; place the heart from its rotation and the plain avatar scale.
                 reformCore.localPosition = torso.localPosition + torso.localRotation * (Reform.CorePosition * Scale);
                 reformCore.localScale = Vector3.one * (core * Scale);
             }
             SetGlow(Reform.Glow(t));
         }
 
-        /// <summary>A flesh layer: the part's own shape, smaller, in muscle or skin.</summary>
-        private static void ShowLayer(Transform layer, Transform flesh, Vector3 posed, Reform.Part kind, Reform.Layer which, float t, bool allowed)
+        private static void Place(Transform layer, Transform flesh, Vector3 scale)
         {
-            if (layer == null)
-            {
-                return;
-            }
-            bool show = allowed && flesh.gameObject.activeSelf && Reform.LayerShows(kind, which, t);
+            layer.localPosition = flesh.localPosition;
+            layer.localRotation = flesh.localRotation;
+            layer.localScale = scale;
+        }
+
+        private static bool SetShown(Transform layer, bool show)
+        {
             if (layer.gameObject.activeSelf != show)
             {
                 layer.gameObject.SetActive(show);
             }
-            if (!show)
+            return show;
+        }
+
+        /// <summary>Muscle: strands knitting over the bones, rebuilt as they grow.</summary>
+        private static void ShowMuscle(ReformPiece piece, Vector3 posed, float t, bool allowed)
+        {
+            if (piece.Muscle == null
+                || !SetShown(piece.Muscle, allowed && piece.Flesh.gameObject.activeSelf && Reform.LayerShows(piece.Kind, Reform.Layer.Muscle, t)))
             {
                 return;
             }
-            MeshFilter filter = layer.GetComponent<MeshFilter>();
-            Mesh mesh = flesh.GetComponent<MeshFilter>().sharedMesh;
+            Place(piece.Muscle, piece.Flesh, posed);
+            float progress = Reform.Progress(piece.Kind, Reform.Layer.Muscle, t);
+            if (Mathf.Abs(progress - piece.MuscleBuilt) < 0.004f)
+            {
+                return;
+            }
+            piece.MuscleBuilt = progress;
+            MeshKit kit = piece.MuscleKit;
+            kit.Vertices.Clear();
+            kit.Normals.Clear();
+            kit.UVs.Clear();
+            kit.Submeshes[0].Clear();
+            Reform.BuildMuscle(kit, piece.Kind, progress, piece.Seed);
+            Mesh mesh = piece.MuscleMesh;
+            mesh.Clear();
+            mesh.SetVertices(kit.Vertices);
+            mesh.SetNormals(kit.Normals);
+            mesh.SetUVs(0, kit.UVs);
+            mesh.SetTriangles(kit.Submeshes[0], 0);
+            mesh.RecalculateBounds();
+        }
+
+        /// <summary>Skin: the part's own shape, just inside the clothes, spreading over the muscle.</summary>
+        private static void ShowSkin(ReformPiece piece, Vector3 posed, float t, bool allowed)
+        {
+            if (piece.Skin == null
+                || !SetShown(piece.Skin, allowed && piece.Flesh.gameObject.activeSelf && Reform.LayerShows(piece.Kind, Reform.Layer.Skin, t)))
+            {
+                return;
+            }
+            MeshFilter filter = piece.Skin.GetComponent<MeshFilter>();
+            Mesh mesh = piece.Skins.For(FleshMesh(piece), piece.Kind, piece.Seed + 1000);
             if (filter.sharedMesh != mesh)
             {
-                filter.sharedMesh = mesh; // the head and hands change with outfits and grips
-                MeshRenderer r = layer.GetComponent<MeshRenderer>();
-                Material m = r.sharedMaterials.Length > 0 ? r.sharedMaterials[0] : null;
+                filter.sharedMesh = mesh;
+                MeshRenderer r = piece.Skin.GetComponent<MeshRenderer>();
                 var set = new Material[mesh != null ? Mathf.Max(1, mesh.subMeshCount) : 1];
                 for (int i = 0; i < set.Length; i++)
                 {
-                    set[i] = m;
+                    set[i] = skinMaterial;
                 }
                 r.sharedMaterials = set;
             }
-            layer.localPosition = flesh.localPosition;
-            layer.localRotation = flesh.localRotation;
-            layer.localScale = Vector3.Scale(posed, Reform.LayerScale(kind, which, t));
+            piece.Skins.Grow(Reform.Progress(piece.Kind, Reform.Layer.Skin, t));
+            Place(piece.Skin, piece.Flesh, Vector3.Scale(posed, Reform.SkinScale(piece.Kind)));
+        }
+
+        /// <summary>Clothes and gear: the part itself, spreading over the skin.</summary>
+        private static void ShowClothes(ReformPiece piece, float t)
+        {
+            MeshFilter filter = piece.Flesh.GetComponent<MeshFilter>();
+            if (filter == null)
+            {
+                return;
+            }
+            Mesh mesh = piece.Clothes.For(FleshMesh(piece), piece.Kind, piece.Seed);
+            if (mesh == null)
+            {
+                return;
+            }
+            if (filter.sharedMesh != mesh)
+            {
+                filter.sharedMesh = mesh;
+            }
+            piece.Clothes.Grow(Reform.Progress(piece.Kind, Reform.Layer.Clothes, t));
+        }
+
+        /// <summary>The part's own mesh (not this revive's growing copy of it).</summary>
+        private static Mesh FleshMesh(ReformPiece piece)
+        {
+            MeshFilter filter = piece.Flesh.GetComponent<MeshFilter>();
+            if (filter == null)
+            {
+                return null;
+            }
+            Mesh current = filter.sharedMesh;
+            return current != null && current == piece.Clothes.Copy ? piece.Clothes.Source : current;
         }
 
         private void EndReform()
@@ -301,6 +443,14 @@ namespace Belay.Players.Avatar
                 piece.Bone?.gameObject.SetActive(false);
                 piece.Muscle?.gameObject.SetActive(false);
                 piece.Skin?.gameObject.SetActive(false);
+                MeshFilter filter = piece.Flesh.GetComponent<MeshFilter>();
+                if (filter != null && piece.Clothes.Copy != null && filter.sharedMesh == piece.Clothes.Copy)
+                {
+                    filter.sharedMesh = piece.Clothes.Source;
+                }
+                piece.Clothes.Free();
+                piece.Skins?.Free();
+                piece.MuscleBuilt = -1f;
             }
             reformCore.gameObject.SetActive(false);
             SetGlow(0f);
