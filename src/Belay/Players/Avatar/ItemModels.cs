@@ -49,13 +49,10 @@ namespace Belay.Players.Avatar
             return prefabName != null && (prefabName.ToLowerInvariant().Contains("rapier") || IsTotem(prefabName));
         }
 
-        /// <summary>
-        /// Disks: in co-op they're revive totems (see Items/TotemLook.cs), and teammates only exist in
-        /// co-op, so a teammate holding a disk always holds the totem.
-        /// </summary>
+        /// <summary>The revive totem (Items/Totem.cs), drawn with the look from Items/TotemLook.cs.</summary>
         public static bool IsTotem(string prefabName)
         {
-            return prefabName != null && prefabName.StartsWith("Item_Floppy", System.StringComparison.OrdinalIgnoreCase);
+            return Belay.Items.Totem.IsTotem(prefabName);
         }
 
         /// <summary>The held totem is a bit smaller than the one on the ground, like other held items.</summary>

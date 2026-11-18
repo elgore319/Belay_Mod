@@ -10,9 +10,10 @@ namespace Belay.Revive
 {
     /// <summary>
     /// Death in a lobby doesn't end your run: you spectate your teammates instead. A living player brings
-    /// a dead teammate back at a save terminal (paying roaches from their own wallet; see
-    /// SaveTerminalPatches) or by using a disk they're holding (free, uses up the disk). Wallets are never
-    /// shared. The run only ends when everyone is dead.
+    /// a dead teammate back at a terminal (paying roaches from their own wallet; see AnyTerminalRevive)
+    /// or by using a totem they're holding (free, uses up the totem). Wallets are never shared. When
+    /// everyone is dead the team comes back from its disk save if it has one (TeamDiskSave), and the run
+    /// only ends when it doesn't.
     /// </summary>
     public class ReviveSystem : MonoBehaviour
     {
@@ -28,6 +29,16 @@ namespace Belay.Revive
 
         /// <summary>Lets the game's own death/game-over sequence run (when the whole lobby is dead).</summary>
         internal static bool AllowGameOver;
+
+        /// <summary>Lets the game's own death call run its disk revive (the whole team coming back from a disk save).</summary>
+        internal static bool AllowTeamReload;
+
+        /// <summary>How long a team disk revive may take before the run can end again.</summary>
+        private const float TeamReloadLimit = 30f;
+        private float teamReloadAt = -1f;
+
+        /// <summary>The run these flags belong to: a new run makes a new game manager.</summary>
+        private CL_GameManager runManager;
 
         public bool Spectating { get; private set; }
         public string Prompt { get; private set; }
@@ -63,11 +74,20 @@ namespace Belay.Revive
             net.On(PacketType.ReviveRequest, HandleReviveRequest);
             net.On(PacketType.Revived, HandleRevived);
             Run.WinSync.Listen();
+            TeamDiskSave.Listen();
             net.On(PacketType.RunOver, (origin, r) =>
             {
                 if (origin == NetSession.Instance.HostId)
                 {
                     EndRun();
+                }
+            });
+            net.On(PacketType.TeamDiskReload, (origin, r) =>
+            {
+                string id = r.ReadString();
+                if (origin == NetSession.Instance.HostId)
+                {
+                    StartTeamReload(id);
                 }
             });
         }
@@ -77,6 +97,13 @@ namespace Belay.Revive
         private void Update()
         {
             Prompt = null;
+            if (CL_GameManager.gMan != runManager)
+            {
+                // A new run (or back to the menu). The last run's game over must not carry over: it kept
+                // runOver set, so the next time the whole team died nothing happened.
+                runManager = CL_GameManager.gMan;
+                ResetRun();
+            }
             if (!Active && runOver && gameOverCheckAt >= 0f && NetSession.Instance.InLobby)
             {
                 // The world can stop counting as ready once the run ends; still make sure the screen shows.
@@ -85,12 +112,7 @@ namespace Belay.Revive
             }
             if (!Active)
             {
-                pendingRevive = false;
-                Spectating = false;
-                runOver = false;
-                allDeadSince = -1f;
-                gameOverCheckAt = -1f;
-                forcedGameOver = false;
+                ResetRun();
                 return;
             }
             ENT_Player player = ENT_Player.playerObject;
@@ -105,7 +127,7 @@ namespace Belay.Revive
                 {
                     spectateIndex++;
                 }
-                Prompt = "You died. A teammate can revive you at a save terminal, or by using a disk.  [" + Plugin.SpectateNextKey.Value + "] next player";
+                Prompt = "You died. A teammate can revive you at a terminal, or by using a totem.  [" + Plugin.SpectateNextKey.Value + "] next player";
             }
 
             if (pendingRevive && Time.unscaledTime >= nextPendingTry)
@@ -116,6 +138,17 @@ namespace Belay.Revive
 
             CheckRunOver();
             CheckGameOverStarted();
+        }
+
+        private void ResetRun()
+        {
+            pendingRevive = false;
+            Spectating = false;
+            runOver = false;
+            allDeadSince = -1f;
+            gameOverCheckAt = -1f;
+            forcedGameOver = false;
+            teamReloadAt = -1f;
         }
 
         private Vector3 spectateEye;
@@ -277,6 +310,17 @@ namespace Belay.Revive
                 return;
             }
             ENT_Player player = ENT_Player.playerObject;
+            if (teamReloadAt >= 0f)
+            {
+                // Coming back from the team's disk save: everyone is down until their own PC finishes it.
+                bool reloadDone = player != null && !player.dead && !CL_GameManager.gMan.IsReviving();
+                if (!reloadDone && Time.unscaledTime - teamReloadAt < TeamReloadLimit)
+                {
+                    allDeadSince = -1f;
+                    return;
+                }
+                teamReloadAt = -1f;
+            }
             bool everyoneDead = player != null && player.dead && LivingRemotes().Count == 0;
             if (!everyoneDead)
             {
@@ -294,15 +338,32 @@ namespace Belay.Revive
             {
                 if (waited > RunOverDelay)
                 {
-                    NetSession.Instance.Send(PacketType.RunOver, null);
-                    EndRun();
+                    if (TeamDiskSave.Available(out string saveId))
+                    {
+                        // The team would have had its game over: everyone comes back from the disk save.
+                        NetSession.Instance.Send(PacketType.TeamDiskReload, w => w.Write(saveId));
+                        StartTeamReload(saveId);
+                    }
+                    else
+                    {
+                        NetSession.Instance.Send(PacketType.RunOver, null);
+                        EndRun();
+                    }
                 }
             }
             else if (waited > ClientRunOverDelay)
             {
-                // The host should have ended it by now; its message may have been lost.
-                Plugin.Log.LogWarning("Everyone has been down for a while and the host didn't end the run; ending it here");
-                EndRun();
+                // The host should have decided by now; its message may have been lost.
+                if (TeamDiskSave.Available(out string saveId))
+                {
+                    Plugin.Log.LogWarning("Everyone has been down for a while and the host didn't bring the team back; using the disk save here");
+                    StartTeamReload(saveId);
+                }
+                else
+                {
+                    Plugin.Log.LogWarning("Everyone has been down for a while and the host didn't end the run; ending it here");
+                    EndRun();
+                }
             }
         }
 
@@ -406,6 +467,44 @@ namespace Belay.Revive
             gameOverCheckAt = -1f;
         }
 
+        /// <summary>
+        /// The whole team is down and has a disk save: come back from it with the game's own disk revive,
+        /// on every PC at once (each one runs this when the host says so).
+        /// </summary>
+        private void StartTeamReload(string id)
+        {
+            if (runOver || teamReloadAt >= 0f)
+            {
+                return;
+            }
+            if (!TeamDiskSave.Prepare(id))
+            {
+                Plugin.Log.LogWarning("The team is coming back from a disk save this PC doesn't have; ending the run here");
+                EndRun();
+                return;
+            }
+            teamReloadAt = Time.unscaledTime;
+            allDeadSince = -1f;
+            pendingRevive = false;
+            Spectating = false;
+            Plugin.Log.LogInfo("Everyone is down: the team comes back from the disk save at " + id);
+            AllowTeamReload = true;
+            try
+            {
+                // Die() does nothing if the game already thinks you're dead, so clear that first.
+                Traverse.Create(typeof(CL_GameManager)).Field("dead").SetValue(false);
+                CL_GameManager.gMan.Die(string.IsNullOrEmpty(lastDeathType) ? "basic" : lastDeathType);
+            }
+            catch (System.Exception e)
+            {
+                Plugin.Log.LogWarning("Coming back from the disk save failed: " + e.Message);
+            }
+            finally
+            {
+                AllowTeamReload = false;
+            }
+        }
+
         private void EndRun()
         {
             if (runOver)
@@ -472,13 +571,13 @@ namespace Belay.Revive
             return dead.Count > 0;
         }
 
-        // ---------------------------------------------------------------- Disks in hand
+        // ---------------------------------------------------------------- Totems in hand
 
         /// <summary>
-        /// Using a disk held in your hand revives a dead teammate right where you are, for free. The disk
-        /// is used up. Returns false (so the disk does whatever it normally does) when nobody is dead.
+        /// Using a totem held in your hand revives a dead teammate right where you are, for free. The
+        /// totem is used up. Returns false when nobody is dead.
         /// </summary>
-        internal static bool DiskRevive()
+        internal static bool HeldTotemRevive()
         {
             ENT_Player player = ENT_Player.playerObject;
             if (!Active || Instance == null || player == null || player.dead || !FirstDeadTeammate(out SteamId target))
@@ -486,7 +585,7 @@ namespace Belay.Revive
                 return false;
             }
             RequestRevive(target, SpotBehindLocalPlayer(), true);
-            Plugin.Log.LogInfo("Disk revive requested for " + NetSession.NameOf(target));
+            Plugin.Log.LogInfo("Totem revive requested for " + NetSession.NameOf(target));
             return true;
         }
 
@@ -510,11 +609,7 @@ namespace Belay.Revive
 
         // ---------------------------------------------------------------- Save terminals
 
-        /// <summary>
-        /// In a lobby, the save terminal's disk page is a revive station instead. Loading a disk save
-        /// would drop you back down at the terminal you saved at (under the mass) and regenerate the map
-        /// out of sync with everyone else, so disk saves are off in co-op. Physical disks aren't used.
-        /// </summary>
+        /// <summary>In a lobby: terminals offer revives, totems revive, and disk saves are the team's.</summary>
         internal static bool TerminalsAreReviveStations => Active && Instance != null;
 
         /// <summary>What the terminal's revive page should say right now.</summary>
@@ -608,7 +703,7 @@ namespace Belay.Revive
         private void ApplyRevive(SteamId target, SteamId reviver, Vector3 sharedSpawn, bool free)
         {
             Revived?.Invoke(target, reviver, sharedSpawn);
-            // Free revives come from a held totem (disk), or from a climbing bot.
+            // Free revives come from a held totem, or from a climbing bot.
             bool totem = free && !NetSession.Instance.IsLocalBot(reviver);
             if (totem)
             {
@@ -621,7 +716,7 @@ namespace Belay.Revive
                     // Paid from the reviver's own wallet only.
                     CL_GameManager.AddRoaches(-Cost);
                 }
-                RunFlowNotice("Revived " + NetSession.NameOf(target) + (free ? " with a disk" : ""));
+                RunFlowNotice("Revived " + NetSession.NameOf(target) + (free ? " with a totem" : ""));
             }
             if (target != NetSession.LocalId || !WorldSpace.Ready)
             {
@@ -772,8 +867,8 @@ namespace Belay.Revive
     }
 
     /// <summary>
-    /// When the whole team is dead the run must end, not drop into the game's disk revive, even if a
-    /// disk save is lying around from earlier.
+    /// When the run ends (the whole team is dead and has no disk save left), it must really end, not
+    /// drop into the game's disk revive.
     /// </summary>
     [HarmonyPatch(typeof(CL_SaveManager), nameof(CL_SaveManager.GetMostRecentSaveStateByType))]
     internal static class NoDiskReviveAtGameOverPatch
@@ -793,11 +888,14 @@ namespace Belay.Revive
     [HarmonyPatch(typeof(CL_GameManager), nameof(CL_GameManager.Die))]
     internal static class DiePatch
     {
-        /// <summary>In a lobby, dying starts spectating instead of the game-over screen or the disk revive.</summary>
+        /// <summary>
+        /// In a lobby, dying starts spectating instead of the game-over screen or the disk revive. Those
+        /// only run once the whole team is down (ReviveSystem lets the call through then).
+        /// </summary>
         [HarmonyPrefix]
         private static bool Prefix(CL_GameManager __instance, string type)
         {
-            if (ReviveSystem.AllowGameOver || NetSession.Instance == null || !NetSession.Instance.InLobby)
+            if (ReviveSystem.AllowGameOver || ReviveSystem.AllowTeamReload || NetSession.Instance == null || !NetSession.Instance.InLobby)
             {
                 return true;
             }

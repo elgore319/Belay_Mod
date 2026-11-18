@@ -71,6 +71,8 @@ namespace Belay.Net
         LevelPulse = 124,
         GantryDrones = 125,
         SeatTaken = 126,
+        TeamDiskSave = 127,
+        TeamDiskReload = 128,
         // 118 was TeamPause (removed); keep the number unused.
     }
 
