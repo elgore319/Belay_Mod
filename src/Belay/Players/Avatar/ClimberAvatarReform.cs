@@ -10,11 +10,13 @@ namespace Belay.Players.Avatar
         {
             public Transform Flesh;
             public Transform Bone;
+            public Transform Muscle, Skin;
             public Reform.Part Kind;
         }
 
         private static readonly Dictionary<int, Mesh> boneMeshes = new Dictionary<int, Mesh>();
         private static Material[] boneMaterials, coreMaterials;
+        private static Material muscleMaterial, skinMaterial;
 
         private List<ReformPiece> reformPieces;
         private Transform reformCore;
@@ -54,6 +56,12 @@ namespace Belay.Players.Avatar
                 {
                     coreMaterials[0].SetColor("_EmissionColor", Reform.GlowColor * 2.2f);
                 }
+                Texture2D meat = MeatTexture();
+                var skin = new Texture2D(meat.width, meat.height, TextureFormat.RGBA32, false) { name = "Belay_ReformSkin", filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat };
+                skin.SetPixels32(Reform.SkinFrom(meat.GetPixels32()));
+                skin.Apply(false, false);
+                muscleMaterial = FleshMaterial(meat, Reform.Layer.Muscle);
+                skinMaterial = FleshMaterial(skin, Reform.Layer.Skin);
             }
             reformPieces = new List<ReformPiece>();
             Add(torso, Reform.Part.Torso);
@@ -97,7 +105,84 @@ namespace Belay.Players.Avatar
                 go.SetActive(false);
                 bone = go.transform;
             }
-            reformPieces.Add(new ReformPiece { Flesh = flesh, Bone = bone, Kind = kind });
+            Transform muscle = null, skin = null;
+            if (kind != Reform.Part.Gear)
+            {
+                muscle = LayerObject(flesh, "Muscle", muscleMaterial);
+                skin = LayerObject(flesh, "Skin", skinMaterial);
+            }
+            reformPieces.Add(new ReformPiece { Flesh = flesh, Bone = bone, Muscle = muscle, Skin = skin, Kind = kind });
+        }
+
+        private Transform LayerObject(Transform flesh, string layer, Material material)
+        {
+            var go = new GameObject(flesh.name + layer);
+            go.transform.SetParent(root, false);
+            go.AddComponent<MeshFilter>();
+            var r = go.AddComponent<MeshRenderer>();
+            r.sharedMaterial = material;
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            go.SetActive(false);
+            return go.transform;
+        }
+
+        /// <summary>
+        /// The flesh texture: the meat from the game's own food item, cut out of its sheet so it tiles,
+        /// or a stand-in if the item isn't there.
+        /// </summary>
+        private static Texture2D MeatTexture()
+        {
+            try
+            {
+                Item_Object item = CL_AssetManager.GetItemObjectPrefab(Reform.MeatItem);
+                GameObject prefab = item != null ? item.gameObject : CL_AssetManager.GetAssetGameObject(Reform.MeatItem);
+                Renderer renderer = prefab != null ? prefab.GetComponentInChildren<Renderer>(true) : null;
+                Texture source = renderer != null && renderer.sharedMaterial != null ? renderer.sharedMaterial.mainTexture : null;
+                if (source != null)
+                {
+                    Vector4 r = Reform.MeatRegion;
+                    int w = Mathf.Max(8, Mathf.RoundToInt(source.width * r.z));
+                    int h = Mathf.Max(8, Mathf.RoundToInt(source.height * r.w));
+                    // The game's texture isn't readable: copy the region through the GPU.
+                    RenderTexture rt = RenderTexture.GetTemporary(w, h, 0, RenderTextureFormat.ARGB32);
+                    Graphics.Blit(source, rt, new Vector2(r.z, r.w), new Vector2(r.x, r.y));
+                    RenderTexture previous = RenderTexture.active;
+                    RenderTexture.active = rt;
+                    var texture = new Texture2D(w, h, TextureFormat.RGBA32, false) { name = "Belay_ReformMeat", filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat };
+                    texture.ReadPixels(new Rect(0, 0, w, h), 0, 0, false);
+                    texture.Apply(false, false); // stays readable: the skin is made from it
+                    RenderTexture.active = previous;
+                    RenderTexture.ReleaseTemporary(rt);
+                    return texture;
+                }
+                Plugin.Log?.LogWarning("Revive effect: the game's meat texture wasn't found, using a stand-in");
+            }
+            catch (System.Exception e)
+            {
+                Plugin.Log?.LogWarning("Revive effect: couldn't copy the game's meat texture: " + e.Message);
+            }
+            var fallback = new Texture2D(PixelTextures.Size, PixelTextures.Size, TextureFormat.RGBA32, false) { name = "Belay_ReformMeat", filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat };
+            fallback.SetPixels32(PixelTextures.Generate(Reform.FallbackMeat, 611));
+            fallback.Apply(false, false);
+            return fallback;
+        }
+
+        private static Material FleshMaterial(Texture2D meat, Reform.Layer layer)
+        {
+            Material m = MakeItemMaterials(new[] { Reform.FallbackMeat }, -1)[0];
+            m.name = "Belay_Reform" + layer;
+            m.mainTexture = meat;
+            m.color = Reform.LayerTint(layer);
+            if (m.HasProperty("_Glossiness"))
+            {
+                m.SetFloat("_Glossiness", layer == Reform.Layer.Muscle ? 0.55f : 0.3f); // wet
+            }
+            if (m.HasProperty("_EmissionColor"))
+            {
+                m.SetTexture("_EmissionMap", meat);
+                m.SetColor("_EmissionColor", Reform.LayerTint(layer) * SelfLight);
+            }
+            return m;
         }
 
         /// <summary>A bone mesh per part kind; -1 is the glowing heart.</summary>
@@ -154,6 +239,8 @@ namespace Belay.Players.Avatar
                         piece.Bone.localScale = Vector3.Scale(posed, Reform.BoneScale(piece.Kind, t));
                     }
                 }
+                ShowLayer(piece.Muscle, flesh, posed, piece.Kind, Reform.Layer.Muscle, t, showBones);
+                ShowLayer(piece.Skin, flesh, posed, piece.Kind, Reform.Layer.Skin, t, showBones);
                 flesh.localScale = Vector3.Scale(posed, Reform.FleshScale(piece.Kind, t));
             }
             float core = Reform.Core(t);
@@ -171,15 +258,49 @@ namespace Belay.Players.Avatar
             SetGlow(Reform.Glow(t));
         }
 
+        /// <summary>A flesh layer: the part's own shape, smaller, in muscle or skin.</summary>
+        private static void ShowLayer(Transform layer, Transform flesh, Vector3 posed, Reform.Part kind, Reform.Layer which, float t, bool allowed)
+        {
+            if (layer == null)
+            {
+                return;
+            }
+            bool show = allowed && flesh.gameObject.activeSelf && Reform.LayerShows(kind, which, t);
+            if (layer.gameObject.activeSelf != show)
+            {
+                layer.gameObject.SetActive(show);
+            }
+            if (!show)
+            {
+                return;
+            }
+            MeshFilter filter = layer.GetComponent<MeshFilter>();
+            Mesh mesh = flesh.GetComponent<MeshFilter>().sharedMesh;
+            if (filter.sharedMesh != mesh)
+            {
+                filter.sharedMesh = mesh; // the head and hands change with outfits and grips
+                MeshRenderer r = layer.GetComponent<MeshRenderer>();
+                Material m = r.sharedMaterials.Length > 0 ? r.sharedMaterials[0] : null;
+                var set = new Material[mesh != null ? Mathf.Max(1, mesh.subMeshCount) : 1];
+                for (int i = 0; i < set.Length; i++)
+                {
+                    set[i] = m;
+                }
+                r.sharedMaterials = set;
+            }
+            layer.localPosition = flesh.localPosition;
+            layer.localRotation = flesh.localRotation;
+            layer.localScale = Vector3.Scale(posed, Reform.LayerScale(kind, which, t));
+        }
+
         private void EndReform()
         {
             reformStart = -1f;
             foreach (ReformPiece piece in reformPieces)
             {
-                if (piece.Bone != null)
-                {
-                    piece.Bone.gameObject.SetActive(false);
-                }
+                piece.Bone?.gameObject.SetActive(false);
+                piece.Muscle?.gameObject.SetActive(false);
+                piece.Skin?.gameObject.SetActive(false);
             }
             reformCore.gameObject.SetActive(false);
             SetGlow(0f);

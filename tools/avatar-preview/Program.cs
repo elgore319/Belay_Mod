@@ -137,6 +137,24 @@ internal static class Program
         textures.Add(Tex(PixelTextures.Generate(Belay.Items.TotemLook.Recipes()[Belay.Items.TotemLook.BoneSlot], 501), PixelTextures.Size, PixelTextures.Size));
         coreTex = textures.Count;
         textures.Add(Tex(PixelTextures.Generate(Belay.Items.TotemLook.Recipes()[Belay.Items.TotemLook.GlowSlot], 502), PixelTextures.Size, PixelTextures.Size));
+        // FLESH_RAW: the game's meat texture region (32x32 RGBA, rows bottom-up) cut from your own
+        // install (never committed); otherwise the stand-in the game also falls back to.
+        string fleshRaw = Environment.GetEnvironmentVariable("FLESH_RAW");
+        Color32[] meat = fleshRaw != null && File.Exists(fleshRaw) ? Raw(fleshRaw) : PixelTextures.Generate(Reform.FallbackMeat, 611);
+        int meatSize = (int)Math.Round(Math.Sqrt(meat.Length));
+        Color32[] skinPixels = Reform.SkinFrom(meat);
+        foreach (Reform.Layer layer in new[] { Reform.Layer.Muscle, Reform.Layer.Skin })
+        {
+            Color tint = Reform.LayerTint(layer);
+            Color32[] source = layer == Reform.Layer.Skin ? skinPixels : meat;
+            var tinted = new Color32[meat.Length];
+            for (int i = 0; i < meat.Length; i++)
+            {
+                tinted[i] = new Color32((byte)(source[i].r * tint.r), (byte)(source[i].g * tint.g), (byte)(source[i].b * tint.b), 255);
+            }
+            if (layer == Reform.Layer.Muscle) muscleTex = textures.Count; else skinTex = textures.Count;
+            textures.Add(Tex(tinted, meatSize, meatSize));
+        }
 
         var sb = new StringBuilder("{\"size\":" + PixelTextures.Size + ",\"textures\":[");
         sb.Append(string.Join(",", textures)).Append("],\"skins\":[");
@@ -369,7 +387,7 @@ internal static class Program
 
     /// <summary>REFORM: seconds into the totem revive for the figure being built (-1 off).</summary>
     private static float reformT = -1f;
-    private static int boneTex, coreTex;
+    private static int boneTex, coreTex, muscleTex, skinTex, forceTex = -1;
 
     private static void Emit(Action<MeshKit> build, Frame frame, Reform.Part? part)
     {
@@ -383,6 +401,18 @@ internal static class Program
         if (fs.x > 0.001f)
         {
             Emit(k => { build(k); Squash(k, fs); }, frame);
+        }
+        // Muscle and skin: the part's own shape, smaller, in the flesh textures.
+        foreach (Reform.Layer layer in new[] { Reform.Layer.Muscle, Reform.Layer.Skin })
+        {
+            if (!Reform.LayerShows(kind, layer, reformT))
+            {
+                continue;
+            }
+            Vector3 ls = Reform.LayerScale(kind, layer, reformT);
+            forceTex = layer == Reform.Layer.Muscle ? muscleTex : skinTex;
+            Emit(k => { build(k); Squash(k, ls); }, frame);
+            forceTex = -1;
         }
         if (kind != Reform.Part.Gear && Reform.BoneShows(kind, reformT))
         {
@@ -426,7 +456,7 @@ internal static class Program
             List<int> list = kit.Submeshes[s];
             for (int i = 0; i < list.Count; i += 3)
             {
-                tris.Append('[').Append(s == Slot.Glove ? gloveSlot : s);
+                tris.Append('[').Append(forceTex >= 0 ? forceTex : s == Slot.Glove ? gloveSlot : s);
                 for (int j = 0; j < 3; j++)
                 {
                     int v = list[i + j];

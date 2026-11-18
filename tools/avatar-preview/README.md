@@ -36,4 +36,6 @@ size and a `hold:Item_Floppy_T1` / `grip:Item_Floppy_T1` figure, and writes its 
 `totem-sprite.raw` (128x128 RGBA, rows bottom-up).
 
 `REFORM=0.3,0.9,1.5 dotnet run ...` adds `reform:<seconds>` figures: the totem revive (`Reform.cs`) at those
-times, with the bones and the glowing heart.
+times, with the bones, the glowing heart and the muscle and skin layers. `FLESH_RAW=<file>` gives it the game's
+meat texture (32x32 RGBA, rows bottom-up, cut from `TEX_meat_low_rez` at `Reform.MeatRegion` in your own
+install; never committed), otherwise it uses the same stand-in the game falls back to.
