@@ -233,6 +233,8 @@ namespace Belay.Players.Avatar
         {
             if (modelKind != (model != null ? model.Kind : null))
             {
+                modelReform?.End(); // it was growing the old model
+                modelReform = null;
                 model?.Destroy();
                 model = modelKind != null ? GameModelAvatar.Create(modelKind, root.parent) : null;
             }
@@ -248,7 +250,11 @@ namespace Belay.Players.Avatar
                 nextHideCheck = Time.unscaledTime + 1f;
                 foreach (Renderer r in root.GetComponentsInChildren<Renderer>(true))
                 {
-                    r.enabled = !useModel;
+                    // The revive on a game model draws its bones and muscle from here.
+                    if (modelReform == null || !r.transform.IsChildOf(modelReform.Holder))
+                    {
+                        r.enabled = !useModel;
+                    }
                 }
                 lamp.gameObject.SetActive(!useModel);
             }

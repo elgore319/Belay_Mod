@@ -156,6 +156,13 @@ internal static class Program
             textures.Add(Tex(tinted, meatSize, meatSize));
         }
 
+        // MODEL: a game model exported for the revive preview (see README), with REFORM times.
+        string modelPath = Environment.GetEnvironmentVariable("MODEL");
+        if (!string.IsNullOrEmpty(modelPath))
+        {
+            LoadModel(modelPath, textures, meat, meatSize);
+        }
+
         var sb = new StringBuilder("{\"size\":" + PixelTextures.Size + ",\"textures\":[");
         sb.Append(string.Join(",", textures)).Append("],\"skins\":[");
         sb.Append(string.Join(",", skinNames.ConvertAll(n => "\"" + n + "\""))).Append("],");
@@ -206,6 +213,10 @@ internal static class Program
                 reformSeed = 0;
                 Figure("reform:" + part, standing: true, leftGrip: false, rightGrip: false,
                     new Vector3(-0.22f, 1.25f, 0.45f), new Vector3(0.22f, 1.25f, 0.45f));
+                if (gameModel != null)
+                {
+                    ModelFigure("model:" + part, reformT);
+                }
             }
             reformT = -1f;
         }
@@ -242,7 +253,7 @@ internal static class Program
         Emit(AvatarDesign.BuildTorso, torso, Reform.Part.Torso);
         if (LoreLooks.Valid(look))
         {
-            Emit(k => LoreLooks.BuildExtra(k, look), torso);
+            Emit(k => LoreLooks.BuildExtra(k, look), torso, Reform.Part.Torso, clothesOnly: true);
         }
 
         // Backpack on the back, or held open in front (same placement as ClimberAvatar).
@@ -390,7 +401,7 @@ internal static class Program
     private static float reformT = -1f;
     private static int boneTex, coreTex, muscleTex, skinTex, forceTex = -1;
 
-    private static void Emit(Action<MeshKit> build, Frame frame, Reform.Part? part)
+    private static void Emit(Action<MeshKit> build, Frame frame, Reform.Part? part, bool clothesOnly = false)
     {
         if (reformT < 0f || part == null)
         {
@@ -404,6 +415,10 @@ internal static class Program
         if (clothes > 0f)
         {
             Emit(k => { build(k); Grow(k, kind, clothes, seed); }, frame);
+        }
+        if (clothesOnly)
+        {
+            return;
         }
         // Skin: the part's own shape, just inside the clothes, spreading the same way.
         if (Reform.LayerShows(kind, Reform.Layer.Skin, reformT))
@@ -427,6 +442,220 @@ internal static class Program
             gloveSlot = boneTex; // reuse the glove remap to point slot 0 at the bone texture
             Emit(k => { k.Use(Slot.Glove); var tmp = new MeshKit(1); Reform.BuildBone(tmp, kind); Copy(tmp, k, Slot.Glove); Squash(k, bs); }, frame);
             gloveSlot = Slot.Glove;
+        }
+    }
+
+    // ------------------------------------------------------------------ Game models (MODEL)
+
+    private class ModelPart
+    {
+        public Vector3[] V, N;
+        public Vector2[] UV;
+        public List<int> Tris = new List<int>();
+        public List<int> TriTex = new List<int>();
+        public float[] Keys, SkinKeys;
+        public Vector3[] Inset;
+    }
+
+    private class GameModel
+    {
+        public List<ModelPart> Parts = new List<ModelPart>();
+        public Vector3[] Bones;
+        public int[] Parent;
+        public List<ReformModel.Segment> Segments;
+        public bool Roachy;
+        public int MuscleTex, SkinTex, BoneTex;
+    }
+
+    private static GameModel gameModel;
+
+    private static void LoadModel(string path, List<string> textures, Color32[] meat, int meatSize)
+    {
+        var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path)).RootElement;
+        var model = new GameModel { Roachy = ReformModel.Roachy(Environment.GetEnvironmentVariable("MODEL_KIND")) };
+        var texIndex = new Dictionary<string, int>();
+        foreach (var t in doc.GetProperty("textures").EnumerateObject())
+        {
+            texIndex[t.Name] = textures.Count;
+            textures.Add("{\"w\":" + t.Value.GetProperty("w").GetInt32() + ",\"h\":" + t.Value.GetProperty("h").GetInt32() + ",\"data\":\"" + t.Value.GetProperty("data").GetString() + "\"}");
+        }
+        if (model.Roachy)
+        {
+            model.MuscleTex = textures.Count;
+            textures.Add(Tex(Reform.RoachMeatFrom(meat), meatSize, meatSize));
+            model.SkinTex = textures.Count;
+            textures.Add(Tex(Reform.RoachShellFrom(meat), meatSize, meatSize));
+            Color32[] bone = PixelTextures.Generate(Belay.Items.TotemLook.Recipes()[Belay.Items.TotemLook.BoneSlot], 501);
+            Color tint = Reform.RoachBoneTint;
+            for (int i = 0; i < bone.Length; i++)
+            {
+                bone[i] = new Color32((byte)(bone[i].r * tint.r), (byte)(bone[i].g * tint.g), (byte)(bone[i].b * tint.b), 255);
+            }
+            model.BoneTex = textures.Count;
+            textures.Add(Tex(bone, PixelTextures.Size, PixelTextures.Size));
+        }
+        else
+        {
+            model.MuscleTex = muscleTex;
+            model.SkinTex = skinTex;
+            model.BoneTex = boneTex;
+        }
+        // Bones of every renderer, joined by id.
+        var ids = new List<string>();
+        var parentIds = new List<string>();
+        var positions = new List<Vector3>();
+        var boneNames = new List<string>();
+        foreach (var r in doc.GetProperty("renderers").EnumerateArray())
+        {
+            foreach (var b in r.GetProperty("bones").EnumerateArray())
+            {
+                if (b.ValueKind == System.Text.Json.JsonValueKind.Null) continue;
+                string id = b.GetProperty("id").GetString();
+                if (ids.Contains(id)) continue;
+                ids.Add(id);
+                parentIds.Add(b.GetProperty("parent").GetString());
+                boneNames.Add(b.GetProperty("name").GetString());
+                var p = b.GetProperty("pos");
+                positions.Add(new Vector3(p[0].GetSingle(), p[1].GetSingle(), p[2].GetSingle()));
+            }
+        }
+        model.Bones = positions.ToArray();
+        model.Parent = new int[ids.Count];
+        for (int i = 0; i < ids.Count; i++)
+        {
+            // A bone's parent may be a helper outside the rig: walk to the nearest one that's in it.
+            model.Parent[i] = ids.IndexOf(parentIds[i]);
+        }
+        var all = new List<Vector3>();
+        int seed = 0;
+        foreach (var r in doc.GetProperty("renderers").EnumerateArray())
+        {
+            var part = new ModelPart();
+            float[] v = Floats(r.GetProperty("v")), n = Floats(r.GetProperty("n")), uv = Floats(r.GetProperty("uv"));
+            int count = v.Length / 3;
+            part.V = new Vector3[count];
+            part.N = new Vector3[count];
+            part.UV = new Vector2[count];
+            for (int i = 0; i < count; i++)
+            {
+                part.V[i] = new Vector3(v[i * 3], v[i * 3 + 1], v[i * 3 + 2]);
+                part.N[i] = i * 3 + 2 < n.Length ? new Vector3(n[i * 3], n[i * 3 + 1], n[i * 3 + 2]) : Vector3.up;
+                part.UV[i] = i * 2 + 1 < uv.Length ? new Vector2(uv[i * 2], uv[i * 2 + 1]) : Vector2.zero;
+            }
+            foreach (var sub in r.GetProperty("subs").EnumerateArray())
+            {
+                string tex = sub.GetProperty("tex").ValueKind == System.Text.Json.JsonValueKind.String ? sub.GetProperty("tex").GetString() : null;
+                int ti = tex != null && texIndex.TryGetValue(tex, out int found) ? found : model.SkinTex;
+                foreach (var x in sub.GetProperty("tris").EnumerateArray())
+                {
+                    part.Tris.Add(x.GetInt32());
+                }
+                while (part.TriTex.Count < part.Tris.Count / 3) part.TriTex.Add(ti);
+            }
+            all.AddRange(part.V);
+            model.Parts.Add(part);
+        }
+        model.Segments = ReformModel.Segments(model.Bones, model.Parent, all, boneNames);
+        float inset = ReformModel.InsetFor(model.Segments);
+        foreach (ModelPart part in model.Parts)
+        {
+            part.Keys = ReformModel.SpreadKeys(part.V, part.Tris, model.Bones, model.Parent, 31 + seed);
+            part.SkinKeys = ReformModel.SpreadKeys(part.V, part.Tris, model.Bones, model.Parent, 977 + seed);
+            part.Inset = ReformModel.Inset(part.V, part.N, inset);
+            seed++;
+        }
+        Console.WriteLine("model: " + ids.Count + " bones, " + model.Segments.Count + " segments, inset " + inset);
+        gameModel = model;
+    }
+
+    private static float[] Floats(System.Text.Json.JsonElement e)
+    {
+        var list = new List<float>();
+        foreach (var x in e.EnumerateArray()) list.Add(x.GetSingle());
+        return list.ToArray();
+    }
+
+    private static void ModelFigure(string name, float t)
+    {
+        tris = new StringBuilder();
+        GameModel m = gameModel;
+        float clothes = Reform.WholeProgress(Reform.Layer.Clothes, t);
+        float skin = Reform.WholeProgress(Reform.Layer.Skin, t);
+        foreach (ModelPart part in m.Parts)
+        {
+            if (clothes > 0f)
+            {
+                var grown = new Vector3[part.V.Length];
+                Reform.Spread(part.V, part.Tris, part.Keys, clothes, grown);
+                EmitTris(grown, part, -1);
+            }
+            if (ReformModel.SkinShows(t))
+            {
+                var grown = new Vector3[part.V.Length];
+                Reform.Spread(part.Inset, part.Tris, part.SkinKeys, skin, grown);
+                EmitTris(grown, part, m.SkinTex);
+            }
+        }
+        foreach (ReformModel.Segment seg in m.Segments)
+        {
+            Vector3 a = m.Bones[seg.From], b = m.Bones[seg.To];
+            Vector3 scale = ReformModel.SegmentScale(seg.Radius, (b - a).magnitude);
+            Vector3 up = Mathf.Abs(Vector3.Dot((b - a).normalized, Vector3.up)) > 0.9f ? Vector3.forward : Vector3.up;
+            Frame frame = Frame.Look(a, b - a, up, scale.z);
+            if (ReformModel.BoneShows(seg.Stage, t))
+            {
+                var kit = new MeshKit(1) { TileSize = 0.12f };
+                Reform.BuildBone(kit, Reform.Part.UpperLimb);
+                EmitSegment(kit, frame, scale, m.BoneTex, Reform.BoneAt(seg.Stage, t));
+            }
+            if (ReformModel.MuscleShows(seg.Stage, t))
+            {
+                var kit = new MeshKit(1) { TileSize = 0.12f };
+                Reform.BuildMuscle(kit, Reform.Part.UpperLimb, Reform.ProgressAt(seg.Stage, Reform.Layer.Muscle, t), seg.Stage * 7 + 3);
+                EmitSegment(kit, frame, scale, m.MuscleTex, 1f);
+            }
+        }
+        Figures.Add("\"" + name + "\":[" + tris.ToString().TrimEnd(',') + "]");
+    }
+
+    private static void EmitTris(Vector3[] positions, ModelPart part, int tex)
+    {
+        for (int i = 0; i < part.Tris.Count; i += 3)
+        {
+            tris.Append('[').Append(tex >= 0 ? tex : part.TriTex[i / 3]);
+            for (int j = 0; j < 3; j++)
+            {
+                int v = part.Tris[i + j];
+                Vector3 p = positions[v], n = part.N[v];
+                Vector2 uv = part.UV[v];
+                foreach (float f in new[] { p.x, p.y, p.z, n.x, n.y, n.z, uv.x, uv.y })
+                {
+                    tris.Append(',').Append(F(f));
+                }
+            }
+            tris.Append("],");
+        }
+    }
+
+    private static void EmitSegment(MeshKit kit, Frame frame, Vector3 scale, int tex, float grow)
+    {
+        List<int> list = kit.Submeshes[0];
+        for (int i = 0; i < list.Count; i += 3)
+        {
+            tris.Append('[').Append(tex);
+            for (int j = 0; j < 3; j++)
+            {
+                int v = list[i + j];
+                Vector3 q = kit.Vertices[v];
+                Vector3 p = frame.Apply(new Vector3(q.x * scale.x, q.y * scale.y, q.z * grow));
+                Vector3 n = frame.Dir(kit.Normals[v]).normalized;
+                Vector2 uv = kit.UVs[v];
+                foreach (float f in new[] { p.x, p.y, p.z, n.x, n.y, n.z, uv.x, uv.y })
+                {
+                    tris.Append(',').Append(F(f));
+                }
+            }
+            tris.Append("],");
         }
     }
 

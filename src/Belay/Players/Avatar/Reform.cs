@@ -94,10 +94,58 @@ namespace Belay.Players.Avatar
             return skin;
         }
 
-        /// <summary>How far a part's bone has grown out (0..1) at <paramref name="t"/> seconds in.</summary>
-        public static float Bone(Part part, float t)
+        /// <summary>
+        /// Roach flesh, for the roach models: the meat's grain turned into the yellow-brown, waxy meat
+        /// of a bug, with greenish ichor in its darker streaks.
+        /// </summary>
+        public static Color32[] RoachMeatFrom(Color32[] meat)
         {
-            return Ease((t - BoneStart - Stage(part) * BoneStep) / BoneTime);
+            var light = new Color(0.86f, 0.74f, 0.42f);
+            var ichor = new Color(0.36f, 0.42f, 0.16f);
+            return Remap(meat, (c, shade) => Color.Lerp(ichor, light, Mathf.InverseLerp(0.55f, 1.25f, shade)) * Mathf.Lerp(0.85f, 1.1f, shade - 0.5f));
+        }
+
+        /// <summary>
+        /// A roach's shell, growing in place of skin: dark, glossy red-brown chitin with the meat's
+        /// grain showing as faint banding.
+        /// </summary>
+        public static Color32[] RoachShellFrom(Color32[] meat)
+        {
+            var dark = new Color(0.17f, 0.08f, 0.04f);
+            var shine = new Color(0.55f, 0.27f, 0.12f);
+            return Remap(meat, (c, shade) => Color.Lerp(dark, shine, Mathf.InverseLerp(0.6f, 1.25f, shade)));
+        }
+
+        private static Color32[] Remap(Color32[] meat, System.Func<Color, float, Color> map)
+        {
+            float average = 0f;
+            foreach (Color32 c in meat)
+            {
+                average += (c.r + c.g + c.b) / 765f;
+            }
+            average = Mathf.Max(0.05f, average / Mathf.Max(1, meat.Length));
+            var result = new Color32[meat.Length];
+            for (int i = 0; i < meat.Length; i++)
+            {
+                Color c = meat[i];
+                float shade = Mathf.Clamp((c.r + c.g + c.b) / 3f / average, 0.55f, 1.25f);
+                Color m = map(c, shade);
+                m.a = 1f;
+                result[i] = m;
+            }
+            return result;
+        }
+
+        /// <summary>Tint for a roach's bones: pale, yellowed cartilage.</summary>
+        public static readonly Color RoachBoneTint = new Color(0.92f, 0.85f, 0.6f);
+
+        /// <summary>How far a part's bone has grown out (0..1) at <paramref name="t"/> seconds in.</summary>
+        public static float Bone(Part part, float t) => BoneAt(Stage(part), t);
+
+        /// <summary><see cref="Bone"/> for a stage (0 the middle of the body .. 3 the hands and feet).</summary>
+        public static float BoneAt(int stage, float t)
+        {
+            return Ease((t - BoneStart - stage * BoneStep) / BoneTime);
         }
 
         /// <summary>How far a layer has grown over a part (0..1).</summary>
@@ -107,7 +155,22 @@ namespace Belay.Players.Avatar
             {
                 return 0f; // gear has no flesh
             }
-            return Mathf.Clamp01((t - LayerStart(layer) - Stage(part) * StageStep) / LayerTime(layer));
+            return ProgressAt(Stage(part), layer, t);
+        }
+
+        /// <summary><see cref="Progress"/> for a stage (0 the middle of the body .. 3 the hands and feet).</summary>
+        public static float ProgressAt(int stage, Layer layer, float t)
+        {
+            return Mathf.Clamp01((t - LayerStart(layer) - stage * StageStep) / LayerTime(layer));
+        }
+
+        /// <summary>
+        /// How far a layer has grown over a whole body that spreads as one surface (the game's own models):
+        /// from the first stage starting to the last one finishing.
+        /// </summary>
+        public static float WholeProgress(Layer layer, float t)
+        {
+            return Mathf.Clamp01((t - LayerStart(layer)) / (LayerTime(layer) + 3 * StageStep));
         }
 
         /// <summary>Whether a part's bone still shows (grown, and the skin hasn't closed over it).</summary>
@@ -145,19 +208,6 @@ namespace Belay.Players.Avatar
         /// </summary>
         public static float[] SpreadKeys(System.Collections.Generic.IList<Vector3> vertices, System.Collections.Generic.IList<int> triangles, Part part, int seed)
         {
-            int count = triangles.Count / 3;
-            var keys = new float[count];
-            if (count == 0)
-            {
-                return keys;
-            }
-            Vector3 min = Vector3.one * 1e9f, max = Vector3.one * -1e9f;
-            foreach (int i in triangles)
-            {
-                min = Vector3.Min(min, vertices[i]);
-                max = Vector3.Max(max, vertices[i]);
-            }
-            Vector3 size = max - min;
             var seeds = new System.Collections.Generic.List<Vector3>();
             switch (part)
             {
@@ -175,13 +225,38 @@ namespace Belay.Players.Avatar
                     seeds.Add(Vector3.zero);
                     break;
             }
+            // Limbs are stored one unit long: measure them in meters so the spread goes round as well as along.
+            Vector3 metric = part == Part.UpperLimb || part == Part.LowerLimb ? new Vector3(1f, 1f, 0.3f) : Vector3.one;
+            return SpreadKeys(vertices, triangles, seeds, metric, seed, 0.03f);
+        }
+
+        /// <summary><see cref="SpreadKeys(System.Collections.Generic.IList{Vector3}, System.Collections.Generic.IList{int}, Part, int)"/> from given seed points.</summary>
+        public static float[] SpreadKeys(System.Collections.Generic.IList<Vector3> vertices, System.Collections.Generic.IList<int> triangles,
+            System.Collections.Generic.IList<Vector3> mainSeeds, Vector3 metric, int seed, float patchDelay = -1f)
+        {
+            int count = triangles.Count / 3;
+            var keys = new float[count];
+            if (count == 0)
+            {
+                return keys;
+            }
+            Vector3 min = Vector3.one * 1e9f, max = Vector3.one * -1e9f;
+            foreach (int i in triangles)
+            {
+                min = Vector3.Min(min, vertices[i]);
+                max = Vector3.Max(max, vertices[i]);
+            }
+            Vector3 size = max - min;
+            var seeds = new System.Collections.Generic.List<Vector3>(mainSeeds);
             // A few random patches too, so it doesn't creep along as one tidy line.
             for (int s = 0; s < 3; s++)
             {
                 seeds.Add(min + Vector3.Scale(size, new Vector3(Hash(s, 1, seed), Hash(s, 2, seed), Hash(s, 3, seed))));
             }
-            // Limbs are stored one unit long: measure them in meters so the spread goes round as well as along.
-            Vector3 metric = part == Part.UpperLimb || part == Part.LowerLimb ? new Vector3(1f, 1f, 0.3f) : Vector3.one;
+            if (patchDelay < 0f)
+            {
+                patchDelay = 0.05f * Mathf.Max(size.x, Mathf.Max(size.y, size.z));
+            }
             var distance = new float[count];
             float far = 1e-4f;
             for (int t = 0; t < count; t++)
@@ -191,7 +266,7 @@ namespace Belay.Players.Avatar
                 for (int s = 0; s < seeds.Count; s++)
                 {
                     // Random patches start a little later than the main seeds.
-                    float d = Vector3.Scale(c - seeds[s], metric).magnitude + (s >= seeds.Count - 3 ? 0.03f : 0f);
+                    float d = Vector3.Scale(c - seeds[s], metric).magnitude + (s >= seeds.Count - 3 ? patchDelay : 0f);
                     best = Mathf.Min(best, d);
                 }
                 distance[t] = best;
