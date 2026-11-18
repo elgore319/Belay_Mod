@@ -1,5 +1,5 @@
-## Tethered 0.7.40
+## Tethered 0.7.41
 
-- **Disks are revive totems in co-op.** Since a disk you hold revives a teammate, it now looks like one: a small carved totem with three stacked faces, rusty wire, bone horns and glowing eyes. It shows that way on the ground, in your backpack, in your own hand and in teammates' hands. It works exactly like before (use it to bring back a dead teammate). Solo games keep the normal disk.
+- **Totem revives rebuild your teammate from the inside out.** When someone is brought back with a totem, their teammates watch it happen: a skeleton grows out from the chest to the hands and feet, then the body grows back over the bones: strands of raw red muscle knit from joint to joint, pale skin buds and spreads over them in patches, then clothes and gear spread over the skin the same way, while the body cools from a warm glow. The flesh uses the game's own meat texture. It takes about three and a half seconds. The revived player's own view opens from the middle outward through an ember glow.
 
-No network change: players on 0.7.39 can still play together, they just see disks until they update.
+No network change.

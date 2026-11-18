@@ -35,6 +35,7 @@ namespace Belay.Players
         private TextMesh nameShadow;
         private Color color;
         private bool hasState;
+        private bool wasVisible;
         private RemoteBody body;
         private bool bodyFailed;
         private readonly MotionBuffer motion = new MotionBuffer();
@@ -113,6 +114,12 @@ namespace Belay.Players
         private void LateUpdate()
         {
             bool visible = hasState && WorldSpace.Ready && !Latest.Dead;
+            if (visible && !wasVisible && Belay.Revive.TotemRevive.TakeReform(SteamId))
+            {
+                // Brought back with a totem: rebuilt from the inside out as they reappear.
+                avatar.StartReform();
+            }
+            wasVisible = visible;
             SetVisible(visible);
             UpdateBody(visible);
             if (!visible)
@@ -142,6 +149,7 @@ namespace Belay.Players
                 shown.LeftHanging, shown.RightHanging, velocity, shown.InventoryOpen, dt,
                 HandSkins.SkinOf(SteamId, 0), HandSkins.SkinOf(SteamId, 1), shown.LeftItem, shown.RightItem,
                 shown.Crouched);
+            avatar.ApplyReform();
 
             UpdateNameTag();
         }

@@ -608,6 +608,12 @@ namespace Belay.Revive
         private void ApplyRevive(SteamId target, SteamId reviver, Vector3 sharedSpawn, bool free)
         {
             Revived?.Invoke(target, reviver, sharedSpawn);
+            // Free revives come from a held totem (disk), or from a climbing bot.
+            bool totem = free && !NetSession.Instance.IsLocalBot(reviver);
+            if (totem)
+            {
+                TotemRevive.Mark(target);
+            }
             if (reviver == NetSession.LocalId)
             {
                 if (!free)
@@ -627,6 +633,7 @@ namespace Belay.Revive
             pendingRevive = true;
             pendingSpawn = sharedSpawn;
             pendingReviver = reviver;
+            pendingTotem = totem;
             pendingSince = Time.unscaledTime;
             TryFinishRevive();
         }
@@ -634,6 +641,7 @@ namespace Belay.Revive
         private bool pendingRevive;
         private Vector3 pendingSpawn;
         private SteamId pendingReviver;
+        private bool pendingTotem;
         private float pendingSince;
         private float nextPendingTry;
 
@@ -676,6 +684,10 @@ namespace Belay.Revive
             player.Teleport(spot);
             player.ResetFallingHeight();
             player.AddIgnoreFallDamageTime(5f);
+            if (pendingTotem)
+            {
+                TotemRevive.PlayFirstPerson();
+            }
             RunFlowNotice(NetSession.NameOf(pendingReviver) + " revived you");
         }
 

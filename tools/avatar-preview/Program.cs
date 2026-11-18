@@ -133,13 +133,33 @@ internal static class Program
             File.WriteAllBytes("totem-sprite.raw", raw);
         }
 
+        boneTex = textures.Count;
+        textures.Add(Tex(PixelTextures.Generate(Belay.Items.TotemLook.Recipes()[Belay.Items.TotemLook.BoneSlot], 501), PixelTextures.Size, PixelTextures.Size));
+        coreTex = textures.Count;
+        textures.Add(Tex(PixelTextures.Generate(Belay.Items.TotemLook.Recipes()[Belay.Items.TotemLook.GlowSlot], 502), PixelTextures.Size, PixelTextures.Size));
+        // FLESH_RAW: the game's meat texture region (32x32 RGBA, rows bottom-up) cut from your own
+        // install (never committed); otherwise the stand-in the game also falls back to.
+        string fleshRaw = Environment.GetEnvironmentVariable("FLESH_RAW");
+        Color32[] meat = fleshRaw != null && File.Exists(fleshRaw) ? Raw(fleshRaw) : PixelTextures.Generate(Reform.FallbackMeat, 611);
+        int meatSize = (int)Math.Round(Math.Sqrt(meat.Length));
+        Color32[] skinPixels = Reform.SkinFrom(meat);
+        foreach (Reform.Layer layer in new[] { Reform.Layer.Muscle, Reform.Layer.Skin })
+        {
+            Color tint = Reform.LayerTint(layer);
+            Color32[] source = layer == Reform.Layer.Skin ? skinPixels : meat;
+            var tinted = new Color32[meat.Length];
+            for (int i = 0; i < meat.Length; i++)
+            {
+                tinted[i] = new Color32((byte)(source[i].r * tint.r), (byte)(source[i].g * tint.g), (byte)(source[i].b * tint.b), 255);
+            }
+            if (layer == Reform.Layer.Muscle) muscleTex = textures.Count; else skinTex = textures.Count;
+            textures.Add(Tex(tinted, meatSize, meatSize));
+        }
+
         var sb = new StringBuilder("{\"size\":" + PixelTextures.Size + ",\"textures\":[");
         sb.Append(string.Join(",", textures)).Append("],\"skins\":[");
         sb.Append(string.Join(",", skinNames.ConvertAll(n => "\"" + n + "\""))).Append("],");
-        if (totem)
-        {
-            sb.Append("\"emissive\":[" + (totemTexBase + Belay.Items.TotemLook.GlowSlot) + "],");
-        }
+        sb.Append("\"emissive\":[" + coreTex + (totem ? "," + (totemTexBase + Belay.Items.TotemLook.GlowSlot) : "") + "],");
         sb.Append("\"figures\":{");
 
         Figure("standing", standing: true, leftGrip: false, rightGrip: false,
@@ -177,6 +197,19 @@ internal static class Program
             Figures.Add("\"grip:" + item + "\":[" + tris.ToString().TrimEnd(',') + "]");
         }
 
+        string reform = Environment.GetEnvironmentVariable("REFORM");
+        if (!string.IsNullOrEmpty(reform))
+        {
+            foreach (string part in reform.Split(','))
+            {
+                reformT = float.Parse(part, CultureInfo.InvariantCulture);
+                reformSeed = 0;
+                Figure("reform:" + part, standing: true, leftGrip: false, rightGrip: false,
+                    new Vector3(-0.22f, 1.25f, 0.45f), new Vector3(0.22f, 1.25f, 0.45f));
+            }
+            reformT = -1f;
+        }
+
         if (totem)
         {
             // Standing on the floor at world size.
@@ -206,7 +239,7 @@ internal static class Program
         float lean = (standing ? 4f : -6f) + 60f * c;
         float rad = lean * Mathf.Deg2Rad;
         Frame torso = Frame.Look(pelvis, new Vector3(0, -Mathf.Sin(rad), Mathf.Cos(rad)), Vector3.up);
-        Emit(AvatarDesign.BuildTorso, torso);
+        Emit(AvatarDesign.BuildTorso, torso, Reform.Part.Torso);
         if (LoreLooks.Valid(look))
         {
             Emit(k => LoreLooks.BuildExtra(k, look), torso);
@@ -226,14 +259,14 @@ internal static class Program
         {
             pack = Frame.Look(torso.Apply(AvatarDesign.PackOnBack), -torso.Forward, torso.Up);
         }
-        Emit(AvatarDesign.BuildPack, pack);
+        Emit(AvatarDesign.BuildPack, pack, Reform.Part.Gear);
         float open = (inventory ? 115f : 0f) * Mathf.Deg2Rad;
         Emit(AvatarDesign.BuildPackLid, Frame.Look(pack.Apply(AvatarDesign.PackLidHinge),
-            pack.Dir(new Vector3(0, Mathf.Sin(open), Mathf.Cos(open))), pack.Dir(new Vector3(0, Mathf.Cos(open), -Mathf.Sin(open)))));
+            pack.Dir(new Vector3(0, Mathf.Sin(open), Mathf.Cos(open))), pack.Dir(new Vector3(0, Mathf.Cos(open), -Mathf.Sin(open)))), Reform.Part.Gear);
 
         Vector3 neck = torso.Apply(new Vector3(0, AvatarDesign.NeckHeight, 0.01f));
         float pitch = (inventory ? 40f : standing ? 10f : -25f) * Mathf.Deg2Rad;
-        Emit(k => { if (LoreLooks.Valid(look)) LoreLooks.BuildHead(k, look); else AvatarDesign.BuildHead(k, headStyle); }, Frame.Look(neck, new Vector3(0, -Mathf.Sin(pitch), Mathf.Cos(pitch)), Vector3.up));
+        Emit(k => { if (LoreLooks.Valid(look)) LoreLooks.BuildHead(k, look); else AvatarDesign.BuildHead(k, headStyle); }, Frame.Look(neck, new Vector3(0, -Mathf.Sin(pitch), Mathf.Cos(pitch)), Vector3.up), Reform.Part.Head);
 
         Arm(torso, -1, leftHand, leftGrip, leftItem);
         Arm(torso, 1, rightHand, rightGrip, rightItem);
@@ -249,7 +282,7 @@ internal static class Program
             Vector3 ankle = Limb(hip, foot, hip + new Vector3(side * 0.1f, -0.4f * c, 0.6f), AvatarDesign.Thigh, AvatarDesign.Shin,
                 AvatarDesign.BuildThigh, AvatarDesign.BuildShin, false);
             float toe = standing ? 0f : 35f * Mathf.Deg2Rad;
-            Emit(AvatarDesign.BuildBoot, Frame.Look(ankle, new Vector3(0, -Mathf.Sin(toe), Mathf.Cos(toe)), Vector3.up));
+            Emit(AvatarDesign.BuildBoot, Frame.Look(ankle, new Vector3(0, -Mathf.Sin(toe), Mathf.Cos(toe)), Vector3.up), Reform.Part.Boot);
         }
         Figures.Add("\"" + name + "\":[" + tris.ToString().TrimEnd(',') + "]");
     }
@@ -274,7 +307,7 @@ internal static class Program
         bool left = side < 0;
         bool fist = grip || item != null;
         Frame palm = Frame.Look(wrist, forearm, back);
-        Emit(k => { if (fist) AvatarDesign.BuildFist(k, left); else AvatarDesign.BuildOpenHand(k, left); }, palm);
+        Emit(k => { if (fist) AvatarDesign.BuildFist(k, left); else AvatarDesign.BuildOpenHand(k, left); }, palm, Reform.Part.Hand);
         if (item != null)
         {
             EmitItem(item, palm, left);
@@ -299,8 +332,8 @@ internal static class Program
         Vector3 mid = start + (dir * cos + bend * sin) * a * scale;
         Vector3 end = start + dir * d * scale;
         joint?.Invoke(mid);
-        Emit(upper, Frame.Look(start, mid - start, bend, (mid - start).magnitude));
-        Emit(lower, Frame.Look(mid, end - mid, bend, (end - mid).magnitude));
+        Emit(upper, Frame.Look(start, mid - start, bend, (mid - start).magnitude), Reform.Part.UpperLimb);
+        Emit(lower, Frame.Look(mid, end - mid, bend, (end - mid).magnitude), Reform.Part.LowerLimb);
         return end;
     }
 
@@ -353,6 +386,80 @@ internal static class Program
         return "{\"w\":" + w + ",\"h\":" + h + ",\"data\":\"" + Convert.ToBase64String(bytes) + "\"}";
     }
 
+    /// <summary>REFORM: seconds into the totem revive for the figure being built (-1 off).</summary>
+    private static float reformT = -1f;
+    private static int boneTex, coreTex, muscleTex, skinTex, forceTex = -1;
+
+    private static void Emit(Action<MeshKit> build, Frame frame, Reform.Part? part)
+    {
+        if (reformT < 0f || part == null)
+        {
+            Emit(build, frame);
+            return;
+        }
+        Reform.Part kind = part.Value;
+        int seed = ++reformSeed;
+        // Clothes and gear spread over the skin, patch by patch.
+        float clothes = Reform.Progress(kind, Reform.Layer.Clothes, reformT);
+        if (clothes > 0f)
+        {
+            Emit(k => { build(k); Grow(k, kind, clothes, seed); }, frame);
+        }
+        // Skin: the part's own shape, just inside the clothes, spreading the same way.
+        if (Reform.LayerShows(kind, Reform.Layer.Skin, reformT))
+        {
+            float skin = Reform.Progress(kind, Reform.Layer.Skin, reformT);
+            forceTex = skinTex;
+            Emit(k => { build(k); Grow(k, kind, skin, seed + 1000); Squash(k, Reform.SkinScale(kind)); }, frame);
+            forceTex = -1;
+        }
+        // Muscle: strands knitting over the bones.
+        if (Reform.LayerShows(kind, Reform.Layer.Muscle, reformT))
+        {
+            float muscle = Reform.Progress(kind, Reform.Layer.Muscle, reformT);
+            forceTex = muscleTex;
+            Emit(k => { var tmp = new MeshKit(1) { TileSize = 0.12f }; Reform.BuildMuscle(tmp, kind, muscle, seed); Copy(tmp, k, 0); }, frame);
+            forceTex = -1;
+        }
+        if (kind != Reform.Part.Gear && Reform.BoneShows(kind, reformT))
+        {
+            Vector3 bs = Reform.BoneScale(kind, reformT);
+            gloveSlot = boneTex; // reuse the glove remap to point slot 0 at the bone texture
+            Emit(k => { k.Use(Slot.Glove); var tmp = new MeshKit(1); Reform.BuildBone(tmp, kind); Copy(tmp, k, Slot.Glove); Squash(k, bs); }, frame);
+            gloveSlot = Slot.Glove;
+        }
+    }
+
+    /// <summary>Counts the parts of each figure, so each one spreads in its own pattern.</summary>
+    private static int reformSeed;
+
+    private static void Grow(MeshKit k, Reform.Part kind, float progress, int seed)
+    {
+        var tris = new List<int>();
+        foreach (List<int> sub in k.Submeshes) tris.AddRange(sub);
+        float[] keys = Reform.SpreadKeys(k.Vertices, tris, kind, seed);
+        var output = k.Vertices.ToArray();
+        Reform.Spread(k.Vertices, tris, keys, progress, output);
+        for (int i = 0; i < output.Length; i++) k.Vertices[i] = output[i];
+    }
+
+    private static void Squash(MeshKit k, Vector3 s)
+    {
+        for (int i = 0; i < k.Vertices.Count; i++)
+        {
+            k.Vertices[i] = Vector3.Scale(k.Vertices[i], s);
+        }
+    }
+
+    private static void Copy(MeshKit from, MeshKit to, int slot)
+    {
+        int b = to.Vertices.Count;
+        to.Vertices.AddRange(from.Vertices);
+        to.Normals.AddRange(from.Normals);
+        to.UVs.AddRange(from.UVs);
+        foreach (int i in from.Submeshes[0]) to.Submeshes[slot].Add(b + i);
+    }
+
     private static void Emit(Action<MeshKit> build, Frame frame)
     {
         var kit = new MeshKit(Slot.Count);
@@ -362,7 +469,7 @@ internal static class Program
             List<int> list = kit.Submeshes[s];
             for (int i = 0; i < list.Count; i += 3)
             {
-                tris.Append('[').Append(s == Slot.Glove ? gloveSlot : s);
+                tris.Append('[').Append(forceTex >= 0 ? forceTex : s == Slot.Glove ? gloveSlot : s);
                 for (int j = 0; j < 3; j++)
                 {
                     int v = list[i + j];
