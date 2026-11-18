@@ -154,6 +154,11 @@ namespace Belay.Revive
         private Vector3 spectateEye;
         private Quaternion spectateLook;
         private bool spectateEyeValid;
+        private Vector3 spectatePivot;
+        private RemotePlayer orbitTarget;
+        private float orbitYaw;
+        private float orbitPitch;
+        private const float OrbitDistance = 3.2f;
         private float nextLevelSync;
 
         private void OnEnable()
@@ -201,34 +206,60 @@ namespace Belay.Revive
             {
                 return;
             }
+            // Free look: the mouse orbits the camera around the teammate. A new target (or a fresh
+            // death) starts behind them, facing the way they face.
+            if (!spectateEyeValid || target != orbitTarget)
+            {
+                orbitTarget = target;
+                orbitYaw = target.Latest.Yaw;
+                orbitPitch = 15f;
+            }
+            if (Cursor.lockState == CursorLockMode.Locked && Time.timeScale > 0f)
+            {
+                Vector2 lookInput = InputManager.GetLookVector();
+                float pitchInput = -lookInput.y;
+                if (SettingsManager.settings.invertY)
+                {
+                    pitchInput = -pitchInput;
+                }
+                orbitYaw = Mathf.Repeat(orbitYaw + lookInput.x, 360f);
+                orbitPitch = Mathf.Clamp(orbitPitch + pitchInput, -80f, 80f);
+            }
+
+            // Smooth the teammate's position every rendered frame, independent of network and physics
+            // rates. The look itself follows the mouse directly so it never feels laggy.
+            float dt = Mathf.Max(Time.unscaledDeltaTime, 0.0001f);
+            Vector3 pivot = target.LocalPosition + Vector3.up * 1.4f;
+            if (!spectateEyeValid || (spectatePivot - pivot).sqrMagnitude > 400f)
+            {
+                spectatePivot = pivot;
+            }
+            else
+            {
+                spectatePivot = Vector3.Lerp(spectatePivot, pivot, 1f - Mathf.Exp(-12f * dt));
+            }
+            Quaternion look = Quaternion.Euler(orbitPitch, orbitYaw, 0f);
+            Vector3 back = look * Vector3.back;
+            float distance = OrbitDistance;
+            if (WorldProbe.Cast(spectatePivot, back, OrbitDistance + 0.3f, out RaycastHit hit))
+            {
+                // Keep the camera on our side of walls and floors.
+                distance = Mathf.Clamp(hit.distance - 0.3f, 0.2f, OrbitDistance);
+            }
+            spectateEye = spectatePivot + back * distance;
+            spectateLook = look;
+            spectateEyeValid = true;
+
             // The dead player's controller is disabled, so we carry the (invisible) body along with the
-            // teammate. This keeps the levels around them loaded.
+            // camera. This keeps the levels around the teammate loaded.
             ENT_Player player = ENT_Player.playerObject;
-            Quaternion facing = Quaternion.Euler(0f, target.Latest.Yaw, 0f);
-            Vector3 eye = target.LocalPosition + facing * new Vector3(0f, 1.5f, -3f);
-            player.transform.position = eye;
-            player.transform.rotation = facing;
+            player.transform.position = spectateEye;
+            player.transform.rotation = Quaternion.Euler(0f, orbitYaw, 0f);
             player.ResetCameraInterpolation();
             if (Time.unscaledTime >= nextLevelSync)
             {
                 nextLevelSync = Time.unscaledTime + 1f;
                 EnsureLevelAt(target.LocalPosition);
-            }
-
-            // Smooth the view every rendered frame, independent of network and physics rates.
-            float dt = Mathf.Max(Time.unscaledDeltaTime, 0.0001f);
-            Quaternion look = facing * Quaternion.Euler(15f, 0f, 0f);
-            if (!spectateEyeValid || (spectateEye - eye).sqrMagnitude > 400f)
-            {
-                spectateEye = eye;
-                spectateLook = look;
-                spectateEyeValid = true;
-            }
-            else
-            {
-                float t = 1f - Mathf.Exp(-12f * dt);
-                spectateEye = Vector3.Lerp(spectateEye, eye, t);
-                spectateLook = Quaternion.Slerp(spectateLook, look, 1f - Mathf.Exp(-8f * dt));
             }
             Prompt = "Spectating " + target.DisplayName + ".  [" + Plugin.SpectateNextKey.Value + "] next player";
         }

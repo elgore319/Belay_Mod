@@ -1,5 +1,5 @@
-## Tethered 0.7.45
+## Tethered 0.7.46
 
-- **Long coats move with the legs.** The lab coat, the pier slicker and the expedition parka now hang from the waist as cloth: they swing as the wearer moves and settle back under their own weight, and a stride, a high step or a crouch pushes the coat out of the way instead of the leg going through it.
+- **Free camera while spectating.** When you're dead, move the mouse (or right stick) to orbit the camera around the teammate you're watching, instead of being stuck behind their back. It uses your look sensitivity and invert-Y settings, stays on your side of walls and floors, and starts behind each teammate when you switch to them.
 
 No network change.
