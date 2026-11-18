@@ -90,6 +90,9 @@ namespace Belay.Players.Avatar
         private readonly List<KeyValuePair<Transform, Quaternion>> rest = new List<KeyValuePair<Transform, Quaternion>>();
         private float hang;
 
+        /// <summary>The copied game model (for the totem revive, <see cref="ModelReform"/>).</summary>
+        internal Transform Model => model;
+
         /// <summary>Builds the model, or returns null while the game hasn't loaded it (tried again later).</summary>
         public static GameModelAvatar Create(string kind, Transform parent)
         {

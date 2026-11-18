@@ -79,6 +79,8 @@ namespace Belay.Players.Avatar
         private static readonly Dictionary<int, Mesh> boneMeshes = new Dictionary<int, Mesh>();
         private static Material[] boneMaterials;
         private static Material muscleMaterial, skinMaterial;
+        private static Material roachBoneMaterial, roachMeatMaterial, roachShellMaterial;
+        private ModelReform modelReform;
 
         private List<ReformPiece> reformPieces;
         private float reformStart = -1f;
@@ -92,6 +94,15 @@ namespace Belay.Players.Avatar
             try
             {
                 SetupReform();
+                modelReform?.End();
+                modelReform = null;
+                if (model != null)
+                {
+                    // Shown as one of the game's models: the revive grows along that model's own rig.
+                    bool roach = ReformModel.Roachy(model.Kind);
+                    modelReform = ModelReform.Create(model, root, BoneMesh((int)Reform.Part.UpperLimb),
+                        roach ? roachBoneMaterial : boneMaterials[0], roach ? roachMeatMaterial : muscleMaterial, roach ? roachShellMaterial : skinMaterial);
+                }
                 reformStart = Time.unscaledTime;
             }
             catch (System.Exception e)
@@ -117,6 +128,14 @@ namespace Belay.Players.Avatar
                 skin.Apply(false, false);
                 muscleMaterial = FleshMaterial(meat, Reform.Layer.Muscle);
                 skinMaterial = FleshMaterial(skin, Reform.Layer.Skin);
+                // The roaches' flesh: waxy bug meat and a chitin shell, and yellowed cartilage for bones.
+                roachMeatMaterial = FleshMaterial(Remade(meat, Reform.RoachMeatFrom(meat.GetPixels32()), "Belay_ReformRoachMeat"), Reform.Layer.Skin);
+                roachShellMaterial = FleshMaterial(Remade(meat, Reform.RoachShellFrom(meat.GetPixels32()), "Belay_ReformRoachShell"), Reform.Layer.Skin);
+                if (roachShellMaterial.HasProperty("_Glossiness"))
+                {
+                    roachShellMaterial.SetFloat("_Glossiness", 0.75f);
+                }
+                roachBoneMaterial = new Material(boneMaterials[0]) { name = "Belay_ReformRoachBone", color = Reform.RoachBoneTint };
             }
             reformPieces = new List<ReformPiece>();
             Add(torso, Reform.Part.Torso);
@@ -137,12 +156,22 @@ namespace Belay.Players.Avatar
             Add(rightBoot, Reform.Part.Boot);
             Add(pack, Reform.Part.Gear);
             Add(packLid, Reform.Part.Gear);
+            // A lore look's extras (coat tails, badges, tanks) grow back with the clothes on the torso.
+            Add(extra, Reform.Part.Torso, clothesOnly: true);
         }
 
-        private void Add(Transform flesh, Reform.Part kind)
+        private static Texture2D Remade(Texture2D like, Color32[] pixels, string name)
+        {
+            var texture = new Texture2D(like.width, like.height, TextureFormat.RGBA32, false) { name = name, filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat };
+            texture.SetPixels32(pixels);
+            texture.Apply(false, true);
+            return texture;
+        }
+
+        private void Add(Transform flesh, Reform.Part kind, bool clothesOnly = false)
         {
             Transform bone = null;
-            if (kind != Reform.Part.Gear)
+            if (kind != Reform.Part.Gear && !clothesOnly)
             {
                 var go = new GameObject(flesh.name + "Bone");
                 go.transform.SetParent(root, false);
@@ -154,7 +183,7 @@ namespace Belay.Players.Avatar
                 bone = go.transform;
             }
             Transform muscle = null, skin = null;
-            if (kind != Reform.Part.Gear)
+            if (kind != Reform.Part.Gear && !clothesOnly)
             {
                 muscle = LayerObject(flesh, "Muscle", muscleMaterial);
                 skin = LayerObject(flesh, "Skin", skinMaterial);
@@ -274,6 +303,7 @@ namespace Belay.Players.Avatar
                 EndReform();
                 return;
             }
+            modelReform?.Apply(t, root.gameObject.activeInHierarchy);
             bool showBones = !climberHidden;
             foreach (ReformPiece piece in reformPieces)
             {
@@ -406,6 +436,8 @@ namespace Belay.Players.Avatar
         private void EndReform()
         {
             reformStart = -1f;
+            modelReform?.End();
+            modelReform = null;
             foreach (ReformPiece piece in reformPieces)
             {
                 piece.Bone?.gameObject.SetActive(false);

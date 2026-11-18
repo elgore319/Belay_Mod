@@ -22,6 +22,7 @@
     <Compile Include="..\..\src\Belay\Players\Avatar\ItemModels.cs" />
     <Compile Include="..\..\src\Belay\Items\TotemLook.cs" />
     <Compile Include="..\..\src\Belay\Players\Avatar\Reform.cs" />
+    <Compile Include="..\..\src\Belay\Players\Avatar\ReformModel.cs" />
     <Reference Include="UnityEngine.CoreModule" HintPath="$(GameDir)\White Knuckle_Data\Managed\UnityEngine.CoreModule.dll" />
   </ItemGroup>
 </Project>

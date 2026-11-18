@@ -52,7 +52,11 @@ namespace Belay.Players.Avatar
         /// <summary>The revive totem (Items/Totem.cs), drawn with the look from Items/TotemLook.cs.</summary>
         public static bool IsTotem(string prefabName)
         {
+#if AVATAR_PREVIEW
+            return prefabName == "Belay_Totem"; // Items/Totem.cs isn't part of the preview tool
+#else
             return Belay.Items.Totem.IsTotem(prefabName);
+#endif
         }
 
         /// <summary>The held totem is a bit smaller than the one on the ground, like other held items.</summary>
