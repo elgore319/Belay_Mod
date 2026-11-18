@@ -10,7 +10,7 @@ namespace Belay.Items
     ///
     /// Everything about the look lives in this file: the 3D model (on the ground, in the backpack and
     /// in teammates' hands), its pixel textures and the first-person hand sprite. To give the revive
-    /// item a different look later, change this file only; <see cref="DiskTotem"/> just swaps it in.
+    /// item a different look later, change this file only; <see cref="Totem"/> just swaps it in.
     ///
     /// Pure math (no Unity object calls), so tools/avatar-preview can render it without the game.
     /// </summary>

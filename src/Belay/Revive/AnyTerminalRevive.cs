@@ -6,10 +6,9 @@ using UnityEngine;
 namespace Belay.Revive
 {
     /// <summary>
-    /// Revives live on the save terminal's disk page (SaveTerminalPatches). Some terminals don't have a
-    /// save program at all, like the one at the Pipeworks shortcut, so when a teammate was down there was
-    /// no way to bring them back. In co-op, sitting at a terminal without the save program while a
-    /// teammate is down asks whether to revive them, the same offer the save page makes.
+    /// In co-op, sitting at a terminal while a teammate is down asks whether to revive them for roaches.
+    /// The save page's disk functions are the game's own again (disks make team saves, see TeamDiskSave),
+    /// so the offer comes up at every terminal, save terminals included.
     /// </summary>
     [HarmonyPatch(typeof(OS_Manager), nameof(OS_Manager.Activate))]
     internal static class AnyTerminalRevive
@@ -23,10 +22,6 @@ namespace Belay.Revive
                     || World.VoteTerminal.Is(__instance) || World.TerminalGuard.ReplayingTeammate)
                 {
                     return;
-                }
-                if (HasSaveApp(__instance.worldInterface))
-                {
-                    return; // the save page has the revive
                 }
                 if (ReviveSystem.TerminalStatus().Contains("EVERYONE IS ALIVE"))
                 {
@@ -52,7 +47,7 @@ namespace Belay.Revive
             {
                 yield break;
             }
-            Plugin.Log.LogInfo("Offering a revive at a terminal without the save program: " + World.ButtonSync.ObjectId(os.worldInterface));
+            Plugin.Log.LogInfo("Offering a revive at a terminal: " + World.ButtonSync.ObjectId(os.worldInterface));
             Show(os, status + "\nRevive them here?", "Revive", () => Show(os, ReviveSystem.TerminalRevive(), "OK", null, null), "Cancel");
         }
 

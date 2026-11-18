@@ -218,7 +218,7 @@ namespace Belay.Players.Avatar
 
         private static Material[] rapierMaterials, totemMaterials;
 
-        /// <summary>Items we model ourselves (the rapier as the sword it becomes in the hand, disks as totems).</summary>
+        /// <summary>Items we model ourselves (the rapier as the sword it becomes in the hand, the totem).</summary>
         private static GameObject BuildOwnModel(string prefabName)
         {
             MeshKit kit;

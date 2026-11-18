@@ -73,6 +73,7 @@ namespace Belay.Items
         {
             Instance = this;
             Harpoon.Define();
+            Totem.Define();
         }
 
         private void Update()
