@@ -8,46 +8,155 @@ using UnityEngine;
 namespace Belay.Items
 {
     /// <summary>
-    /// In co-op a disk is a revive item, so it looks like one: every disk (on the ground, in the backpack,
-    /// in your hand and in teammates' hands) is shown as the totem from <see cref="TotemLook"/>. Only the
-    /// look changes: the item, its name in saves, its weight and how it's used stay the game's disk.
-    /// Solo games keep the plain disk, and leaving the lobby turns totems back into disks.
+    /// The totem: Tethered's own revive item, built from a copy of the game's save disk (so it has a
+    /// disk's weight, pickup sounds and hand animation) but with its own id, name and look. Holding one
+    /// and using it brings a dead teammate back right where you are, for free (see SaveTerminalPatches).
+    /// It doesn't go into terminals. In co-op it's found where save disks are (half of the save disks
+    /// placed in a level are totems instead, picked the same way on every PC) and sold in vending
+    /// machines and by the shopkeeper. Every totem, on the ground, in the bag, in your hand or in a
+    /// teammate's, wears the look from <see cref="TotemLook"/>.
     /// </summary>
-    public class DiskTotem : MonoBehaviour
+    public static class Totem
     {
+        public const string Id = "Belay_Totem";
+        public const int Price = 4;
+
+        /// <summary>The game's save disks, the ones a totem can stand in for.</summary>
+        private static readonly HashSet<string> SaveDisks = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Item_Floppy_T1", "Item_Floppy_T2", "Item_Floppy_T3",
+        };
+
         internal static bool CoOp => NetSession.Instance != null && NetSession.Instance.InLobby;
 
-        internal static bool IsDisk(Item item)
+        internal static bool IsTotem(Item item) => item != null && IsTotem(item.prefabName);
+
+        internal static bool IsTotem(string prefabName) => string.Equals(prefabName, Id, StringComparison.OrdinalIgnoreCase);
+
+        internal static void Define()
         {
-            return item != null && (item.HasTag("disk") || (item.prefabName ?? "").StartsWith("Item_Floppy", StringComparison.OrdinalIgnoreCase));
+            CoopItems.Define(new CoopItems.Definition
+            {
+                Id = Id,
+                DisplayName = "Totem",
+                Template = io => string.Equals(io.itemData.prefabName, "Item_Floppy_T1", StringComparison.OrdinalIgnoreCase),
+                Fallback = io => (io.itemData.prefabName ?? "").StartsWith("Item_Floppy", StringComparison.OrdinalIgnoreCase),
+                SetupItem = SetupItem,
+                SetupHand = SetupHand,
+                Price = Price,
+                Chance = 1f,
+            });
         }
 
-        private bool wasCoOp;
-        private float nextCheck;
-
-        private void Update()
+        private static void SetupItem(Item_Object io)
         {
-            if (Time.unscaledTime < nextCheck)
+            Item data = io.itemData;
+            // Not a disk any more: no disk tag (terminals, disk saves and the disk vendor ignore it),
+            // no disk name or capacity, nothing stored on it.
+            data.itemTag = "totem";
+            data.itemTags = new List<string> { "totem" };
+            data.data = new List<string>();
+            data.dataModules = new List<Item_Data>();
+            data.worth = Price;
+            CoopItems.Find(Id).ButtonSprite = HandSprite();
+        }
+
+        private static void SetupHand(HandItem hand)
+        {
+            // A disk's hand slots it into terminals; a totem's doesn't.
+            hand.interactionModules?.RemoveAll(m => m is Item_InteractionModule_Floppy);
+        }
+
+        // ------------------------------------------------------------------ The shopkeeper
+
+        /// <summary>In co-op the shopkeeper has a totem among its goods, at the totem's price.</summary>
+        [HarmonyPatch(typeof(ENV_RoachTrader), "Start")]
+        private static class ShopkeeperPatch
+        {
+            [HarmonyPrefix]
+            private static void Prefix(ENV_RoachTrader __instance)
             {
-                return;
-            }
-            nextCheck = Time.unscaledTime + 0.5f;
-            bool now = CoOp;
-            if (now == wasCoOp)
-            {
-                return;
-            }
-            wasCoOp = now;
-            // Disks already lying around (or in the bag) when the lobby starts or ends.
-            foreach (Item_Object obj in FindObjectsByType<Item_Object>(FindObjectsInactive.Include, FindObjectsSortMode.None))
-            {
-                if (now)
+                try
                 {
-                    Wear(obj);
+                    CoopItems.Definition def = CoopItems.Find(Id);
+                    if (!CoOp || def?.Prefab == null || __instance.roachTradeGroups == null)
+                    {
+                        return;
+                    }
+                    foreach (ENV_RoachTrader.RoachTradeGroup group in __instance.roachTradeGroups)
+                    {
+                        if (group?.trades == null || group.trades.Count == 0 || group.trades.Exists(t => t != null && t.item == def.Prefab))
+                        {
+                            continue;
+                        }
+                        group.trades.Add(new ENV_RoachTrader.RoachTradeGroup.Trade
+                        {
+                            spawnSettings = new SpawnTable.SpawnSettings(),
+                            item = def.Prefab,
+                        });
+                    }
                 }
-                else
+                catch (Exception e)
                 {
-                    obj.GetComponent<WorldSkin>()?.Restore();
+                    Plugin.Log.LogWarning("Couldn't give the shopkeeper a totem: " + e.Message);
+                }
+            }
+        }
+
+        // ------------------------------------------------------------------ Found in the world
+
+        /// <summary>
+        /// Whether a save disk the level just put down is a totem instead. Decided from the run's seed and
+        /// the disk's place in its level, so every PC turns the same disks into totems.
+        /// </summary>
+        private static bool BecomesTotem(Item_Object obj)
+        {
+            if (!CoOp || obj == null || obj.itemData == null || obj.itemData.hasBeenPickedUp
+                || !SaveDisks.Contains(obj.itemData.prefabName ?? ""))
+            {
+                return false;
+            }
+            if (obj.GetComponentInParent<M_Level>() == null || World.ItemSync.Instance == null
+                || World.ItemSync.Instance.RemoteCopies.Contains(obj))
+            {
+                return false;
+            }
+            // Disks a vendor pushes out land next to it, under the same parent: those stay disks.
+            Transform parent = obj.transform.parent;
+            if (parent != null && (parent.GetComponentInChildren<ENV_Vendor_Disk>(true) != null
+                || parent.GetComponentInChildren<ENV_VendingMachine>(true) != null))
+            {
+                return false;
+            }
+            string key = NetSession.Instance.CurrentRun.Seed + "|" + World.ButtonSync.ObjectId(obj);
+            uint hash = 2166136261;
+            foreach (char c in key)
+            {
+                hash = (hash ^ c) * 16777619;
+            }
+            return (hash & 1) == 0;
+        }
+
+        [HarmonyPatch(typeof(Item_Object), nameof(Item_Object.Start))]
+        private static class FoundInWorldPatch
+        {
+            // Before ItemSync names the item, so it's known as a totem everywhere from the start.
+            [HarmonyPrefix]
+            [HarmonyPriority(Priority.First)]
+            private static void Prefix(Item_Object __instance)
+            {
+                try
+                {
+                    CoopItems.Definition def = CoopItems.Find(Id);
+                    if (def?.Prefab == null || !Players.WorldSpace.Ready || !BecomesTotem(__instance))
+                    {
+                        return;
+                    }
+                    __instance.itemData = def.Prefab.itemData.GetClone();
+                }
+                catch (Exception e)
+                {
+                    Plugin.Log.LogWarning("Couldn't place a totem: " + e.Message);
                 }
             }
         }
@@ -58,12 +167,12 @@ namespace Belay.Items
         private static Texture2D[] slotTextures;
         private static readonly Dictionary<Material, Material[]> materialsFor = new Dictionary<Material, Material[]>();
 
-        /// <summary>Shows a disk lying in the world (or in the backpack) as the totem.</summary>
+        /// <summary>Shows a totem lying in the world (or in the backpack) with its own model.</summary>
         internal static void Wear(Item_Object obj)
         {
             try
             {
-                if (obj == null || !IsDisk(obj.itemData))
+                if (obj == null || !IsTotem(obj.itemData))
                 {
                     return;
                 }
@@ -92,7 +201,7 @@ namespace Belay.Items
             }
             catch (Exception e)
             {
-                Plugin.Log.LogWarning("Couldn't show a disk as a totem: " + e.Message);
+                Plugin.Log.LogWarning("Couldn't show a totem: " + e.Message);
             }
         }
 
@@ -190,7 +299,7 @@ namespace Belay.Items
             return result;
         }
 
-        /// <summary>Remembers a disk's own model so the totem can be taken off again.</summary>
+        /// <summary>Puts the totem's model on an item that was built from a disk.</summary>
         internal class WorldSkin : MonoBehaviour
         {
             private MeshFilter filter;
@@ -239,22 +348,6 @@ namespace Belay.Items
                     box.size = b.size;
                 }
             }
-
-            internal void Restore()
-            {
-                if (!Worn || filter == null || renderer == null)
-                {
-                    return;
-                }
-                Worn = false;
-                filter.sharedMesh = originalMesh;
-                renderer.sharedMaterials = originalMaterials;
-                if (box != null)
-                {
-                    box.center = boxCenter;
-                    box.size = boxSize;
-                }
-            }
         }
 
         [HarmonyPatch(typeof(Item_Object), nameof(Item_Object.Start))]
@@ -263,10 +356,7 @@ namespace Belay.Items
             [HarmonyPostfix]
             private static void Postfix(Item_Object __instance)
             {
-                if (CoOp)
-                {
-                    Wear(__instance);
-                }
+                Wear(__instance);
             }
         }
 
@@ -294,7 +384,7 @@ namespace Belay.Items
             return handSprite;
         }
 
-        /// <summary>Swaps the disk picture in a held disk for the totem, and back if the lobby ends.</summary>
+        /// <summary>Swaps the disk picture the totem's copied hand still has for the totem's own.</summary>
         internal class HandSkin : MonoBehaviour
         {
             private SpriteRenderer sprite;
@@ -312,7 +402,7 @@ namespace Belay.Items
                 {
                     return;
                 }
-                Sprite want = CoOp ? HandSprite() : original;
+                Sprite want = HandSprite();
                 if (sprite.sprite != want)
                 {
                     sprite.sprite = want;
@@ -328,7 +418,7 @@ namespace Belay.Items
             {
                 try
                 {
-                    if (!IsDisk(i))
+                    if (!IsTotem(i))
                     {
                         return;
                     }
@@ -348,7 +438,7 @@ namespace Belay.Items
                 }
                 catch (Exception e)
                 {
-                    Plugin.Log.LogWarning("Couldn't show a held disk as a totem: " + e.Message);
+                    Plugin.Log.LogWarning("Couldn't show a held totem: " + e.Message);
                 }
             }
         }
