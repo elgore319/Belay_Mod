@@ -428,7 +428,7 @@ namespace Belay.Players.Avatar
             Quaternion headRotation = Quaternion.Euler(Mathf.Clamp(signedPitch, -75f, 75f) * 0.85f, headYaw, 0);
             head.SetPositionAndRotation(neck, headRotation);
             HeadTop = neck + Vector3.up * (0.3f * Scale);
-            bool lampOn = HeadlampsEnabled;
+            bool lampOn = HeadlampsEnabled && LoreLooks.HasLamp(outfit.Look);
             if (lamp.enabled != lampOn)
             {
                 lamp.enabled = lampOn;

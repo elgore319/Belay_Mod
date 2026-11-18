@@ -120,6 +120,12 @@ namespace Belay.Players.Avatar
         public static bool Valid(int look) => look > 0 && look < Count;
 
         /// <summary>
+        /// Whether the look wears a headlamp. The lab researcher, pier worker, scavenger and denizen go
+        /// without, so each look reads differently (and their teammate light stays off).
+        /// </summary>
+        public static bool HasLamp(int look) => !(look == Researcher || look == PierWorker || look == Scavenger || look == Denizen);
+
+        /// <summary>
         /// The texture recipes for a look. Swatch picks (null = none) still win over the look's own colors,
         /// so a researcher can wear a red coat if they want.
         /// </summary>
@@ -284,7 +290,6 @@ namespace Belay.Players.Avatar
                 k.Use(Slot.Metal).Torus(a + new Vector3(side * 0.025f, -0.015f, 0.015f), new Vector3(side * 0.05f, -0.03f, 0.03f), 0.027f, 0.005f, 8, 4);
             }
             k.Use(Slot.Webbing).Tube(new Vector3(0, 0.04f, 0.15f), new Vector3(0, 0.07f, 0.155f), 0.014f, 0.012f, 6);
-            Lamp(k, 0.13f, 0.06f, -0.01f, 0.12f);
         }
 
         /// <summary>Hard hat with a full brim and a ridge, ear defenders.</summary>
@@ -324,7 +329,6 @@ namespace Belay.Players.Avatar
             }, 12, true, true);
             k.Use(Slot.Accent).Tube(new Vector3(-0.1f, 0.18f, 0.03f), new Vector3(0, 0.03f, 0.08f), 0.006f, 0.006f, 4);
             k.Use(Slot.Accent).Tube(new Vector3(0.1f, 0.18f, 0.03f), new Vector3(0, 0.03f, 0.08f), 0.006f, 0.006f, 4);
-            Lamp(k, 0.13f, 0.065f, -0.005f, 0.113f);
         }
 
         /// <summary>Rags wound round the head and face, a strip trailing at the back, goggles over the top.</summary>
@@ -343,7 +347,6 @@ namespace Belay.Players.Avatar
             k.Block(new Vector3(0.0f, 0.04f, -0.1f), 0.11f, 0.05f, 0.02f, 0.06f, 0.025f, -0.03f, 0.02f);
             k.Block(new Vector3(0.03f, 0.06f, -0.095f), 0.08f, 0.035f, 0.015f, 0.04f, 0.02f, -0.02f, 0.03f);
             Goggles(k, Slot.Accent, Slot.Webbing);
-            Lamp(k, 0.13f, 0.06f, 0.01f, 0.1f);
         }
 
         /// <summary>Parka hood up, cinched round the face with a thick fur ruff.</summary>
@@ -438,7 +441,6 @@ namespace Belay.Players.Avatar
             k.Ellipsoid(new Vector3(0, 0.15f, -0.05f), new Vector3(0.115f, 0.115f, 0.1f), 3, 9, true);
             k.Block(new Vector3(0, -0.01f, -0.07f), 0.15f, 0.2f, 0.1f, 0.21f, 0.12f, 0.01f);
             k.Use(Slot.Accent).Ellipsoid(new Vector3(0.05f, 0.21f, 0.06f), new Vector3(0.03f, 0.02f, 0.03f), 2, 6);
-            Lamp(k, 0.13f, 0.07f, 0.0f, 0.1f);
         }
 
         // ---------------------------------------------------------------------------------------------
