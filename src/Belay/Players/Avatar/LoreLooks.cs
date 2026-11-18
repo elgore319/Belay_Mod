@@ -383,15 +383,34 @@ namespace Belay.Players.Avatar
             k.Use(Slot.Helmet);
             k.Ellipsoid(new Vector3(0, 0.19f, 0.01f), new Vector3(0.124f, 0.105f, 0.14f), 4, 10, true);
             k.Torus(new Vector3(0, 0.19f, 0.01f), Vector3.up, 0.128f, 0.014f, 10, 4);
+            // The crack running over the dome, and the growth that split it.
+            k.Use(Slot.Visor);
+            Vector3[] crack = { new Vector3(-0.07f, 0.27f, 0.07f), new Vector3(-0.02f, 0.29f, 0.03f), new Vector3(0.01f, 0.295f, -0.02f), new Vector3(0.06f, 0.28f, -0.06f) };
+            for (int i = 0; i < crack.Length - 1; i++)
+            {
+                k.Tube(crack[i], crack[i + 1], 0.007f, 0.007f, 4);
+            }
+            Growth(k, new Vector3(0.05f, 0.27f, -0.02f), 0.06f, 11);
+            Growth(k, new Vector3(0.095f, 0.2f, 0.07f), 0.042f, 12);
+            Growth(k, new Vector3(0.06f, 0.13f, 0.112f), 0.036f, 13);   // over one eye
+            Growth(k, new Vector3(-0.08f, 0.045f, 0.065f), 0.032f, 14); // the jaw
+            // Veins spreading down from the crack across the face and neck.
             k.Use(Slot.Flesh);
-            k.Ellipsoid(new Vector3(0.05f, 0.27f, -0.02f), new Vector3(0.07f, 0.06f, 0.08f), 3, 8);
-            k.Ellipsoid(new Vector3(0.09f, 0.21f, 0.06f), new Vector3(0.05f, 0.05f, 0.05f), 3, 7);
-            k.Ellipsoid(new Vector3(0.06f, 0.13f, 0.11f), new Vector3(0.045f, 0.04f, 0.035f), 3, 7);
-            k.Ellipsoid(new Vector3(-0.08f, 0.04f, 0.06f), new Vector3(0.04f, 0.045f, 0.04f), 3, 7);
-            k.Use(Slot.Accent);
-            k.Ellipsoid(new Vector3(0.1f, 0.25f, 0.04f), new Vector3(0.016f, 0.016f, 0.016f), 2, 5);
-            k.Ellipsoid(new Vector3(0.02f, 0.3f, 0.02f), new Vector3(0.014f, 0.014f, 0.014f), 2, 5);
-            k.Ellipsoid(new Vector3(0.09f, 0.14f, 0.14f), new Vector3(0.013f, 0.013f, 0.013f), 2, 5);
+            Vector3[][] veins =
+            {
+                new[] { new Vector3(0.09f, 0.2f, 0.09f), new Vector3(0.07f, 0.17f, 0.11f), new Vector3(0.03f, 0.1f, 0.115f), new Vector3(0.015f, 0.06f, 0.1f) },
+                new[] { new Vector3(0.1f, 0.18f, 0.06f), new Vector3(0.09f, 0.11f, 0.07f), new Vector3(0.08f, 0.05f, 0.06f), new Vector3(0.07f, 0.0f, 0.05f) },
+                new[] { new Vector3(-0.04f, 0.29f, 0.05f), new Vector3(-0.1f, 0.25f, 0.06f), new Vector3(-0.115f, 0.2f, 0.03f) },
+                new[] { new Vector3(-0.08f, 0.06f, 0.07f), new Vector3(-0.07f, 0.0f, 0.06f), new Vector3(-0.065f, -0.02f, 0.04f) },
+            };
+            foreach (Vector3[] vein in veins)
+            {
+                for (int i = 0; i < vein.Length - 1; i++)
+                {
+                    float t = i / (float)(vein.Length - 1);
+                    k.Tube(vein[i], vein[i + 1], 0.008f * (1f - t * 0.6f), 0.008f * (1f - (t + 1f / (vein.Length - 1)) * 0.6f), 4);
+                }
+            }
             Lamp(k, 0.15f, 0.03f, 0f, 0f);
         }
 
@@ -582,24 +601,112 @@ namespace Belay.Players.Avatar
 
         private static void InfestedExtra(MeshKit k)
         {
-            // Growth bursting out of the jacket: a big mass on one shoulder, smaller ones down the back,
-            // and glowing pustules.
+            // Zeta growth bursting out of the jacket: torn holes with lumpy masses swelling out of them,
+            // glowing pustules, little spines, and veins creeping out across the cloth from each one.
+            Growth(k, new Vector3(0.17f, 0.46f, -0.03f), 0.11f, 1);   // the big mass on the shoulder
+            Growth(k, new Vector3(0.22f, 0.35f, 0.05f), 0.065f, 2);
+            Growth(k, new Vector3(0.06f, 0.31f, -0.13f), 0.075f, 3);   // down the back
+            Growth(k, new Vector3(-0.08f, 0.17f, -0.12f), 0.055f, 4);
+            Growth(k, new Vector3(-0.15f, 0.05f, 0.08f), 0.05f, 5);    // the hip
+            Growth(k, new Vector3(0.09f, -0.12f, 0.11f), 0.045f, 6);
+            Growth(k, new Vector3(-0.12f, 0.38f, 0.1f), 0.04f, 7);     // starting on the chest
             k.Use(Slot.Flesh);
-            k.Ellipsoid(new Vector3(0.17f, 0.46f, -0.03f), new Vector3(0.11f, 0.09f, 0.1f), 4, 9);
-            k.Ellipsoid(new Vector3(0.22f, 0.36f, 0.04f), new Vector3(0.07f, 0.07f, 0.07f), 3, 8);
-            k.Ellipsoid(new Vector3(0.06f, 0.32f, -0.13f), new Vector3(0.08f, 0.1f, 0.05f), 3, 8);
-            k.Ellipsoid(new Vector3(-0.08f, 0.18f, -0.12f), new Vector3(0.06f, 0.07f, 0.04f), 3, 7);
-            k.Ellipsoid(new Vector3(-0.15f, 0.05f, 0.08f), new Vector3(0.05f, 0.06f, 0.05f), 3, 7);
-            k.Ellipsoid(new Vector3(0.09f, -0.12f, 0.11f), new Vector3(0.05f, 0.05f, 0.04f), 3, 7);
-            k.Use(Slot.Accent);
-            Vector3[] spots =
+            Tendril(k, 0.9f, 0.45f, 0.1f, 0.3f, 0.014f, 1);
+            Tendril(k, 1.1f, 0.4f, 1.9f, 0.15f, 0.013f, 2);
+            Tendril(k, 0.7f, 0.42f, -0.5f, 0.42f, 0.011f, 3);
+            Tendril(k, 1.4f, 0.34f, 2.4f, 0.4f, 0.012f, 4);
+            Tendril(k, 2.7f, 0.3f, 3.6f, 0.12f, 0.012f, 5);
+            Tendril(k, 2.6f, 0.28f, 2.2f, 0.02f, 0.01f, 6);
+            Tendril(k, 3.7f, 0.16f, 4.5f, 0.06f, 0.011f, 7);
+            Tendril(k, 4.9f, 0.05f, 5.6f, 0.3f, 0.01f, 8);
+            Tendril(k, 5.3f, 0.37f, 6.1f, 0.24f, 0.009f, 9);
+            Tendril(k, 0.6f, -0.1f, 1.2f, 0.12f, 0.01f, 10);
+        }
+
+        // The torso's outside, as rings of (height, x radius, z radius, z shift), for laying growth on it.
+        private static readonly Vector4[] TorsoSkin =
+        {
+            new Vector4(-0.2f, 0.2f, 0.14f, -0.01f),
+            new Vector4(0.05f, 0.182f, 0.12f, 0f),
+            new Vector4(0.22f, 0.198f, 0.126f, 0.01f),
+            new Vector4(0.34f, 0.22f, 0.134f, 0.016f),
+            new Vector4(0.44f, 0.212f, 0.124f, 0.012f),
+            new Vector4(0.52f, 0.16f, 0.1f, 0.004f),
+        };
+
+        /// <summary>A point on the torso's surface at <paramref name="angle"/> (0 = front, toward +x), lifted off it.</summary>
+        private static Vector3 OnTorso(float angle, float y, float lift)
+        {
+            Vector4 ring = TorsoSkin[TorsoSkin.Length - 1];
+            for (int r = 0; r < TorsoSkin.Length - 1; r++)
             {
-                new Vector3(0.2f, 0.53f, 0.03f), new Vector3(0.26f, 0.42f, 0.08f), new Vector3(0.1f, 0.48f, 0.06f),
-                new Vector3(0.08f, 0.38f, -0.17f), new Vector3(-0.1f, 0.22f, -0.15f), new Vector3(-0.17f, 0.08f, 0.12f),
-            };
-            foreach (Vector3 s in spots)
+                if (y >= TorsoSkin[r].x && y <= TorsoSkin[r + 1].x)
+                {
+                    ring = Vector4.Lerp(TorsoSkin[r], TorsoSkin[r + 1], (y - TorsoSkin[r].x) / (TorsoSkin[r + 1].x - TorsoSkin[r].x));
+                    break;
+                }
+            }
+            return new Vector3(Mathf.Sin(angle) * (ring.y + lift), y, Mathf.Cos(angle) * (ring.z + lift) + ring.w);
+        }
+
+        private static float Noise(int seed, int i) => Mathf.Sin(seed * 12.9898f + i * 78.233f) * 0.5f;
+
+        /// <summary>A vein creeping over the torso from one spot to another, wandering a little and thinning out.</summary>
+        private static void Tendril(MeshKit k, float a0, float y0, float a1, float y1, float radius, int seed)
+        {
+            const int Segments = 7;
+            Vector3 prev = OnTorso(a0, y0, 0.006f);
+            for (int i = 1; i <= Segments; i++)
             {
-                k.Ellipsoid(s, new Vector3(0.018f, 0.018f, 0.018f), 2, 5);
+                float t = i / (float)Segments;
+                float wobble = i < Segments ? Noise(seed, i) * 0.25f : 0f;
+                Vector3 next = OnTorso(Mathf.Lerp(a0, a1, t) + wobble, Mathf.Lerp(y0, y1, t) + Noise(seed + 7, i) * 0.03f, 0.006f);
+                k.Tube(prev, next, radius * (1f - (t - 1f / Segments) * 0.8f), radius * (1f - t * 0.8f), 4);
+                if (i == 3)
+                {
+                    // One side branch, splitting off and fading quickly.
+                    Vector3 branch = OnTorso(Mathf.Lerp(a0, a1, t) + 0.35f * Mathf.Sign(Noise(seed, 9) + 0.01f), Mathf.Lerp(y0, y1, t) - 0.06f, 0.006f);
+                    k.Tube(next, branch, radius * 0.6f, radius * 0.2f, 4);
+                }
+                prev = next;
+            }
+        }
+
+        /// <summary>
+        /// One growth: a dark tear in the cloth, a lumpy mass of nodules swelling out of it, spines and
+        /// glowing pustules set in fleshy rims.
+        /// </summary>
+        private static void Growth(MeshKit k, Vector3 center, float size, int seed)
+        {
+            Vector3 outward = new Vector3(center.x, 0f, center.z).normalized;
+            Vector3 side = Vector3.Cross(Vector3.up, outward).normalized;
+            k.Use(Slot.Visor).Ellipsoid(center - outward * (size * 0.35f), new Vector3(size * 1.15f, size * 1.15f, size * 1.15f) * 0.9f, 2, 8);
+            k.Use(Slot.Flesh);
+            k.Ellipsoid(center, new Vector3(size, size * 0.85f, size) * 0.95f, 4, 10);
+            for (int i = 0; i < 6; i++)
+            {
+                float a = i * Mathf.PI * 2f / 6f + Noise(seed, i);
+                Vector3 dir = (side * Mathf.Cos(a) + Vector3.up * Mathf.Sin(a)) * 0.75f + outward * (0.35f + Noise(seed, i + 3) * 0.3f);
+                float r = size * (0.38f + Mathf.Abs(Noise(seed, i + 11)) * 0.3f);
+                k.Ellipsoid(center + dir * size * 0.85f, new Vector3(r, r * 0.9f, r), 3, 7);
+            }
+            // Spines pushing out of the mass.
+            for (int i = 0; i < 3; i++)
+            {
+                float a = i * 2.1f + seed;
+                Vector3 dir = (outward * 0.8f + side * Mathf.Cos(a) * 0.5f + Vector3.up * Mathf.Sin(a) * 0.5f).normalized;
+                Vector3 root = center + dir * size * 0.8f;
+                k.Tube(root, root + dir * size * 0.55f, size * 0.12f, 0.002f, 4);
+            }
+            // Pustules: a fleshy rim round a glowing bead.
+            for (int i = 0; i < 4; i++)
+            {
+                float a = i * 1.7f + seed * 0.9f;
+                Vector3 dir = (outward * 0.9f + side * Mathf.Cos(a) * 0.6f + Vector3.up * Mathf.Sin(a) * 0.6f).normalized;
+                Vector3 at = center + dir * size * 0.92f;
+                float r = size * (0.16f + Mathf.Abs(Noise(seed, i + 20)) * 0.12f);
+                k.Use(Slot.Flesh).Torus(at, dir, r * 1.1f, r * 0.45f, 7, 4);
+                k.Use(Slot.Accent).Ellipsoid(at + dir * r * 0.2f, new Vector3(r, r, r), 2, 6);
             }
         }
 
