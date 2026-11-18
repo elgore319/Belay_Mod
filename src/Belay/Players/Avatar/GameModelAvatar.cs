@@ -34,6 +34,8 @@ namespace Belay.Players.Avatar
             public string Hips;
             /// <summary>Arm and leg chains: upper bone, lower bone, end bone.</summary>
             public string[] ArmL, ArmR, LegL, LegR;
+            /// <summary>Optional hind legs (the Soach walks on four): they step with the opposite climber leg.</summary>
+            public string[] RearL, RearR;
             public string Head;
         }
 
@@ -68,6 +70,7 @@ namespace Belay.Players.Avatar
                 Left = "ArmTop.L", Right = "ArmTop.R", Height = 1.7f, Hips = "Chest_1", Head = "Head",
                 ArmL = new[] { "ArmTop.L", "ArmMid.L", "Hand.L" }, ArmR = new[] { "ArmTop.R", "ArmMid.R", "Hand.R" },
                 LegL = new[] { "F_Leg_top.L", "F_Leg_mid.L", "F_Foot.L" }, LegR = new[] { "F_Leg_top.R", "F_Leg_mid.R", "F_Foot.R" },
+                RearL = new[] { "R_Leg_top.L", "R_Leg_mid.L", "R_Foot.L" }, RearR = new[] { "R_Leg_top.R", "R_Leg_mid.R", "R_Foot.R" },
             },
         };
 
@@ -81,7 +84,9 @@ namespace Belay.Players.Avatar
         private readonly Quaternion facingFix;
         private readonly float groundOffset;
         private readonly Transform hips, head;
-        private readonly Transform[][] chains = new Transform[4][];
+        private readonly Transform[][] chains = new Transform[6][];
+        /// <summary>Where each hind foot and knee stand at rest, relative to the model root.</summary>
+        private readonly Vector3[] rearFoot = new Vector3[2], rearKnee = new Vector3[2];
         private readonly List<KeyValuePair<Transform, Quaternion>> rest = new List<KeyValuePair<Transform, Quaternion>>();
         private float hang;
 
@@ -174,6 +179,8 @@ namespace Belay.Players.Avatar
             chains[1] = Chain(spec.ArmR);
             chains[2] = Chain(spec.LegL);
             chains[3] = Chain(spec.LegR);
+            chains[4] = Chain(spec.RearL);
+            chains[5] = Chain(spec.RearR);
 
             // Face +z, stand on the ground, and match the climber's size.
             Vector3 forward = Vector3.forward;
@@ -211,6 +218,14 @@ namespace Belay.Players.Avatar
             foreach (Transform t in new[] { hips, head })
             {
                 Remember(t);
+            }
+            for (int i = 0; i < 2; i++)
+            {
+                if (chains[4 + i] != null)
+                {
+                    rearKnee[i] = root.InverseTransformPoint(chains[4 + i][1].position);
+                    rearFoot[i] = root.InverseTransformPoint(chains[4 + i][2].position);
+                }
             }
             foreach (Transform[] chain in chains)
             {
@@ -260,6 +275,21 @@ namespace Belay.Players.Avatar
             Reach(chains[1], s.RightHand, s.RightElbow);
             Reach(chains[2], s.LeftFoot, s.LeftKnee);
             Reach(chains[3], s.RightFoot, s.RightKnee);
+            // Hind legs trot with the diagonal leg: the left hind steps with the right foot and the right
+            // hind with the left, copying that foot's stride (forward/back and lift) from where they rest.
+            StepRear(chains[4], 0, s.RightFoot);
+            StepRear(chains[5], 1, s.LeftFoot);
+        }
+
+        private void StepRear(Transform[] chain, int i, Vector3 leadFoot)
+        {
+            if (chain == null)
+            {
+                return;
+            }
+            Vector3 lead = root.InverseTransformPoint(leadFoot);
+            Vector3 stride = Vector3.ClampMagnitude(new Vector3(0f, Mathf.Max(lead.y, 0f), lead.z), 0.6f);
+            Reach(chain, root.TransformPoint(rearFoot[i] + stride), root.TransformPoint(rearKnee[i] + stride));
         }
 
         public void SetVisible(bool visible)
