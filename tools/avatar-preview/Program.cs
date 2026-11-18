@@ -789,7 +789,7 @@ internal static class Program
         return m;
     }
 
-    private const string TotemItem = "Item_Floppy_T1";
+    private const string TotemItem = "Belay_Totem";
     private static int totemTexBase;
 
     /// <summary>Triangles of a kit built in place (no frame), with texture slots from <paramref name="texBase"/>.</summary>
