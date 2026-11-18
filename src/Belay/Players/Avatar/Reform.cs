@@ -3,8 +3,8 @@ using UnityEngine;
 namespace Belay.Players.Avatar
 {
     /// <summary>
-    /// The totem revive: the revived teammate is rebuilt from the inside out. A glowing ember of a heart
-    /// lights up in the chest, a skeleton grows out of it (spine and ribs first, then out along the limbs to
+    /// The totem revive: the revived teammate is rebuilt from the inside out. A glowing skeleton grows
+    /// out of the chest (spine and ribs first, then out along the limbs to
     /// the hands and feet), then the body grows back over the bones in the same order: strands of raw
     /// muscle knit from joint to joint, skin buds and spreads over them in patches, then clothes and gear
     /// spread over the skin the same way, and the glow cools off. About three and a half seconds.
@@ -387,18 +387,6 @@ namespace Belay.Players.Avatar
                 return (h & 0xFFFF) / 65535f;
             }
         }
-
-        /// <summary>Size of the glowing heart (meters across, before the avatar's scale).</summary>
-        public static float Core(float t)
-        {
-            float grow = Ease(t / 0.35f);
-            float fade = 1f - Ease((t - 1.1f) / 0.5f);
-            float pulse = 1f + 0.12f * Mathf.Sin(t * 18f);
-            return 0.12f * grow * fade * pulse;
-        }
-
-        /// <summary>Where the heart sits in the torso's design space (pelvis at the origin).</summary>
-        public static readonly Vector3 CorePosition = new Vector3(0f, 0.32f, 0.02f);
 
         /// <summary>How hot the new body still glows (0..1): full while forming, cooling at the end.</summary>
         public static float Glow(float t)

@@ -77,11 +77,10 @@ namespace Belay.Players.Avatar
         }
 
         private static readonly Dictionary<int, Mesh> boneMeshes = new Dictionary<int, Mesh>();
-        private static Material[] boneMaterials, coreMaterials;
+        private static Material[] boneMaterials;
         private static Material muscleMaterial, skinMaterial;
 
         private List<ReformPiece> reformPieces;
-        private Transform reformCore;
         private float reformStart = -1f;
 
         /// <summary>Whether the climber is being rebuilt by a totem revive right now.</summary>
@@ -112,12 +111,6 @@ namespace Belay.Players.Avatar
             {
                 PixelTextures.Recipe bone = Belay.Items.TotemLook.Recipes()[Belay.Items.TotemLook.BoneSlot];
                 boneMaterials = MakeItemMaterials(new[] { bone }, -1);
-                PixelTextures.Recipe glow = Belay.Items.TotemLook.Recipes()[Belay.Items.TotemLook.GlowSlot];
-                coreMaterials = MakeItemMaterials(new[] { glow }, -1);
-                if (coreMaterials[0].HasProperty("_EmissionColor"))
-                {
-                    coreMaterials[0].SetColor("_EmissionColor", Reform.GlowColor * 2.2f);
-                }
                 Texture2D meat = MeatTexture();
                 var skin = new Texture2D(meat.width, meat.height, TextureFormat.RGBA32, false) { name = "Belay_ReformSkin", filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat };
                 skin.SetPixels32(Reform.SkinFrom(meat.GetPixels32()));
@@ -144,13 +137,6 @@ namespace Belay.Players.Avatar
             Add(rightBoot, Reform.Part.Boot);
             Add(pack, Reform.Part.Gear);
             Add(packLid, Reform.Part.Gear);
-
-            var core = new GameObject("ReformCore");
-            core.transform.SetParent(root, false);
-            core.AddComponent<MeshFilter>().sharedMesh = BoneMesh(-1);
-            core.AddComponent<MeshRenderer>().sharedMaterials = coreMaterials;
-            core.SetActive(false);
-            reformCore = core.transform;
         }
 
         private void Add(Transform flesh, Reform.Part kind)
@@ -260,7 +246,7 @@ namespace Belay.Players.Avatar
             return m;
         }
 
-        /// <summary>A bone mesh per part kind; -1 is the glowing heart.</summary>
+        /// <summary>A bone mesh per part kind.</summary>
         private static Mesh BoneMesh(int kind)
         {
             if (boneMeshes.TryGetValue(kind, out Mesh mesh) && mesh != null)
@@ -268,14 +254,7 @@ namespace Belay.Players.Avatar
                 return mesh;
             }
             var kit = new MeshKit(1) { TileSize = 0.12f };
-            if (kind < 0)
-            {
-                kit.Ellipsoid(Vector3.zero, Vector3.one * 0.5f, 4, 8);
-            }
-            else
-            {
-                Reform.BuildBone(kit, (Reform.Part)kind);
-            }
+            Reform.BuildBone(kit, (Reform.Part)kind);
             mesh = kit.ToMesh("Belay_ReformBone" + kind);
             Object.DontDestroyOnLoad(mesh);
             boneMeshes[kind] = mesh;
@@ -317,17 +296,6 @@ namespace Belay.Players.Avatar
                 ShowMuscle(piece, posed, t, showBones);
                 ShowSkin(piece, posed, t, showBones);
                 ShowClothes(piece, t);
-            }
-            float core = Reform.Core(t);
-            bool coreShows = showBones && core > 0.001f;
-            if (reformCore.gameObject.activeSelf != coreShows)
-            {
-                reformCore.gameObject.SetActive(coreShows);
-            }
-            if (coreShows)
-            {
-                reformCore.localPosition = torso.localPosition + torso.localRotation * (Reform.CorePosition * Scale);
-                reformCore.localScale = Vector3.one * (core * Scale);
             }
             SetGlow(Reform.Glow(t));
         }
@@ -452,7 +420,6 @@ namespace Belay.Players.Avatar
                 piece.Skins?.Free();
                 piece.MuscleBuilt = -1f;
             }
-            reformCore.gameObject.SetActive(false);
             SetGlow(0f);
         }
 

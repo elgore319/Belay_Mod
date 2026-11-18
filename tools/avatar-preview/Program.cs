@@ -428,13 +428,6 @@ internal static class Program
             Emit(k => { k.Use(Slot.Glove); var tmp = new MeshKit(1); Reform.BuildBone(tmp, kind); Copy(tmp, k, Slot.Glove); Squash(k, bs); }, frame);
             gloveSlot = Slot.Glove;
         }
-        if (kind == Reform.Part.Torso && Reform.Core(reformT) > 0.001f)
-        {
-            gloveSlot = coreTex;
-            float c = Reform.Core(reformT) * 0.5f;
-            Emit(k => { k.Use(Slot.Glove).Ellipsoid(Reform.CorePosition, Vector3.one * c, 4, 8); }, frame);
-            gloveSlot = Slot.Glove;
-        }
     }
 
     /// <summary>Counts the parts of each figure, so each one spreads in its own pattern.</summary>
