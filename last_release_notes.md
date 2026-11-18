@@ -1,5 +1,6 @@
-## Tethered 0.7.47
+## Tethered 0.7.48
 
-- **Shorter waits at doors.** Doors and blast doors (like the one into Habitation Yellow) no longer run a 15 second countdown from the first player through. They still stay open until every living player has passed, then shut for everyone 1 second after the last one is through. The host can set that delay from 0 to 10 seconds in the lobby settings.
+- **A smoother revive on the game's own models.** The Soach shopkeeper, the giant roach and the two zombies now grow back in small patches spreading out from the middle of the body, instead of in big shards that started from the floor.
+- **Roaches molt back.** On the Soach and the giant roach the shell first grows in soft and milky white, like a freshly molted roach, and the roach's own colors then spread over it. Their bones are thinner cartilage.
 
 No network change.

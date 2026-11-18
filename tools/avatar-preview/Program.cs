@@ -583,6 +583,30 @@ internal static class Program
                 while (part.TriTex.Count < part.Tris.Count / 3) part.TriTex.Add(ti);
             }
             all.AddRange(part.V);
+            // Small separate triangles, as the game grows them (ModelReform does the same split).
+            if (Environment.GetEnvironmentVariable("SPLIT") != "0")
+            {
+                float patch = ReformModel.PatchSize(part.V);
+                var splitTris = new List<int>();
+                var splitTex = new List<int>();
+                var allCorners = new List<int>();
+                var allWeights = new List<Vector3>();
+                for (int t = 0; t < part.Tris.Count; t += 3)
+                {
+                    ReformModel.Split(part.V, part.Tris.GetRange(t, 3), patch, out int[] corners, out Vector3[] weights);
+                    for (int k = 0; k < weights.Length; k++) splitTris.Add(allWeights.Count + k);
+                    for (int k = 0; k < weights.Length / 3; k++) splitTex.Add(part.TriTex[t / 3]);
+                    allCorners.AddRange(corners);
+                    allWeights.AddRange(weights);
+                }
+                int[] cs = allCorners.ToArray();
+                Vector3[] ws = allWeights.ToArray();
+                part.N = ReformModel.Blend(part.N, cs, ws);
+                part.UV = ReformModel.Blend(part.UV, cs, ws);
+                part.V = ReformModel.Blend(part.V, cs, ws);
+                part.Tris = splitTris;
+                part.TriTex = splitTex;
+            }
             model.Parts.Add(part);
         }
         model.Segments = ReformModel.Segments(model.Bones, model.Parent, all, boneNames);
@@ -636,7 +660,8 @@ internal static class Program
             {
                 var kit = new MeshKit(1) { TileSize = 0.12f };
                 Reform.BuildBone(kit, Reform.Part.UpperLimb);
-                EmitSegment(kit, frame, scale, m.BoneTex, Reform.BoneAt(seg.Stage, t));
+                float thin = ReformModel.BoneThickness(m.Roachy);
+                EmitSegment(kit, frame, new Vector3(scale.x * thin, scale.y * thin, scale.z), m.BoneTex, Reform.BoneAt(seg.Stage, t));
             }
             if (ReformModel.MuscleShows(seg.Stage, t))
             {

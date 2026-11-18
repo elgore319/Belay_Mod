@@ -178,17 +178,107 @@ namespace Belay.Players.Avatar
         /// <summary>When each triangle of the model starts to grow: out from the bones that form first.</summary>
         public static float[] SpreadKeys(IList<Vector3> vertices, IList<int> triangles, IList<Vector3> bones, int[] parent, int seed)
         {
+            // From the middle of the bones that form first (not the rig's root, which sits on the floor).
             int[] stage = Stages(parent);
             var seeds = new List<Vector3>();
-            for (int i = 0; i < bones.Count; i++)
+            for (int want = 0; want <= 3 && seeds.Count < 2; want++)
             {
-                if (stage[i] == 0 || (stage[i] == 1 && seeds.Count < 2))
+                for (int i = 0; i < bones.Count; i++)
                 {
-                    seeds.Add(bones[i]);
+                    int p = parent[i];
+                    if (stage[i] == want && p >= 0 && parent[p] >= 0)
+                    {
+                        seeds.Add((bones[i] + bones[p]) * 0.5f);
+                    }
                 }
+            }
+            if (seeds.Count == 0)
+            {
+                seeds.AddRange(bones);
             }
             return Reform.SpreadKeys(vertices, triangles, seeds, Vector3.one, seed);
         }
+
+        /// <summary>
+        /// A model's surface cut into small, separate triangles, so it can grow patch by patch: every
+        /// triangle gets its own three vertices (the game's meshes share them between neighbours), and big
+        /// triangles are split in four until no edge is longer than <paramref name="maxEdge"/>. Each new
+        /// vertex is a blend of one original triangle's corners: <paramref name="corners"/> holds those three
+        /// vertex indices and <paramref name="weights"/> how much of each, so any vertex data can be carried over.
+        /// </summary>
+        public static void Split(IList<Vector3> vertices, IList<int> triangles, float maxEdge, out int[] corners, out Vector3[] weights, int maxDepth = 3)
+        {
+            var c = new List<int>();
+            var w = new List<Vector3>();
+            for (int t = 0; t + 2 < triangles.Count; t += 3)
+            {
+                int a = triangles[t], b = triangles[t + 1], d = triangles[t + 2];
+                SplitOne(vertices[a], vertices[b], vertices[d], new Vector3(1, 0, 0), new Vector3(0, 1, 0), new Vector3(0, 0, 1), maxEdge, maxDepth, a, b, d, c, w);
+            }
+            corners = c.ToArray();
+            weights = w.ToArray();
+        }
+
+        private static void SplitOne(Vector3 pa, Vector3 pb, Vector3 pc, Vector3 wa, Vector3 wb, Vector3 wc, float maxEdge, int depth,
+            int a, int b, int d, List<int> corners, List<Vector3> weights)
+        {
+            float longest = Mathf.Max((pa - pb).sqrMagnitude, Mathf.Max((pb - pc).sqrMagnitude, (pc - pa).sqrMagnitude));
+            if (depth <= 0 || longest <= maxEdge * maxEdge)
+            {
+                foreach (Vector3 x in new[] { wa, wb, wc })
+                {
+                    corners.Add(a);
+                    corners.Add(b);
+                    corners.Add(d);
+                    weights.Add(x);
+                }
+                return;
+            }
+            Vector3 ab = (pa + pb) * 0.5f, bc = (pb + pc) * 0.5f, ca = (pc + pa) * 0.5f;
+            Vector3 wab = (wa + wb) * 0.5f, wbc = (wb + wc) * 0.5f, wca = (wc + wa) * 0.5f;
+            SplitOne(pa, ab, ca, wa, wab, wca, maxEdge, depth - 1, a, b, d, corners, weights);
+            SplitOne(ab, pb, bc, wab, wb, wbc, maxEdge, depth - 1, a, b, d, corners, weights);
+            SplitOne(ca, bc, pc, wca, wbc, wc, maxEdge, depth - 1, a, b, d, corners, weights);
+            SplitOne(ab, bc, ca, wab, wbc, wca, maxEdge, depth - 1, a, b, d, corners, weights);
+        }
+
+        /// <summary>Carries vertex data (positions, normals, UVs) over to the split surface.</summary>
+        public static Vector3[] Blend(IList<Vector3> data, int[] corners, Vector3[] weights)
+        {
+            var result = new Vector3[weights.Length];
+            for (int i = 0; i < result.Length; i++)
+            {
+                Vector3 w = weights[i];
+                result[i] = data[corners[i * 3]] * w.x + data[corners[i * 3 + 1]] * w.y + data[corners[i * 3 + 2]] * w.z;
+            }
+            return result;
+        }
+
+        public static Vector2[] Blend(IList<Vector2> data, int[] corners, Vector3[] weights)
+        {
+            var result = new Vector2[weights.Length];
+            for (int i = 0; i < result.Length; i++)
+            {
+                Vector3 w = weights[i];
+                result[i] = data[corners[i * 3]] * w.x + data[corners[i * 3 + 1]] * w.y + data[corners[i * 3 + 2]] * w.z;
+            }
+            return result;
+        }
+
+        /// <summary>How long a triangle's edge may be on the split surface: small patches, a few cm on a person.</summary>
+        public static float PatchSize(IList<Vector3> vertices)
+        {
+            Vector3 min = Vector3.one * 1e9f, max = Vector3.one * -1e9f;
+            foreach (Vector3 v in vertices)
+            {
+                min = Vector3.Min(min, v);
+                max = Vector3.Max(max, v);
+            }
+            return Mathf.Max(1e-4f, (max - min).magnitude) * 0.035f;
+        }
+
+        /// <summary>The roaches' bones are thinner: cartilage under a shell, not a skeleton holding a body up.</summary>
+        public static float BoneThickness(bool roachy) => roachy ? 0.55f : 1f;
 
         /// <summary>Whether a segment's bone shows (grown, and the skin hasn't closed over the body).</summary>
         public static bool BoneShows(int stage, float t)

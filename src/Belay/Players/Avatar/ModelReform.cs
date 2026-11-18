@@ -39,6 +39,7 @@ namespace Belay.Players.Avatar
         private readonly MeshKit kit = new MeshKit(1) { TileSize = 0.12f };
         private readonly Transform holder;
         private readonly Material skinMaterial;
+        private readonly float boneThickness;
 
         private static readonly HashSet<string> warned = new HashSet<string>();
 
@@ -61,6 +62,7 @@ namespace Belay.Players.Avatar
         private ModelReform(GameModelAvatar model, Transform parent, Mesh boneMesh, Material bone, Material muscle, Material skin)
         {
             skinMaterial = skin;
+            boneThickness = ReformModel.BoneThickness(ReformModel.Roachy(model.Kind));
             holder = new GameObject("ModelReform").transform;
             holder.SetParent(parent, false);
 
@@ -81,6 +83,12 @@ namespace Belay.Players.Avatar
                 }
                 var surface = new Surface { Renderer = r, Original = r.sharedMesh };
                 Mesh copy = ReadableCopy(r.sharedMesh);
+                if (copy != null)
+                {
+                    Mesh split = Split(copy);
+                    Object.Destroy(copy);
+                    copy = split;
+                }
                 if (copy == null)
                 {
                     surface.Pop = true;
@@ -331,7 +339,7 @@ namespace Belay.Players.Avatar
                 if (boneShows)
                 {
                     p.Bone.SetPositionAndRotation(a, rotation);
-                    p.Bone.localScale = Vector3.Scale(local, new Vector3(1f, 1f, Reform.BoneAt(p.Stage, t)));
+                    p.Bone.localScale = Vector3.Scale(local, new Vector3(boneThickness, boneThickness, Reform.BoneAt(p.Stage, t)));
                 }
                 if (muscleShows)
                 {
@@ -387,6 +395,115 @@ namespace Belay.Players.Avatar
             {
                 Object.Destroy(holder.gameObject);
             }
+        }
+
+        /// <summary>
+        /// The mesh cut into small separate triangles (<see cref="ReformModel.Split"/>), so it grows patch
+        /// by patch instead of in big shards, with its UVs and bone weights carried over.
+        /// </summary>
+        private static Mesh Split(Mesh source)
+        {
+            Vector3[] vertices = source.vertices;
+            Vector3[] normals = source.normals;
+            if (normals == null || normals.Length != vertices.Length)
+            {
+                normals = new Vector3[vertices.Length];
+            }
+            Vector2[] uvs = source.uv;
+            if (uvs == null || uvs.Length != vertices.Length)
+            {
+                uvs = new Vector2[vertices.Length];
+            }
+            BoneWeight[] bones = source.boneWeights;
+            bool skinned = bones != null && bones.Length == vertices.Length;
+            float patch = ReformModel.PatchSize(vertices);
+
+            var outVertices = new List<Vector3>();
+            var outNormals = new List<Vector3>();
+            var outUvs = new List<Vector2>();
+            var outBones = new List<BoneWeight>();
+            var subTriangles = new List<int>[source.subMeshCount];
+            var mix = new Dictionary<int, float>();
+            for (int sub = 0; sub < source.subMeshCount; sub++)
+            {
+                int[] triangles = source.GetTriangles(sub);
+                ReformModel.Split(vertices, triangles, patch, out int[] corners, out Vector3[] weights);
+                int start = outVertices.Count;
+                outVertices.AddRange(ReformModel.Blend(vertices, corners, weights));
+                outNormals.AddRange(ReformModel.Blend(normals, corners, weights));
+                outUvs.AddRange(ReformModel.Blend(uvs, corners, weights));
+                var list = new List<int>(weights.Length);
+                for (int i = 0; i < weights.Length; i++)
+                {
+                    list.Add(start + i);
+                    if (!skinned)
+                    {
+                        continue;
+                    }
+                    mix.Clear();
+                    for (int c = 0; c < 3; c++)
+                    {
+                        float share = weights[i][c];
+                        if (share <= 0f)
+                        {
+                            continue;
+                        }
+                        BoneWeight b = bones[corners[i * 3 + c]];
+                        Add(mix, b.boneIndex0, b.weight0 * share);
+                        Add(mix, b.boneIndex1, b.weight1 * share);
+                        Add(mix, b.boneIndex2, b.weight2 * share);
+                        Add(mix, b.boneIndex3, b.weight3 * share);
+                    }
+                    outBones.Add(Strongest(mix));
+                }
+                subTriangles[sub] = list;
+            }
+            var mesh = new Mesh { name = source.name, indexFormat = IndexFormat.UInt32 };
+            mesh.SetVertices(outVertices);
+            mesh.SetNormals(outNormals);
+            mesh.SetUVs(0, outUvs);
+            if (skinned)
+            {
+                mesh.boneWeights = outBones.ToArray();
+                mesh.bindposes = source.bindposes;
+            }
+            mesh.subMeshCount = subTriangles.Length;
+            for (int sub = 0; sub < subTriangles.Length; sub++)
+            {
+                mesh.SetTriangles(subTriangles[sub], sub, false);
+            }
+            mesh.RecalculateBounds();
+            mesh.MarkDynamic();
+            return mesh;
+        }
+
+        private static void Add(Dictionary<int, float> mix, int bone, float weight)
+        {
+            if (weight <= 0f)
+            {
+                return;
+            }
+            mix.TryGetValue(bone, out float had);
+            mix[bone] = had + weight;
+        }
+
+        /// <summary>The four strongest bones of a blend, normalized, as Unity's 4-bone skinning wants.</summary>
+        private static BoneWeight Strongest(Dictionary<int, float> mix)
+        {
+            var top = new List<KeyValuePair<int, float>>(mix);
+            top.Sort((a, b) => b.Value.CompareTo(a.Value));
+            float total = 0f;
+            for (int i = 0; i < top.Count && i < 4; i++)
+            {
+                total += top[i].Value;
+            }
+            total = Mathf.Max(total, 1e-6f);
+            var w = new BoneWeight();
+            if (top.Count > 0) { w.boneIndex0 = top[0].Key; w.weight0 = top[0].Value / total; }
+            if (top.Count > 1) { w.boneIndex1 = top[1].Key; w.weight1 = top[1].Value / total; }
+            if (top.Count > 2) { w.boneIndex2 = top[2].Key; w.weight2 = top[2].Value / total; }
+            if (top.Count > 3) { w.boneIndex3 = top[3].Key; w.weight3 = top[3].Value / total; }
+            return w;
         }
 
         /// <summary>
