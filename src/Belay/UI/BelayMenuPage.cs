@@ -22,9 +22,11 @@ namespace Belay.UI
         private const float NavWidth = 280f;
         private const float HeaderHeight = 120f;
 
-        private static readonly Tab[] PageTabs = { Tab.Lobby, Tab.Players, Tab.Rules, Tab.Outfit, Tab.Mods, Tab.Settings, Tab.Bot };
+        private static readonly Tab[] PageTabs = { Tab.Lobby, Tab.Players, Tab.Rules, Tab.Mods, Tab.Settings, Tab.Bot };
 
         private bool pageMode;
+        /// <summary>The page opened from the game's Cosmetics screen: just the outfit and BACK.</summary>
+        private bool outfitPage;
         private bool pageInRun;
         private Vector2 pageScroll;
         private readonly List<Canvas> hiddenCanvases = new List<Canvas>();
@@ -132,7 +134,7 @@ namespace Belay.UI
                 // Header: red marker, title, subtitle, version, and a rule underneath.
                 Fill(new Rect(Margin, Margin - 8f, 8f, 72f), BelayTheme.Red);
                 GUI.Label(new Rect(Margin + 26f, Margin - 20f, 600f, 80f), "NOT ALONE", pageTitle);
-                GUI.Label(new Rect(Margin + 380f, Margin + 4f, 400f, 40f), "MULTIPLAYER", pageSubtitle);
+                GUI.Label(new Rect(Margin + 380f, Margin + 4f, 400f, 40f), outfitPage ? "CLIMBER" : "MULTIPLAYER", pageSubtitle);
                 var version = new GUIStyle(pageSubtitle) { alignment = TextAnchor.LowerRight, fontSize = 20 };
                 GUI.Label(new Rect(width - Margin - 300f, Margin + 4f, 300f, 40f), "v" + Plugin.Version, version);
                 Fill(new Rect(Margin, Margin + HeaderHeight - 60f, width - Margin * 2f, 2f), BelayTheme.Line);
@@ -142,7 +144,7 @@ namespace Belay.UI
 
                 // Left column: page sections, then CAMPAIGN and BACK at the bottom.
                 float y = top;
-                foreach (Tab t in PageTabs)
+                foreach (Tab t in outfitPage ? new Tab[0] : PageTabs)
                 {
                     if (t == Tab.Bot && Bot.TestBot.Instance == null)
                     {
@@ -156,7 +158,7 @@ namespace Belay.UI
                     }
                     y += 62f;
                 }
-                if (!pageInRun && GUI.Button(new Rect(Margin, bottom - 136f, NavWidth, 72f), "CAMPAIGN", campaignButton))
+                if (!outfitPage && !pageInRun && GUI.Button(new Rect(Margin, bottom - 136f, NavWidth, 72f), "CAMPAIGN", campaignButton))
                 {
                     GoToCampaign();
                     return;
