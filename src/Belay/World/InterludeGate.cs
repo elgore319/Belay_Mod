@@ -19,8 +19,6 @@ namespace Belay.World
         /// <summary>How far outside a level's bounds still counts as "in the room" (meters).</summary>
         private const float BoundsSlack = 2f;
 
-        private static float lastNoticeTime = -10f;
-
         /// <summary>For the HUD: teammates still missing from the room you're in, or 0.</summary>
         public static int MissingInCurrentRoom
         {
@@ -260,8 +258,7 @@ namespace Belay.World
             {
                 return false;
             }
-            // Waits quietly: no text on screen (Lee: the game doesn't need hand holding).
-            return true;
+            return true; // waits quietly, no on-screen text
         }
     }
 

@@ -77,7 +77,6 @@ namespace Belay.Players.Avatar
         private static readonly Dictionary<string, float> retryAt = new Dictionary<string, float>();
 
         public readonly string Kind;
-        private readonly Spec spec;
         private readonly Transform root;
         private readonly Transform model;
         private readonly Animator animator;
@@ -133,12 +132,9 @@ namespace Belay.Players.Avatar
             }
         }
 
-        public static bool IsKind(string kind) => kind != null && Specs.ContainsKey(kind);
-
         private GameModelAvatar(string kind, Spec spec, GameObject source, Transform parent)
         {
             Kind = kind;
-            this.spec = spec;
             root = new GameObject("GameModel_" + kind).transform;
             root.SetParent(parent, false);
 

@@ -69,9 +69,6 @@ namespace Belay.Players
         private readonly Dictionary<SteamId, float> escapedUntil = new Dictionary<SteamId, float>();
         private SteamId carriedBy;
 
-        /// <summary>Who is carrying the local player right now (default when nobody).</summary>
-        public SteamId CarriedBy => carriedBy;
-
         private void Awake()
         {
             Instance = this;

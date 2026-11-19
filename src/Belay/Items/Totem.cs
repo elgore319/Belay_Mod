@@ -304,24 +304,16 @@ namespace Belay.Items
         {
             private MeshFilter filter;
             private MeshRenderer renderer;
-            private Mesh originalMesh;
             private Material[] originalMaterials;
             private BoxCollider box;
-            private Vector3 boxCenter, boxSize;
             internal bool Worn { get; private set; }
 
             internal void Setup(MeshFilter f, BoxCollider collider)
             {
                 filter = f;
                 renderer = f.GetComponent<MeshRenderer>();
-                originalMesh = f.sharedMesh;
                 originalMaterials = renderer.sharedMaterials;
                 box = collider;
-                if (box != null)
-                {
-                    boxCenter = box.center;
-                    boxSize = box.size;
-                }
             }
 
             internal void Apply()
@@ -388,12 +380,10 @@ namespace Belay.Items
         internal class HandSkin : MonoBehaviour
         {
             private SpriteRenderer sprite;
-            private Sprite original;
 
             internal void Setup(SpriteRenderer r)
             {
                 sprite = r;
-                original = r.sprite;
             }
 
             private void LateUpdate()

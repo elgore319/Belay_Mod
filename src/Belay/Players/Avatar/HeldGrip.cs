@@ -206,15 +206,6 @@ namespace Belay.Players.Avatar
             return Basis(axis, across, grip);
         }
 
-        /// <summary>Root to template for a model already built in template space (our own models).</summary>
-        public static Matrix4x4 Identity => Matrix4x4.identity;
-
-        /// <summary>The plain shape guess with no per-item corrections (grip a fifth up from the light end).</summary>
-        public static Matrix4x4 FitByShape(Vector3 min, Vector3 max, Vector3 mass)
-        {
-            return Fit(min, max, mass, null, plain: true);
-        }
-
         private static Matrix4x4 Basis(Vector3 axis, Vector3 across, Vector3 grip)
         {
             Vector3 y = Vector3.Cross(across, axis);

@@ -64,11 +64,6 @@ namespace Belay.Items
             return null;
         }
 
-        public static bool IsCoopItem(Item item, string id)
-        {
-            return item != null && string.Equals(item.prefabName, id, StringComparison.OrdinalIgnoreCase);
-        }
-
         private void Awake()
         {
             Instance = this;

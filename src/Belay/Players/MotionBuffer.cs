@@ -45,8 +45,6 @@ namespace Belay.Players
         private float playback;
         private bool started;
 
-        public bool HasData => snapshots.Count > 0;
-
         /// <summary>How far behind the newest snapshot the body is drawn.</summary>
         public float Delay => Mathf.Clamp(interval * 1.3f + jitter * 2.5f + 0.01f, 0.04f, 0.3f);
 

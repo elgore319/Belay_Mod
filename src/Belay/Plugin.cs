@@ -29,8 +29,6 @@ namespace Belay
         public static ConfigEntry<KeyCode> RopePullKey;
         public static ConfigEntry<int> SendRate;
         public static ConfigEntry<KeyCode> SpectateNextKey;
-        public static ConfigEntry<KeyCode> VoteYesKey;
-        public static ConfigEntry<KeyCode> VoteNoKey;
         public static ConfigEntry<bool> AutoUpdate;
         public static ConfigEntry<string> UpdateRepo;
         public static ConfigEntry<KeyCode> BotPovKey;
@@ -48,8 +46,6 @@ namespace Belay
             RopeOnByDefault = Config.Bind("Rope", "RopeOnByDefault", false, "Turn the rope on when you host a lobby (you can switch it in Rules).");
             RopePullKey = Config.Bind("Rope", "RopePullKey", KeyCode.V, "Hold while gripping a wall to haul up the teammates roped below you.");
             ShowRope = Config.Bind("Rope", "ShowRope", true, "Draw the rope between you and your teammates.");
-            VoteYesKey = Config.Bind("Votes", "VoteYesKey", KeyCode.F1, "Vote yes when a teammate wants to take a shortcut.");
-            VoteNoKey = Config.Bind("Votes", "VoteNoKey", KeyCode.F2, "Vote no when a teammate wants to take a shortcut.");
             SpectateNextKey = Config.Bind("Revive", "SpectateNextKey", KeyCode.Tab, "While dead, switch which teammate you watch.");
             SendRate = Config.Bind("Network", "SendRate", 20, "Player state updates sent per second.");
             AutoUpdate = Config.Bind("Updates", "AutoUpdate", true, "Install new Not Alone releases when the game starts, and check for new ones every 10 minutes while it runs.");

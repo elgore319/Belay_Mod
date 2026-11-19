@@ -69,10 +69,7 @@ namespace Belay.World
         // Everyone: what to draw.
         private bool showVote;
         private string shownId;
-        private string shownTitle;
-        private int shownYes, shownNo, shownVoters;
         private float shownEnds;
-        private bool myVoteSent;
         private int runId;
 
         // Everyone: the running vote as the host last described it, so a new host can carry it on.
@@ -81,8 +78,6 @@ namespace Belay.World
         private readonly HashSet<ulong> shownYesIds = new HashSet<ulong>();
         private readonly HashSet<ulong> shownNoIds = new HashSet<ulong>();
         private SteamId lastHost;
-        private string myRequestId;
-        private Vector3 myRequestPos;
 
         private void Awake()
         {
@@ -120,29 +115,9 @@ namespace Belay.World
 
         // ---------------------------------------------------------------- Starting a vote
 
-        /// <summary>The local player opened a shortcut: ask the team instead of opening it.</summary>
-        internal void RequestVote(UT_BranchGenerator generator)
-        {
-            string id = ButtonSync.ObjectId(generator);
-            if (showVote && shownId == id)
-            {
-                return;
-            }
-            Plugin.Log.LogInfo((Approved.Contains(id) ? "Opening a shortcut the team picked: " : "Asking the team to take a shortcut: ") + id);
-            // Some shortcuts start when you walk into them. If the team picks the normal path, you're
-            // put back where you were when you asked, on the right side of the block.
-            myRequestId = id;
-            myRequestPos = WorldSpace.ToShared(ENT_Player.playerObject.transform.position);
-            Ask(new List<string> { id }, false);
-        }
-
         /// <summary>A vote cast on a vote terminal: starts the team vote for that shortcut if none is running.</summary>
         internal void CastVote(string id, bool inFavour)
         {
-            if (shownId == id)
-            {
-                myVoteSent = true;
-            }
             NetSession net = NetSession.Instance;
             if (net.IsHost)
             {
@@ -498,7 +473,7 @@ namespace Belay.World
                         w.Write(noIds.Count);
                         foreach (ulong v in noIds) w.Write(v);
                     });
-                    ShowState(id, title, y, n, voters.Count, left);
+                    ShowState(id, title, left);
                 }
                 return;
             }
@@ -527,9 +502,9 @@ namespace Belay.World
         {
             string id = r.ReadString();
             string title = r.ReadString();
-            int y = r.ReadInt32();
-            int n = r.ReadInt32();
-            int voters = r.ReadInt32();
+            r.ReadInt32(); // yes, no and voter counts (unused here, kept for the packet format)
+            r.ReadInt32();
+            r.ReadInt32();
             float left = r.ReadSingle();
             shownAtTerminal = r.ReadBoolean();
             shownAtVoteTerminal = r.ReadBoolean();
@@ -540,22 +515,17 @@ namespace Belay.World
             for (int i = 0; i < yc && i < 64; i++) shownYesIds.Add(r.ReadUInt64());
             int nc = r.ReadInt32();
             for (int i = 0; i < nc && i < 64; i++) shownNoIds.Add(r.ReadUInt64());
-            ShowState(id, title, y, n, voters, left);
+            ShowState(id, title, left);
         }
 
-        private void ShowState(string id, string title, int y, int n, int voters, float left)
+        private void ShowState(string id, string title, float left)
         {
             if (!showVote || shownId != id)
             {
-                myVoteSent = false;
                 Plugin.Log.LogInfo($"Showing shortcut vote: {title} ({id})");
             }
             showVote = true;
             shownId = id;
-            shownTitle = title;
-            shownYes = y;
-            shownNo = n;
-            shownVoters = voters;
             shownEnds = Time.unscaledTime + left;
         }
 
@@ -568,7 +538,6 @@ namespace Belay.World
             }
             if (outcome == Outcome.NoVotes)
             {
-                if (myRequestId == id) myRequestId = null;
                 return;
             }
             if (outcome == Outcome.Approved)
@@ -586,11 +555,6 @@ namespace Belay.World
                 if (g != null) BlockShortcut(g);
                 else lockLater[id] = true;
                 Approved.Remove(id);
-                if (myRequestId == id && ENT_Player.playerObject != null && !ENT_Player.playerObject.dead)
-                {
-                    ENT_Player.playerObject.Teleport(WorldSpace.ToLocal(myRequestPos));
-                }
-                myRequestId = null;
                 return;
             }
             Open(id, starter);
@@ -914,30 +878,6 @@ namespace Belay.World
                     Open(pair.Key, pair.Value);
                 }
             }
-        }
-
-        private void SendVote(bool inFavour)
-        {
-            if (!showVote || myVoteSent)
-            {
-                return;
-            }
-            myVoteSent = true;
-            string id = shownId;
-            NetSession net = NetSession.Instance;
-            if (net.IsHost)
-            {
-                HostCount(NetSession.LocalId, id, inFavour);
-            }
-            else
-            {
-                net.Send(PacketType.ShortcutVote, w =>
-                {
-                    w.Write(id);
-                    w.Write(inFavour);
-                });
-            }
-            Run.RunFlow.Instance?.ShowNotice(inFavour ? "You voted for the shortcut." : "You voted for the normal path.", 3f);
         }
 
         private float nextReportTry;

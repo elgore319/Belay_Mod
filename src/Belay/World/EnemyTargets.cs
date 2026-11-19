@@ -30,7 +30,7 @@ namespace Belay.World
 
         /// <summary>Creatures each PC runs for its own player instead of copying the host's.</summary>
         internal static bool Personal(AIGameEntity e) =>
-            e is DEN_Mask || e is DEN_Remains_Active || e is DEN_LadderNightmare || e is DEN_Hopper_Tick;
+            e is DEN_Mask || e is DEN_Remains_Active || e is DEN_Hopper_Tick;
 
         private static readonly FieldInfo DroneTarget = AccessTools.Field(typeof(DEN_Drone), "droneTarget");
         private static readonly FieldInfo BugTarget = AccessTools.Field(typeof(DEN_Bloodbug), "bloodbugTarget");

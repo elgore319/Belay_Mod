@@ -133,16 +133,7 @@ namespace Belay.World
             return WorldSpace.ToLocal(new Vector3(0f, shared, 0f)).y;
         }
 
-        /// <summary>
-        /// Host: lowest living player's height, local space. A player already under the mass is about to
-        /// die (their own PC kills them a moment later), so they don't hold the mass back.
-        /// </summary>
-        public static float LowestPlayerHeight()
-        {
-            return LowestPlayerPosition().y;
-        }
-
-        /// <summary>Host: the lowest living player's position, local space (see <see cref="LowestPlayerHeight"/>).</summary>
+        /// <summary>Host: the lowest living player's position, local space.</summary>
         public static Vector3 LowestPlayerPosition()
         {
             return LowestPlayerPosition(DEN_DeathFloor.instance != null ? ((Component)DEN_DeathFloor.instance).transform.position.y : float.MinValue);

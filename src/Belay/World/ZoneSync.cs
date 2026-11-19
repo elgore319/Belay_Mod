@@ -20,7 +20,6 @@ namespace Belay.World
         public static ZoneSync Instance { get; private set; }
 
         private readonly Dictionary<UT_TriggerZone, Transform> waiting = new Dictionary<UT_TriggerZone, Transform>();
-        private float lastNotice = -10f;
 
         internal static bool Applying;
 

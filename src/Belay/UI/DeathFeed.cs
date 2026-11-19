@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.IO;
 using System.Text.RegularExpressions;
 using Belay.Net;
 using Steamworks;

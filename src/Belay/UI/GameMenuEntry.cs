@@ -75,7 +75,7 @@ namespace Belay.UI
                     return;
                 }
                 nextMainTry = Time.unscaledTime + 0.5f;
-                menuManager = FindObjectOfType<MenuManager>();
+                menuManager = FindFirstObjectByType<MenuManager>();
                 mainFails = 0;
                 loggedMainFail = false;
                 if (menuManager == null)

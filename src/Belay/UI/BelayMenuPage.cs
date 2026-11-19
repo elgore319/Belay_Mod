@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace Belay.UI
 {
@@ -59,14 +58,14 @@ namespace Belay.UI
                 }
                 return;
             }
-            MenuManager manager = FindObjectOfType<MenuManager>();
+            MenuManager manager = FindFirstObjectByType<MenuManager>();
             if (manager == null)
             {
                 return;
             }
             // Every root canvas of the main menu scene (buttons, version text, popups) goes dark; the 3D
             // background keeps running behind the page.
-            foreach (Canvas canvas in FindObjectsOfType<Canvas>())
+            foreach (Canvas canvas in FindObjectsByType<Canvas>(FindObjectsSortMode.InstanceID))
             {
                 if (canvas.isRootCanvas && canvas.enabled && canvas.gameObject.scene == manager.gameObject.scene)
                 {

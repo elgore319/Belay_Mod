@@ -1,4 +1,3 @@
-using System.Linq;
 using System.Globalization;
 using Belay.Net;
 using Belay.Revive;
@@ -42,7 +41,6 @@ namespace Belay.UI
         /// <summary>True while a text box in the menu has the keyboard, so typing doesn't move the player.</summary>
         internal static bool Typing => CapturingInput && GUIUtility.keyboardControl != 0;
         private Tab tab;
-        private Rect window = new Rect(40, 40, 600, 520);
         private Vector2 modScroll;
         private ConfigEntry<KeyCode> rebinding;
         private bool lockedCamera;
@@ -226,10 +224,7 @@ namespace Belay.UI
             }
         }
 
-        /// <summary>
-        /// Lee asked for a popup when an update is out. Shown on the main menu and the pause menu; during
-        /// play the updater shows a notice instead.
-        /// </summary>
+        /// <summary>Update-available popup on the main and pause menus (in play the updater shows a notice).</summary>
         private void DrawUpdatePopup()
         {
             Updater up = Updater.Instance;
@@ -292,26 +287,12 @@ namespace Belay.UI
             {
                 text += check.Mismatches == 0 ? $"   Levels synced: {check.Checked}" : $"   LEVELS DIFFER: {check.Mismatches} of {check.Checked}";
             }
-            // No "waiting for teammates" text (Lee: no hand holding), but the check still brings bots along.
+            // No "waiting for teammates" text, but the check still brings bots along.
             _ = InterludeGate.MissingInCurrentRoom;
             GUI.Label(new Rect(10, Screen.height - 30, 400, 25), text);
         }
 
-        private void DrawWindow(int id)
-        {
-            GUILayout.BeginHorizontal();
-            tab = (Tab)GUILayout.Toolbar((int)tab, TabLabels, BelayTheme.Tab ?? GUI.skin.button);
-            if (GUILayout.Button("X", BelayTheme.Tab ?? GUI.skin.button, GUILayout.Width(32)))
-            {
-                SetOpen(false);
-            }
-            GUILayout.EndHorizontal();
-            GUILayout.Space(10);
-            DrawTabContent();
-            GUI.DragWindow();
-        }
-
-        /// <summary>The selected tab's controls, shared by the floating window and the main-menu page.</summary>
+        /// <summary>The selected tab's controls.</summary>
         private void DrawTabContent()
         {
             NetSession net = NetSession.Instance;

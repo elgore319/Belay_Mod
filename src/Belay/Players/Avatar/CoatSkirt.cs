@@ -87,16 +87,6 @@ namespace Belay.Players.Avatar
             Collide(legs, true);
         }
 
-        /// <summary>Settles the coat around still legs (for previews): no swinging, just out of the way.</summary>
-        public void Settle(IList<Capsule> legs, int iterations = 12)
-        {
-            Reset();
-            for (int n = 0; n < iterations; n++)
-            {
-                Collide(legs, false);
-            }
-        }
-
         private void Collide(IList<Capsule> legs, bool keepVelocity)
         {
             for (int pass = 0; pass < 3; pass++)

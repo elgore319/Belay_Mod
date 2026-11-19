@@ -188,32 +188,6 @@ namespace Belay.World
             return waiting.Count == 0;
         }
 
-        /// <summary>Seconds left on the countdown of the nearest closing door, or null.</summary>
-        public float? NearestCountdown(out float distance)
-        {
-            distance = 0f;
-            float? best = null;
-            float bestDistance = float.MaxValue;
-            if (!WorldSpace.Ready)
-            {
-                return null;
-            }
-            Vector3 me = ENT_Player.playerObject.transform.position;
-            foreach (KeyValuePair<string, float> entry in countdowns)
-            {
-                // Cache only: this runs from OnGUI several times a frame.
-                Component door = IsZone(entry.Key) ? (Component)FindZone(entry.Key, allowScan: false) : Find(entry.Key, allowScan: false);
-                float d = door != null ? Vector3.Distance(door.transform.position, me) : float.MaxValue - 1f;
-                if (d < bestDistance && entry.Value != Waiting)
-                {
-                    bestDistance = d;
-                    best = Mathf.Max(0f, entry.Value - Time.unscaledTime);
-                }
-            }
-            distance = bestDistance;
-            return best;
-        }
-
         // ---------------------------------------------------------------- Local door events
 
         /// <summary>Returns false when the game's own close must be held back.</summary>
