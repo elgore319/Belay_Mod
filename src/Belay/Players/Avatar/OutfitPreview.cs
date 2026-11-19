@@ -21,7 +21,10 @@ namespace Belay.Players.Avatar
         private Color builtFor;
         private RenderTexture texture;
         private float lastDrawn = -10f;
-        private Rect screenRect;
+        private bool failed;
+        private bool savedFog;
+        private Color savedAmbient;
+        private UnityEngine.Rendering.AmbientMode savedAmbientMode;
         private float yaw = 200f;
         private bool dragging;
         private FieldInfo hook;
@@ -32,6 +35,40 @@ namespace Belay.Players.Avatar
             // The menu page owns the hook; looked up by name so either side can ship first.
             hook = typeof(UI.BelayMenu).GetField("OutfitPreviewDrawer", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
             drawer = Draw;
+            Camera.onPreCull += BeforeRender;
+            Camera.onPostRender += AfterRender;
+        }
+
+        private void OnDestroy()
+        {
+            Camera.onPreCull -= BeforeRender;
+            Camera.onPostRender -= AfterRender;
+        }
+
+        // The game's fog and dim ambient light would swallow the model; light it plainly for our camera only.
+        private void BeforeRender(Camera c)
+        {
+            if (c != cam || cam == null)
+            {
+                return;
+            }
+            savedFog = RenderSettings.fog;
+            savedAmbient = RenderSettings.ambientLight;
+            savedAmbientMode = RenderSettings.ambientMode;
+            RenderSettings.fog = false;
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(0.42f, 0.42f, 0.46f);
+        }
+
+        private void AfterRender(Camera c)
+        {
+            if (c != cam || cam == null)
+            {
+                return;
+            }
+            RenderSettings.fog = savedFog;
+            RenderSettings.ambientMode = savedAmbientMode;
+            RenderSettings.ambientLight = savedAmbient;
         }
 
         private void Update()
@@ -50,29 +87,53 @@ namespace Belay.Players.Avatar
                 dragging = false;
                 return;
             }
-            Build();
             if (!dragging)
             {
                 yaw += 12f * Time.unscaledDeltaTime;
             }
-            float dt = Mathf.Max(Time.unscaledDeltaTime, 1e-4f);
-            Quaternion facing = Quaternion.Euler(0f, yaw, 0f);
-            Vector3 body = Spot + Vector3.up * ClimberAvatar.FeetDrop;
-            Vector3 side = facing * Vector3.right * 0.3f;
-            avatar.Wear(Outfits.Local);
-            avatar.Pose(body, yaw, 0f, body - side, body + side, false, false, Vector3.zero, false, dt,
-                HandSkins.LocalSkin(0), HandSkins.LocalSkin(1));
+            try
+            {
+                Build();
+                float dt = Mathf.Max(Time.unscaledDeltaTime, 1e-4f);
+                Quaternion facing = Quaternion.Euler(0f, yaw, 0f);
+                Vector3 body = Spot + Vector3.up * ClimberAvatar.FeetDrop;
+                Vector3 side = facing * Vector3.right * 0.3f;
+                avatar.Wear(Outfits.Local);
+                avatar.Pose(body, yaw, 0f, body - side, body + side, false, false, Vector3.zero, false, dt,
+                    SafeSkin(0), SafeSkin(1));
+            }
+            catch (Exception e)
+            {
+                if (!failed)
+                {
+                    failed = true;
+                    Plugin.Log.LogWarning("Outfit preview couldn't pose the climber: " + e);
+                }
+            }
         }
 
-        private void OnGUI()
+        private static string SafeSkin(int hand)
         {
-            // Drag to turn. Events are only read, never used, so the page still gets them.
-            Event e = Event.current;
-            if (Time.unscaledTime - lastDrawn > 0.3f)
+            try
             {
-                return;
+                return HandSkins.LocalSkin(hand);
             }
-            if (e.type == EventType.MouseDown && e.button == 0 && screenRect.Contains(e.mousePosition))
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Called by the menu for every IMGUI event with the rect it reserved for the model: drags inside
+        /// it turn the model (events are only read, never used, so the page still gets them), and on
+        /// repaint the model is drawn there.
+        /// </summary>
+        private void Draw(Rect rect)
+        {
+            lastDrawn = Time.unscaledTime;
+            Event e = Event.current;
+            if (e.type == EventType.MouseDown && e.button == 0 && rect.Contains(e.mousePosition))
             {
                 dragging = true;
             }
@@ -84,18 +145,9 @@ namespace Belay.Players.Avatar
             {
                 dragging = false;
             }
-        }
-
-        /// <summary>Called by the menu during repaint with the rect it reserved for the model.</summary>
-        private void Draw(Rect rect)
-        {
-            lastDrawn = Time.unscaledTime;
-            Vector2 a = GUIUtility.GUIToScreenPoint(rect.min);
-            Vector2 b = GUIUtility.GUIToScreenPoint(rect.max);
-            screenRect = Rect.MinMaxRect(a.x, a.y, b.x, b.y);
-            if (texture != null && cam != null)
+            if (e.type == EventType.Repaint && texture != null && cam != null)
             {
-                GUI.DrawTexture(rect, texture, ScaleMode.ScaleToFit);
+                GUI.DrawTexture(rect, texture, ScaleMode.ScaleToFit, false);
             }
         }
 
@@ -133,7 +185,7 @@ namespace Belay.Players.Avatar
             cam = camObject.AddComponent<Camera>();
             cam.cullingMask = 1 << Layer;
             cam.clearFlags = CameraClearFlags.SolidColor;
-            cam.backgroundColor = new Color(0f, 0f, 0f, 0f);
+            cam.backgroundColor = new Color(0.075f, 0.078f, 0.085f, 1f);
             cam.fieldOfView = 32f;
             cam.nearClipPlane = 0.1f;
             cam.farClipPlane = 20f;
