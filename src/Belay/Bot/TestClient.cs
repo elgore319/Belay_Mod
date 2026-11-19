@@ -10,13 +10,9 @@ using UnityEngine;
 namespace Belay.Bot
 {
     /// <summary>
-    /// Runs in the second copy of the game (started with -belay-testclient). That copy is a real client:
-    /// it builds its own world from the host's seed and run, so anything it shows differently from your main
-    /// window is a desync. By default it flies along your path a couple of seconds behind you (autopilot);
-    /// press the autopilot key in that window to play it yourself instead.
-    ///
-    /// It shares your Steam account and save folder, so it never writes saves, stats, settings,
-    /// leaderboards or achievements, and it is muted.
+    /// Runs in the second game copy (-belay-testclient): a real client with its own world, so any difference from
+    /// your window is a desync. Follows you on autopilot by default (toggle with the autopilot key). Shares your
+    /// Steam account, so it never saves anything and is muted.
     /// </summary>
     public class TestClient : MonoBehaviour
     {

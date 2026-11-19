@@ -7,9 +7,8 @@ using UnityEngine;
 namespace Belay.Diagnostics
 {
     /// <summary>
-    /// Writes a line to the BepInEx log whenever the game window loses or gets focus, or the cursor
-    /// lock changes, with the keys pressed just before and (on Windows) the window that took focus.
-    /// Used to track down being tabbed out of the game mid-run.
+    /// Logs focus and cursor lock changes, with recent keys and (on Windows) the window that took focus. For
+    /// tracking down being tabbed out mid-run.
     /// </summary>
     public class FocusLog : MonoBehaviour
     {

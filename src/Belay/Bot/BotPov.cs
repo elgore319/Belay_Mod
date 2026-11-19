@@ -5,16 +5,12 @@ using UnityEngine;
 namespace Belay.Bot
 {
     /// <summary>
-    /// The test bot's point of view: a second camera at the bot's head that renders into a texture shown
-    /// in a movable, resizable window. A stand-in body for you is drawn
-    /// only in this camera (your own game shows no body for you), and the bot's own body is hidden from it.
+    /// The test bot's point of view: a camera at its head rendered into a movable window. Shows a stand-in body
+    /// for you and hides the bot's own.
     /// </summary>
     public class BotPov : MonoBehaviour
     {
-        /// <summary>
-        /// How far your camera sits above your body's position (what PlayerState carries), so the bot's eye
-        /// is where yours would be.
-        /// </summary>
+        /// <summary>Camera height above your body's position, so the bot's eye sits where yours would.</summary>
         public static float EyeHeight
         {
             get
@@ -247,9 +243,7 @@ namespace Belay.Bot
 
         private readonly List<Renderer> hiddenSelf = new List<Renderer>();
 
-        // RemotePlayer (and the avatar on it) may switch its own renderers back on in Update/LateUpdate, so
-        // all hiding happens per camera, right before each one culls: the stand-in for you (and its
-        // headlamp) only exists for the bot camera, and the bot's own body is hidden only from it.
+        // Avatars can re-enable their renderers in Update, so hiding is done per camera right before culling.
         private void HandlePreCull(Camera rendering)
         {
             if (youStandIn == null)

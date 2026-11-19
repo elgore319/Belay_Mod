@@ -5,10 +5,8 @@ using UnityEngine;
 namespace Belay.Revive
 {
     /// <summary>
-    /// The save terminal's disk functions are the game's own in co-op too: insert disks and reformat
-    /// them into a disk save. In co-op that save belongs to the whole team (TeamDiskSave): it's only used
-    /// when everyone is down, and then everyone comes back from it together. Loading it by hand from the
-    /// terminal stays off, since that would send one player back alone.
+    /// Save terminal disk functions stay vanilla in co-op, but the save is the team's (TeamDiskSave): used only
+    /// when everyone is down. Loading it by hand stays off, since it would send one player back alone.
     /// </summary>
     [HarmonyPatch(typeof(App_SavePage))]
     internal static class SaveTerminalPatches
@@ -74,8 +72,7 @@ namespace Belay.Revive
     }
 
     /// <summary>
-    /// In a lobby, using a totem you're holding (the normal use button) revives a dead teammate right
-    /// where you are, for free, and uses up the totem.
+    /// In a lobby, using a held totem revives a dead teammate where you stand, free, and uses it up.
     /// </summary>
     [HarmonyPatch(typeof(Item), nameof(Item.Use))]
     internal static class TotemInHandPatch

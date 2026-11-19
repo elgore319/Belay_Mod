@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.IO;
 using System.Text.RegularExpressions;
 using Belay.Net;
 using Steamworks;
@@ -8,9 +7,8 @@ using UnityEngine;
 namespace Belay.UI
 {
     /// <summary>
-    /// Death messages. When anyone in the lobby dies, everyone sees their name and how they died near the top of the
-    /// screen, using the game's own death-screen lines ("EATEN ALIVE", "FUSED INTO THE MASS", ...) so they read like the
-    /// game's own text. Each line fades out after a few seconds.
+    /// Death messages: when anyone dies, everyone sees their name and the game's own death line ("EATEN ALIVE",
+    /// ...) near the top, fading after a few seconds.
     /// </summary>
     internal class DeathFeed : MonoBehaviour
     {

@@ -8,10 +8,8 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Things players fix into the world are shared: a piton hammered into a wall (or anything else
-    /// climbable a player leaves stuck in a surface) appears for everyone at the same spot, and everyone
-    /// can climb it. Hammering it in and it breaking off are shared too, so the team always agrees on
-    /// whether it will hold.
+    /// Shared placements: a piton (or anything climbable stuck in a surface) appears for everyone, and hammering
+    /// it in or breaking it off syncs too.
     /// </summary>
     public class PlacedSync : MonoBehaviour
     {
@@ -43,7 +41,7 @@ namespace Belay.World
             NetSession.Instance.On(PacketType.ObjectBroken, (origin, r) => ApplyBreak(r.ReadString()));
         }
 
-        internal static bool Live => Instance != null && NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready && !Applying;
+        internal static bool Live => Instance != null && NetSession.InLobbyRun && !Applying;
 
         private void Update()
         {

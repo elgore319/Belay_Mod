@@ -5,8 +5,8 @@ using UnityEngine;
 namespace Belay.Players
 {
     /// <summary>
-    /// A teammate's body: the procedural climber from <see cref="ClimberAvatar"/> plus a name tag, played back
-    /// smoothly from its network snapshots (see <see cref="MotionBuffer"/>). It has no colliders, so it never blocks the local player.
+    /// A teammate's body: the <see cref="ClimberAvatar"/> plus a name tag, played back from snapshots (<see
+    /// cref="MotionBuffer"/>). No colliders.
     /// </summary>
     public class RemotePlayer : MonoBehaviour
     {
@@ -19,8 +19,8 @@ namespace Belay.Players
         public float LastReceived;
 
         /// <summary>
-        /// How long a silent teammate still counts as part of the run. Loading a level can freeze a PC for
-        /// several seconds, and players who really leave are removed when Steam says so.
+        /// How long a silent teammate still counts as in the run. Level loads can freeze a PC for seconds; real
+        /// leaves come from Steam.
         /// </summary>
         public const float PresenceTimeout = 15f;
 

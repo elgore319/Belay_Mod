@@ -7,11 +7,9 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Level buttons are shared: when anyone presses one, it's pressed for everyone, so whatever it
-    /// drives (hatches, lifts, lights, animated doors) changes on every PC at once. In interludes the
-    /// press is only allowed once the whole team is inside (see InterludeGate).
-    /// Buttons that buy things or act on the presser's own player are left alone, because currency
-    /// is never shared.
+    /// Level buttons are shared: a press happens on every PC. In interludes it needs the whole team inside (see
+    /// InterludeGate). Buttons that buy things or act on the presser are left alone, since currency is never
+    /// shared.
     /// </summary>
     public class ButtonSync : MonoBehaviour
     {
@@ -36,8 +34,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// True when this level object's events can safely run on every PC: it sits inside a level and
-        /// none of its events buy something or act on the local player.
+        /// True when this level object's events are safe to run on every PC: inside a level, and nothing buys or
+        /// acts on the local player.
         /// </summary>
         internal static bool Shareable(Component owner, params UnityEngine.Events.UnityEventBase[] events)
         {
@@ -72,9 +70,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// Listeners that act on whoever pressed: sitting down at a terminal (OS_Manager.Activate pulls
-        /// the player to the screen and takes the camera), camera takeovers, teleports, cursor and UI.
-        /// A teammate's press still does everything else, but these are left out on other PCs.
+        /// Listeners that act on the presser (terminal sit-down, camera takeovers, teleports, cursor, UI). Skipped
+        /// on other PCs.
         /// </summary>
         internal static bool IsPresserOnly(string name)
         {
@@ -135,9 +132,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// Presses on levels that weren't loaded here yet (you were further down, or dead and spectating):
-        /// they're replayed as soon as that level loads, so the room is in the same state for you when you
-        /// get there (an interlude's lockdown, for one, used to never happen on your PC).
+        /// Presses on levels not loaded here yet are replayed when that level loads, so the room matches when you
+        /// arrive.
         /// </summary>
         private static readonly System.Collections.Generic.Dictionary<string, float> missed = new System.Collections.Generic.Dictionary<string, float>();
         private float nextRetry;

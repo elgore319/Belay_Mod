@@ -9,28 +9,21 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Enemies the game points straight at "the player" (this PC's own) used to go only after the host in
-    /// co-op, because the host runs every enemy and the others copy it. On the host they now go after the
-    /// nearest living player:
-    ///  - Drones and bloodbugs that always hunt the player, and any that has a player in its sights,
-    ///    switch to whoever is nearest.
-    ///  - The rat king follows the nearest player.
-    /// Each PC's copy still does its own hurting, so it only hurts the teammate it actually reaches.
-    ///
-    /// A few creatures are personal by nature: they react to whether YOU are looking at them, ride on
-    /// your face or stalk your own fall (the mask, the remains, the ladder nightmare, ticks). Those
-    /// aren't copied from the host any more: each PC runs its own, for its own player.
+    /// Enemies aimed at "the player" only chased the host in co-op. On the host, drones, bloodbugs and the rat
+    /// king now go after the nearest living player; each copy still only hurts whoever it reaches. Personal
+    /// creatures (the mask, the remains, ticks) react to YOUR view or body, so each PC runs its own instead of
+    /// copying the host.
     /// </summary>
     public class EnemyTargets : MonoBehaviour
     {
         private const float RetargetEvery = 0.5f;
         private float nextRetarget;
 
-        private static bool Live => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        private static bool Live => NetSession.InLobbyRun;
 
         /// <summary>Creatures each PC runs for its own player instead of copying the host's.</summary>
         internal static bool Personal(AIGameEntity e) =>
-            e is DEN_Mask || e is DEN_Remains_Active || e is DEN_LadderNightmare || e is DEN_Hopper_Tick;
+            e is DEN_Mask || e is DEN_Remains_Active || e is DEN_Hopper_Tick;
 
         private static readonly FieldInfo DroneTarget = AccessTools.Field(typeof(DEN_Drone), "droneTarget");
         private static readonly FieldInfo BugTarget = AccessTools.Field(typeof(DEN_Bloodbug), "bloodbugTarget");

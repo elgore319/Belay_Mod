@@ -3,9 +3,8 @@ using UnityEngine;
 namespace Belay.UI
 {
     /// <summary>
-    /// The look of the Belay menu, matched to White Knuckle's own menus: the game's pixel font, black panels with light
-    /// grey pixel frames, white text, and red when something is pointed at or switched on. It's a separate GUISkin that
-    /// only Belay's OnGUI uses, so other mods' IMGUI windows keep their own look.
+    /// Menu look matched to the game's: pixel font, black panels, grey pixel frames, white text, red for hover or
+    /// on. A separate GUISkin, so other mods keep their look.
     /// </summary>
     internal static class BelayTheme
     {

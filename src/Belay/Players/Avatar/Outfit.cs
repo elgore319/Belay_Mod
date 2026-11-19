@@ -7,9 +7,8 @@ using UnityEngine;
 namespace Belay.Players.Avatar
 {
     /// <summary>
-    /// What a player chose for their climber beyond the gloves: headgear and the colors of the jacket,
-    /// headgear, trousers and pack. 0 always means the standard look (jacket and headgear in the
-    /// player's lobby color).
+    /// A player's climber choices beyond gloves: headgear and jacket, headgear, trouser and pack colors. 0 =
+    /// standard (lobby color).
     /// </summary>
     public struct Outfit
     {
@@ -57,8 +56,7 @@ namespace Belay.Players.Avatar
     }
 
     /// <summary>
-    /// The outfit choices, the local player's pick (saved in the config) and what each teammate wears
-    /// (shared as Steam lobby member data, like the hand skins: no packets).
+    /// Outfit choices: the local pick (saved in config) and each teammate's (lobby member data).
     /// </summary>
     public static class Outfits
     {
@@ -173,9 +171,8 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// What a teammate wears: their shared choice, the standard look when they haven't shared one
-        /// (an older Belay), and the local player's own outfit for stand-ins that aren't lobby members
-        /// (test bots), so the choice can be checked without a second player.
+        /// What a teammate wears: their shared choice, the standard look if none was shared, or the local outfit
+        /// for test bots.
         /// </summary>
         public static Outfit Of(SteamId id)
         {

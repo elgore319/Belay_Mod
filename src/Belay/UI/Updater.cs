@@ -8,12 +8,9 @@ using UnityEngine.Networking;
 namespace Belay.UI
 {
     /// <summary>
-    /// Keeps Belay current. Most updates are installed by the BelayUpdater preloader patcher before
-    /// Belay even loads (so one launch is enough); this class installs that patcher, says when it
-    /// updated, and keeps checking GitHub while the game runs. When a newer Belay comes out mid-session
-    /// it downloads the release's Belay.dll and swaps it in next to the running one. Windows lets a
-    /// loaded DLL be renamed, so the current file becomes Belay.dll.old (deleted on the next launch)
-    /// and the new version is used after a restart.
+    /// Keeps the mod current. The BelayUpdater preloader patcher installs most updates before the mod loads; this
+    /// installs that patcher, reports updates, and keeps checking GitHub. A mid-session release is downloaded and
+    /// swapped in (the running DLL is renamed to Belay.dll.old, deleted next launch) and used after a restart.
     /// </summary>
     public class Updater : MonoBehaviour
     {
@@ -70,8 +67,8 @@ namespace Belay.UI
         }
 
         /// <summary>
-        /// Writes the embedded BelayUpdater.dll to BepInEx\patchers\Belay so the next launch installs any
-        /// newer release before Belay loads.
+        /// Writes the embedded BelayUpdater.dll to BepInEx\patchers\Belay so the next launch installs newer
+        /// releases first.
         /// </summary>
         private static void InstallPatcher()
         {
@@ -141,9 +138,7 @@ namespace Belay.UI
             return va.CompareTo(vb);
         }
 
-        /// <summary>
-        /// Quits and starts the game again through Steam, so the downloaded update loads.
-        /// </summary>
+        /// <summary>Restarts the game through Steam so the downloaded update loads.</summary>
         public static void RestartGame()
         {
             try
@@ -221,10 +216,9 @@ namespace Belay.UI
                 Version bestVer = null;
                 string bestUrl = null;
                 int seen = 0;
-                // Every published release's Belay.dll URL has its tag in it:
-                //   https://github.com/<owner>/<repo>/releases/download/<tag>/Belay.dll
-                // Reading those directly avoids depending on JsonUtility with GitHub's large release
-                // objects, and draft releases (untagged URLs) never parse as a version.
+                // Release asset URLs contain the tag
+                // (https://github.com/<owner>/<repo>/releases/download/<tag>/Belay.dll). Parsing those avoids
+                // JsonUtility on GitHub's big release objects, and drafts never parse as a version.
                 foreach (Match m in DllUrl.Matches(body))
                 {
                     seen++;

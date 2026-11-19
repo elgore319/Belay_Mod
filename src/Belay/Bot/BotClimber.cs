@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using Belay.Players;
 using Steamworks;
 using UnityEngine;
@@ -18,10 +17,8 @@ namespace Belay.Bot
     }
 
     /// <summary>
-    /// A bot's own body. It walks, jumps, falls and climbs with gravity and the level's collision, grabs the
-    /// same holds you can (anything tagged Handhold), and each hand has grip stamina that drains while it
-    /// hangs and comes back when it rests, like yours. It is told where to go (TestBot picks the goal) and
-    /// works out how to get there itself.
+    /// A bot's own body: walks, jumps, falls and climbs on the same holds you can, with per-hand grip stamina like
+    /// yours. TestBot picks the goal; this works out the route.
     /// </summary>
     public class BotClimber
     {
@@ -95,8 +92,8 @@ namespace Belay.Bot
         public Action<string> Kill;
 
         /// <summary>
-        /// No hold within reach on the way: the bot may make one (a piton, a thrown rebar). Gets the
-        /// shoulder, the goal and the way into the wall (world space); returns true if it made one.
+        /// No hold within reach: maybe make one (piton, thrown rebar). Inputs are world space; true if it made
+        /// one.
         /// </summary>
         public Func<Vector3, Vector3, Vector3, bool> MakeHold;
         private float makeHoldCooldown;
@@ -892,10 +889,7 @@ namespace Belay.Bot
             return drop < 0.9f;
         }
 
-        /// <summary>
-        /// Could it walk straight from here to there: about the same level, nothing in the way, and floor
-        /// under every step (no gaps or drops to fall into).
-        /// </summary>
+        /// <summary>Can it walk straight there: same level, nothing in the way, floor under every step.</summary>
         public bool CanWalkStraight(Vector3 from, Vector3 to)
         {
             Vector3 d = to - from;
@@ -1002,8 +996,8 @@ namespace Belay.Bot
         private static readonly float[] ReachSide = { 0f, -0.35f, 0.35f, -0.7f, 0.7f };
 
         /// <summary>
-        /// Look for a hold within reach: rays from the shoulder fanned out over the wall in front, plus
-        /// straight at the goal. Picks the one that gets it closest to the goal.
+        /// Finds the reachable hold (rays fanned over the wall, plus one at the goal) that gets closest to the
+        /// goal.
         /// </summary>
         private bool FindHold(Vector3 shoulder, Vector3 goal, Vector3 into, float range, Func<Vector3, bool> accept, out HoldHit best)
         {

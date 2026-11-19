@@ -28,7 +28,7 @@ namespace Belay.UI
                 if (menu == null && Time.unscaledTime >= nextLook)
                 {
                     nextLook = Time.unscaledTime + 0.5f;
-                    menu = Object.FindObjectOfType<UI_CosmeticsMenu>();
+                    menu = Object.FindFirstObjectByType<UI_CosmeticsMenu>();
                 }
                 showing = menu != null && Visible(menu);
                 return showing;

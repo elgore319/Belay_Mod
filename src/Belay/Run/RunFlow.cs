@@ -8,9 +8,8 @@ using UnityEngine.SceneManagement;
 namespace Belay.Run
 {
     /// <summary>
-    /// Keeps the whole lobby in the same run. The host's gamemode choice (with its settings) and a fresh
-    /// seed go into lobby data; clients load into that run on their own, including people who join
-    /// mid-climb, and then get carried up to the host.
+    /// Keeps the lobby in one run: the host's gamemode, settings and a fresh seed go into lobby data, clients load
+    /// in on their own (late joiners too) and are carried up to the host.
     /// </summary>
     public class RunFlow : MonoBehaviour
     {
@@ -185,8 +184,8 @@ namespace Belay.Run
         }
 
         /// <summary>
-        /// A player who spawns far below the host is moved up level by level (so the tower gets generated
-        /// on the way) and then placed next to the host.
+        /// A player spawning far below the host is moved up level by level (generating on the way), then placed
+        /// next to the host.
         /// </summary>
         private void CatchUpToHost()
         {

@@ -8,11 +8,9 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 namespace Belay.Players.Avatar
 {
     /// <summary>
-    /// A teammate drawn with one of the game's own models instead of our climber: the giant roach for
-    /// players in Roach Mode, and the zombie scientist, zombie security guard and the Bazaar's Soach
-    /// shopkeeper as outfit looks. The model is copied from the game's loaded assets (never shipped with
-    /// the mod), stripped of everything but its renderers and bones, and posed every frame from the
-    /// hidden climber's skeleton, so it stands, walks, hangs and reaches for holds the same way.
+    /// A teammate drawn with one of the game's own models (roach for Roach Mode; zombie scientist, zombie guard
+    /// and the Soach as looks). Copied from loaded assets, stripped to renderers and bones, and posed from the
+    /// hidden climber's skeleton.
     /// </summary>
     public sealed class GameModelAvatar
     {
@@ -77,7 +75,6 @@ namespace Belay.Players.Avatar
         private static readonly Dictionary<string, float> retryAt = new Dictionary<string, float>();
 
         public readonly string Kind;
-        private readonly Spec spec;
         private readonly Transform root;
         private readonly Transform model;
         private readonly Animator animator;
@@ -133,12 +130,9 @@ namespace Belay.Players.Avatar
             }
         }
 
-        public static bool IsKind(string kind) => kind != null && Specs.ContainsKey(kind);
-
         private GameModelAvatar(string kind, Spec spec, GameObject source, Transform parent)
         {
             Kind = kind;
-            this.spec = spec;
             root = new GameObject("GameModel_" + kind).transform;
             root.SetParent(parent, false);
 
@@ -240,10 +234,7 @@ namespace Belay.Players.Avatar
             }
         }
 
-        /// <summary>
-        /// Poses the model from the climber that was just posed (and is hidden): its feet, pelvis, torso
-        /// lean, hands and feet.
-        /// </summary>
+        /// <summary>Poses the model from the hidden climber that was just posed.</summary>
         public void Follow(ClimberAvatar.Skeleton s, Vector3 feet, float yaw, Vector3 velocity, bool hanging, float dt)
         {
             root.SetPositionAndRotation(feet, Quaternion.Euler(0f, yaw, 0f));
@@ -426,10 +417,8 @@ namespace Belay.Players.Avatar
         private static float nextSceneScan;
 
         /// <summary>
-        /// The shopkeeper stands in the Bazaar level, and levels aren't loaded until the run reaches them
-        /// (they live behind Addressables, so the holder's level field is empty). Ask Addressables for the
-        /// Bazaar prefabs ourselves, on our own handle so the game's loading is untouched, and take just him
-        /// out once they arrive. Until then this returns null and the caller retries in a few seconds.
+        /// The shopkeeper lives in the Bazaar level, which isn't loaded until reached. Load its prefabs on our own
+        /// Addressables handle and take just him out. Returns null until then; the caller retries.
         /// </summary>
         private static GameObject SoachTrader()
         {

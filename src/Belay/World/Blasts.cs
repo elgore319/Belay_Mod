@@ -10,10 +10,8 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Explosions from items (a grenade going off in hand, on the floor or after a throw) used to happen
-    /// only on the PC of whoever owned the grenade. Now everyone sees and hears the blast where it went
-    /// off and feels it: the camera shakes and it shoves you if you're close. A teammate's blast
-    /// doesn't hurt you, like every other teammate hit; its damage to enemies is shared on its own.
+    /// Item explosions now happen on every PC: everyone sees, hears and feels them (shake and shove). Teammate
+    /// blasts never hurt you; enemy damage is shared separately.
     /// </summary>
     public class Blasts : MonoBehaviour
     {
@@ -36,7 +34,7 @@ namespace Belay.World
             NetSession.Instance.On(PacketType.Blast, HandleBlast);
         }
 
-        internal static bool Live => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        internal static bool Live => NetSession.InLobbyRun;
 
         internal static void MarkCopy(GameObject go)
         {

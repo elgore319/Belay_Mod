@@ -5,8 +5,8 @@ using UnityEngine.Events;
 namespace Belay.Rope
 {
     /// <summary>
-    /// One grabbable piece of a team rope, like the game's own CL_Handhold_Rope: a capsule that follows a
-    /// rope segment so hands can grip it, climb it hand over hand, and swing on it.
+    /// One grabbable piece of a team rope, like CL_Handhold_Rope: a capsule along a segment you can grip, climb
+    /// and swing on.
     /// </summary>
     public class RopeHold : CL_Handhold
     {

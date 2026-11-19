@@ -11,20 +11,12 @@ using UnityEngine.Events;
 namespace Belay.World
 {
     /// <summary>
-    /// Blocks a shortcut or the main path with the level's own machinery instead of a barrier:
-    ///  - Team picks the main path: the shortcut's own doors, hatches, elevators and animated gates
-    ///    stay as they are. A shortcut elevator can still be ridden, but the door that would open onto
-    ///    the shortcut never opens, and anything the shortcut's trigger would set moving doesn't move.
-    ///  - Team picks the shortcut: the main path's doors (the elevator, or the doors at the level's exit)
-    ///    never open, and the elevators and lifts at the exit don't move.
-    /// The shortcut's parts are found by following the level's own wiring: whatever fires the shortcut
-    /// (UT_BranchGenerator.Generate) from a button, zone, door or lift also drives the doors and lifts
-    /// that belong to it, so those are the ones that stay shut. Nearby doors (under the shortcut's part of
-    /// the level, or by its start) count too.
-    /// Only where nothing at all can be locked is the way sealed with a plate cut from the level's own
-    /// walls. The same check also writes a report of every shortcut in the game
-    /// (BepInEx/cache/Belay/shortcut-report.txt) when the game starts.
-    /// Every PC applies the same locks itself (the vote result reaches every PC), so nothing is sent.
+    /// Blocks a shortcut or the main path with the level's own machinery. Main path picked: the shortcut's doors
+    /// never open and its triggered movers don't move. Shortcut picked: the main path's exit doors never open and
+    /// its exit lifts don't move. Shortcut parts are found by following the level's wiring from whatever fires
+    /// UT_BranchGenerator.Generate, plus nearby doors; a plate cut from the level's walls seals the way only when
+    /// nothing can be locked. Also writes BepInEx/cache/Belay/shortcut-report.txt at startup. Every PC applies the
+    /// same locks itself, so nothing is sent.
     /// </summary>
     internal static class ShortcutDoors
     {
@@ -51,8 +43,8 @@ namespace Belay.World
         internal static readonly AccessTools.FieldRef<UT_Door, float> DoorAmount = AccessTools.FieldRefAccess<UT_Door, float>("lerpAmount");
 
         /// <summary>
-        /// A locked door that was already standing open (many start open) swings shut on its own, with its
-        /// own sound, as soon as nobody is in the doorway, and then stays shut. Every PC does this itself.
+        /// A locked door that was open swings shut once nobody is in the doorway, then stays shut. Every PC does
+        /// this itself.
         /// </summary>
         internal static void Tick()
         {
@@ -213,14 +205,11 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// Main-path doors a level animates as part of a scripted sequence, so nothing above can find them.
-        /// Named by hand, by their path in the level. When the team picks the shortcut they're held in the
-        /// pose they're in (shut) and made solid, while the rest of the sequence plays as normal.
-        ///  - Silo to Pipeworks interlude: the elevator button opens the landing door on the button side,
-        ///    the elevator drops, and the landing door across the shaft opens onto the way to Pipeworks.
-        ///    The far landing door (and its grate) stays shut, so the way on is up the shaft into the
-        ///    Expulsion Chute. The button-side door (Door_Elevator_01) and the room's grate
-        ///    (Scripting/Doors/Door_Grate_01) are never touched, so nobody is shut in.
+        /// Main-path doors animated by a scripted sequence, named by their path in the level. If the team picks
+        /// the shortcut they're held shut and made solid while the sequence plays. Silo to Pipeworks: the far
+        /// landing door and its grate stay shut, so the way on is up the shaft into the Expulsion Chute; the
+        /// button-side door (Door_Elevator_01) and the room's grate (Scripting/Doors/Door_Grate_01) are never
+        /// touched.
         /// </summary>
         private static readonly Dictionary<string, string[]> HeldShut = new Dictionary<string, string[]>
         {
@@ -380,11 +369,8 @@ namespace Belay.World
     }
 
     /// <summary>
-    /// Reads the level's own wiring (the UnityEvents its buttons, zones, doors and lifts call). The
-    /// shortcut chain is everything that opens or moves in the same event that fires the shortcut's
-    /// generator, plus whatever those parts open or move in turn when they run (a lift's arrival opening
-    /// its far door, say). Calls that close or stop something are ignored, so the doors a shortcut shuts
-    /// on the normal path never count as the shortcut's.
+    /// Reads the level's UnityEvent wiring. The shortcut chain is everything opened or moved in the event that
+    /// fires its generator, plus what those parts open or move in turn. Close and stop calls are ignored.
     /// </summary>
     internal static class Wiring
     {
@@ -669,8 +655,8 @@ namespace Belay.World
     }
 
     /// <summary>
-    /// Keeps an animated door in the pose it had when this was added (shut), whatever its animator does,
-    /// and gives its panels solid colliders (some only have them while the level means them to block).
+    /// Holds an animated door in its current (shut) pose whatever its animator does, and gives its panels solid
+    /// colliders.
     /// </summary>
     [DefaultExecutionOrder(10000)]
     internal class HoldShut : MonoBehaviour

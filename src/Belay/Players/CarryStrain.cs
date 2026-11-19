@@ -4,10 +4,8 @@ using UnityEngine;
 namespace Belay.Players
 {
     /// <summary>
-    /// Holding up a teammate is hard work: while you're lifting one (standing, or with your other hand on
-    /// the wall), the hand holding them loses grip much faster, and on your feet you move slower, like
-    /// being weighed down by a heavy bag. Run out of grip and you drop them. Hanging off a teammate who is
-    /// climbing isn't lifting and costs nothing extra.
+    /// Lifting a teammate drains that hand's grip much faster and slows you on foot; run out and you drop them.
+    /// Hanging off a climbing teammate costs nothing extra.
     /// </summary>
     public class CarryStrain : MonoBehaviour
     {

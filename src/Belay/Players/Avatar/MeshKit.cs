@@ -4,12 +4,9 @@ using UnityEngine;
 namespace Belay.Players.Avatar
 {
     /// <summary>
-    /// Tiny procedural mesh builder for the climber avatar. Every triangle gets its own vertices and a
-    /// face normal, which gives the hard-edged low-poly look. Each shape knows its own center and turns
-    /// faces outward from it, so callers never have to think about winding order.
-    ///
-    /// Only plain Vector3 math is used here (no Quaternion or Matrix calls), so the same code also runs
-    /// outside Unity in the preview tool under tools/avatar-preview.
+    /// Tiny mesh builder for the avatar. Each triangle gets its own vertices and face normal (hard low-poly look),
+    /// facing outward from the shape's center so winding never matters. Plain Vector3 math only, so
+    /// tools/avatar-preview can run it outside Unity.
     /// </summary>
     public class MeshKit
     {
@@ -39,22 +36,21 @@ namespace Belay.Players.Avatar
         public float TileSize = 0.75f;
 
         /// <summary>
-        /// Real-world length of each local axis per mesh unit, for UVs. Limbs are built one unit long and
-        /// stretched in game, so they set z to their nominal bone length to keep texels square.
+        /// Real length of each local axis per mesh unit, for UVs. Limbs are built one unit long, so they set z to
+        /// their bone length.
         /// </summary>
         public Vector3 UvAxisScale = Vector3.one;
 
         /// <summary>
-        /// 0 gives hard faceted edges; 1 gives soft rounded shading like the game's characters. Rounded
-        /// shapes (tubes, ellipsoids) always shade smooth along their sides.
+        /// 0 = hard faceted edges, 1 = soft shading. Round shapes always shade smooth along their sides.
         /// </summary>
         public float Softness = 0.6f;
 
         public readonly List<Vector2> UVs = new List<Vector2>();
 
         /// <summary>
-        /// When set, gives every vertex's UV directly from its position and its face's normal (e.g. a
-        /// picture projected from above onto the top faces and another from below onto the bottom).
+        /// When set, gives each vertex's UV from its position and face normal (e.g. projecting pictures from above
+        /// and below).
         /// </summary>
         public System.Func<Vector3, Vector3, Vector2> UvProjection;
 
@@ -64,8 +60,8 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// Adds a triangle. Normals come from <paramref name="smooth"/> (a per-point outward direction)
-        /// when given, otherwise from the face bent toward the shape's center by <see cref="Softness"/>.
+        /// Adds a triangle. Normals come from <paramref name="smooth"/> when given, otherwise from the face bent
+        /// toward the center by <see cref="Softness"/>.
         /// </summary>
         public void Tri(Vector3 a, Vector3 b, Vector3 c, Vector3 inside, System.Func<Vector3, Vector3> smooth)
         {
@@ -120,8 +116,8 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// A box whose top can be a different size from its bottom and shifted forward/back, which covers
-        /// torsos, packs, boots and most blocky parts. Sizes are full widths (x) and depths (z).
+        /// A box whose top can differ in size and shift from its bottom (torsos, packs, boots). Sizes are full
+        /// widths (x) and depths (z).
         /// </summary>
         public void Block(Vector3 bottomCenter, float height, float bottomWidth, float bottomDepth,
             float topWidth, float topDepth, float topShiftZ = 0f, float topShiftX = 0f)
@@ -196,8 +192,8 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// A rounded body swept up through elliptical rings: each ring is (height, half width, half depth,
-        /// forward shift). Shaded smooth around, so torsos read as soft, not boxy. Ends are capped.
+        /// A rounded body swept through elliptical rings (height, half width, half depth, forward shift), smooth
+        /// shaded, ends capped.
         /// </summary>
         public void Loft(Vector4[] rings, int sides = 12, bool capBottom = true, bool capTop = true)
         {

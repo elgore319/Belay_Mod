@@ -14,10 +14,9 @@ using Mono.Cecil;
 namespace BelayUpdater
 {
     /// <summary>
-    /// BepInEx preloader patcher. It runs before any plugin is loaded, so it can replace Belay.dll on
-    /// disk with the newest GitHub release and the game starts on that version straight away. It
-    /// patches no game code. When anything goes wrong it does nothing and the in-game updater
-    /// (Belay.UI.Updater) still works as before.
+    /// BepInEx preloader patcher. Runs before plugins load, so it can swap Belay.dll for the newest GitHub release
+    /// and the game starts on it. Patches no game code; on any error it does nothing and the in-game updater still
+    /// works.
     /// </summary>
     public static class BelayUpdaterPatcher
     {

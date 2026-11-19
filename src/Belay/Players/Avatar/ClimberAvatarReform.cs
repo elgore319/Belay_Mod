@@ -20,8 +20,8 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// A copy of a part's mesh that grows over the body patch by patch (<see cref="Reform.Spread"/>).
-        /// Rebuilt if the part's own mesh changes mid-revive (outfits, grips).
+        /// A copy of a part's mesh that grows over the body patch by patch (<see cref="Reform.Spread"/>). Rebuilt
+        /// if the part's mesh changes mid-revive.
         /// </summary>
         private class SpreadMesh
         {
@@ -217,8 +217,7 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// The flesh texture: the meat from the game's own food item, cut out of its sheet so it tiles,
-        /// or a stand-in if the item isn't there.
+        /// Flesh texture: the meat cut from the game's food item sheet so it tiles, or a stand-in.
         /// </summary>
         private static Texture2D MeatTexture()
         {

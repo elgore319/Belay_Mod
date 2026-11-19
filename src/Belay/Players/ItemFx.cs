@@ -9,13 +9,8 @@ using UnityEngine;
 namespace Belay.Players
 {
     /// <summary>
-    /// What teammates' items sound and look like:
-    ///  - Every sound an item in their hands makes (gunshots, reloads, swings, pumps, clicks) plays
-    ///    from their body on your PC too, using the same clips the item would play on theirs.
-    ///  - A shot also flashes at their hand.
-    ///  - Lit items (the flashlight, flares, anything that gives off light) light up around them on
-    ///    your screen, pointing where they look.
-    /// Nothing new to press: it all comes from the items' own code.
+    /// Teammates' item effects: item sounds play from their body using the same clips, shots flash at their hand,
+    /// and lit items light up where they look. All driven by the items' own code.
     /// </summary>
     public class ItemFx : MonoBehaviour
     {
@@ -46,7 +41,7 @@ namespace Belay.Players
             NetSession.Instance.On(PacketType.HeldLight, HandleLight);
         }
 
-        internal static bool Live => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        internal static bool Live => NetSession.InLobbyRun;
 
         // ---------------------------------------------------------------- Sounds
 

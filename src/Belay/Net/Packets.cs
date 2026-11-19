@@ -73,6 +73,7 @@ namespace Belay.Net
         SeatTaken = 126,
         TeamDiskSave = 127,
         TeamDiskReload = 128,
+        LadderNightmare = 129,
         // 118 was TeamPause (removed); keep the number unused.
     }
 
@@ -83,8 +84,7 @@ namespace Belay.Net
     }
 
     /// <summary>
-    /// Snapshot of one player. Positions are "corrected" (world offset removed) so they mean the same
-    /// thing on every client even though each client recenters its world independently.
+    /// One player's snapshot. Positions have the world offset removed so they match on every client.
     /// </summary>
     public struct PlayerState
     {
@@ -112,9 +112,8 @@ namespace Belay.Net
         /// <summary>Crouched (the character capsule is half height), so the avatar ducks with them.</summary>
         public bool Crouched;
         /// <summary>
-        /// Moving floor this player is riding (an elevator, a lift), as a level object id, or null. The
-        /// Platform* positions are in that object's own space, so every PC draws the rider on its own copy
-        /// of the elevator instead of where the elevator was on the rider's PC.
+        /// Moving floor the player rides (elevator, lift) as a level object id, or null. Platform* positions are
+        /// in its space, so each PC draws the rider on its own copy.
         /// </summary>
         public string PlatformId;
         public Vector3 PlatformPosition;

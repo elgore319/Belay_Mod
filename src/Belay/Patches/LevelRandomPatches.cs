@@ -10,17 +10,11 @@ using UnityEngine;
 namespace Belay.Patches
 {
     /// <summary>
-    /// The lobby seed alone only makes the level *list* match: WorldLoader seeds UnityEngine.Random once,
-    /// then waits frames for level assets to load while everything else in the game keeps drawing from
-    /// the same Random. So each player ended up with different mirroring, props, textures and spawns in
-    /// the same levels.
-    ///
-    /// Fix: right before each piece of level setup that uses Random, reseed it from things every player
-    /// agrees on: the lobby seed, which level this is in generation order, and the object's place in
-    /// that level's hierarchy.
-    ///  - M_Level.OnSpawn (runs right before WorldLoader decides whether to mirror the level), and
-    ///  - Awake / Start / OnEnable of every level component whose setup code draws from Random
-    ///    (found by scanning the game's IL at startup, so new randomizers are covered too).
+    /// The lobby seed only makes the level list match: other code keeps drawing from UnityEngine.Random while
+    /// levels load, so mirroring, props and spawns drifted. So Random is reseeded before each level setup step
+    /// from the lobby seed, the level's generation index and the object's hierarchy path: on M_Level.OnSpawn
+    /// (before mirroring is decided) and on Awake/Start/OnEnable of level components that use Random (found by
+    /// scanning the game's IL).
     /// </summary>
     internal static class LevelRandomPatches
     {
@@ -76,9 +70,8 @@ namespace Belay.Patches
         // ---------------------------------------------------------------- Seeding
 
         /// <summary>
-        /// Which level this is, in generation order. WorldLoader bumps idCounter right before it spawns a
-        /// level, and the level's own setup (component Awakes, then OnSpawn) runs in that same frame, so
-        /// the first lookup for a level always sees its own id. Later lookups (Start, OnEnable) reuse it.
+        /// The level's generation index. WorldLoader bumps idCounter right before spawning a level and its setup
+        /// runs that frame, so the first lookup sees its own id; later lookups reuse it.
         /// </summary>
         private static int LevelId(M_Level level)
         {
@@ -180,9 +173,8 @@ namespace Belay.Patches
         private static readonly string[] SetupMethods = { "Awake", "Start", "OnEnable" };
 
         /// <summary>
-        /// Awake/Start/OnEnable methods of game MonoBehaviours that reach UnityEngine.Random within a few
-        /// calls. Players, the game manager, UI and enemies are skipped: only level props matter here,
-        /// and the prefix does nothing for objects that aren't inside a level anyway.
+        /// Game Awake/Start/OnEnable methods that reach UnityEngine.Random within a few calls. Players, managers,
+        /// UI and enemies are skipped; only level props matter.
         /// </summary>
         private static IEnumerable<MethodInfo> FindRandomSetupMethods()
         {

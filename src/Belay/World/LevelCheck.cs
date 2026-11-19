@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using Belay.Net;
 using Belay.Patches;
@@ -10,11 +9,9 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Checks that every player got the same tower. A few seconds after each level spawns (so the
-    /// randomizers' Start has run), each player fingerprints it: which level it is, where it sits,
-    /// whether it's mirrored, its subregion, which variant children are on, and the picked textures.
-    /// Clients send their fingerprints to the host, which compares them with its own. Any difference
-    /// shows on screen for both players and is written to LogOutput.log with both summaries.
+    /// Checks every player got the same levels. A few seconds after each level spawns, everyone fingerprints it
+    /// (id, position, mirroring, subregion, active variants, textures); clients send theirs to the host to
+    /// compare. Differences show on screen and go to LogOutput.log.
     /// </summary>
     public class LevelCheck : MonoBehaviour
     {

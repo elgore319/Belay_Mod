@@ -7,20 +7,16 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Scripted sequences in interludes and breakrooms (the habitation elevator ride, for one) start
-    /// when a player walks into a one-shot trigger zone. Those used to start only on that player's PC.
-    /// Now, in gated rooms:
-    ///  - a one-shot zone waits until every living teammate is in the room (like the room's buttons),
-    ///    so nobody is left behind when an elevator leaves, and
-    ///  - when it fires, it fires on every PC.
-    /// Listeners that act on the presser (camera, teleport, terminal) are left out on other PCs.
+    /// Scripted sequences in gated rooms (e.g. the Habitation elevator ride) start from one-shot trigger zones.
+    /// Now such a zone waits until every living teammate is in the room and then fires on every PC. Listeners that
+    /// act on the presser (camera, teleport, terminal) stay local. A few team-wide zones out in the levels (the
+    /// Abyss nuclear failsafe) fire on every PC as soon as anyone walks in.
     /// </summary>
     public class ZoneSync : MonoBehaviour
     {
         public static ZoneSync Instance { get; private set; }
 
         private readonly Dictionary<UT_TriggerZone, Transform> waiting = new Dictionary<UT_TriggerZone, Transform>();
-        private float lastNotice = -10f;
 
         internal static bool Applying;
 
@@ -34,17 +30,47 @@ namespace Belay.World
             NetSession.Instance.On(PacketType.ZoneEntered, (origin, r) => Apply(r.ReadString()));
         }
 
-        internal static bool Live => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready && !Applying;
+        internal static bool Live => NetSession.InLobbyRun && !Applying;
 
         internal static bool Shared(UT_TriggerZone zone, out M_Level level)
         {
             level = zone != null ? zone.GetComponentInParent<M_Level>() : null;
-            return zone != null && zone.runOnce && InterludeGate.IsGatedRoom(level);
+            return zone != null && zone.runOnce && (InterludeGate.IsGatedRoom(level) || TeamSequence(zone));
+        }
+
+        /// <summary>Level zones whose sequence everyone sees: (zone name, level name prefix).</summary>
+        private static readonly (string zone, string level)[] TeamSequences =
+        {
+            ("Nuke Trigger", "M4_Abyss"), // the Abyss nuclear failsafe
+        };
+
+        /// <summary>A one-shot level zone that starts a sequence for the whole team, right away.</summary>
+        internal static bool TeamSequence(UT_TriggerZone zone)
+        {
+            if (zone == null || !zone.runOnce)
+            {
+                return false;
+            }
+            M_Level level = zone.GetComponentInParent<M_Level>();
+            string levelName = level != null ? level.name : "";
+            foreach (var (zoneName, levelPrefix) in TeamSequences)
+            {
+                if (zone.name == zoneName && levelName.StartsWith(levelPrefix))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>The local player walked in. Returns false to hold the zone until the team is here.</summary>
         internal bool LocalEnter(UT_TriggerZone zone, Transform who, M_Level level)
         {
+            if (TeamSequence(zone) && !InterludeGate.IsGatedRoom(level))
+            {
+                Broadcast(zone); // no waiting: it starts for everyone now
+                return true;
+            }
             List<string> missing = MissingFor(zone, level, out string where);
             if (missing.Count > 0)
             {
@@ -58,8 +84,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// Who the zone is still waiting for. A door zone waits for nobody; an elevator's zone waits until
-        /// everyone is standing in it (the elevator is the wait); anything else waits for the whole room.
+        /// Who the zone waits for: a door zone nobody, an elevator zone everyone standing in it, anything else the
+        /// whole room.
         /// </summary>
         private static List<string> MissingFor(UT_TriggerZone zone, M_Level level, out string where)
         {

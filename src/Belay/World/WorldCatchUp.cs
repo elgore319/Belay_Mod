@@ -3,13 +3,10 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Each PC builds the map ahead on its own, as its player climbs. Some levels pause the building until
-    /// you walk through a trigger (the end of a lab, an interlude), and only the player who walks through
-    /// it builds on. So a dead player spectating a teammate, or someone using the dev teleport to a
-    /// teammate far ahead, ended up where nothing had been built: no terrain, and "No level found" on revive.
-    ///
-    /// This builds on past those pauses until the spot is covered. The body has to be at the top of the
-    /// map for the game to build on (it only builds ahead of the level you're in).
+    /// Each PC builds the map as its own player climbs, and some levels pause building until you walk through a
+    /// trigger. Spectators or dev teleports could end up where nothing was built ("No level found" on revive).
+    /// This builds past those pauses until the spot is covered (the body must be at the map's top for the game to
+    /// build).
     /// </summary>
     internal static class WorldCatchUp
     {
@@ -77,8 +74,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// When this spot is above everything built so far and the top level is holding the building back,
-        /// let it carry on. Returns true when the spot is already covered.
+        /// If this spot is above everything built and the top level is holding building back, let it continue.
+        /// True when the spot is already covered.
         /// </summary>
         internal static bool Nudge(Vector3 worldPos)
         {

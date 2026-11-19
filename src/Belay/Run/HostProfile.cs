@@ -6,16 +6,9 @@ using HarmonyLib;
 namespace Belay.Run
 {
     /// <summary>
-    /// What each player has unlocked changes the tower: subregions and spawns check save flags,
-    /// progression unlocks, facility upgrades and "has beaten this mode". With mixed saves (one player
-    /// has beaten the game) each PC generated different areas. For a lobby run, the host's progress is
-    /// snapshotted into lobby data when the run starts, and every player, the host included, answers
-    /// those checks from the snapshot.
-    ///
-    /// The snapshot is the progress of the whole team put together: every player sends their own
-    /// progress to the host while in the lobby, and anything any one of them has unlocked counts as
-    /// unlocked for the run. So a door that opens by itself for the furthest-along player opens by
-    /// itself for everyone.
+    /// Unlocks change level generation (save flags, progression unlocks, upgrades, beaten modes), so mixed saves
+    /// generated different areas. At run start the team's combined progress (anything anyone has unlocked) is
+    /// snapshotted into lobby data, and everyone, host included, answers those checks from it.
     /// </summary>
     internal static class HostProfile
     {
@@ -123,8 +116,8 @@ namespace Belay.Run
         }
 
         /// <summary>
-        /// Host, at run start: its own progress plus everything any teammate in the lobby has unlocked.
-        /// Random codes and the "unlock all" setting stay the host's.
+        /// Host, at run start: its own progress plus every teammate's unlocks. Codes and "unlock all" stay the
+        /// host's.
         /// </summary>
         public static string CaptureTeam(M_Gamemode mode)
         {
@@ -212,8 +205,7 @@ namespace Belay.Run
         }
 
         /// <summary>
-        /// Called every frame. Outside a run, a non-host player keeps the host up to date with their own
-        /// progress (it can change between runs), so it's there when the host starts the next one.
+        /// Every frame outside a run, non-hosts keep sending their progress to the host for the next run.
         /// </summary>
         public static void Tick()
         {
@@ -275,9 +267,8 @@ namespace Belay.Run
         }
 
         /// <summary>
-        /// The game copies every saved flag into the run's own flag list when the run scene starts, and
-        /// doors, props and events read that list. Rewrite it from the team snapshot: on where anyone on
-        /// the team has it, off otherwise, and the host's codes.
+        /// The run copies saved flags into its own list at scene start. Rewrite that list from the team snapshot
+        /// (plus the host's codes).
         /// </summary>
         public static void ApplyToRunFlags(CL_GameManager gMan)
         {

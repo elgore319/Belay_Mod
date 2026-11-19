@@ -6,8 +6,8 @@ using System.Text;
 namespace Belay.UI
 {
     /// <summary>
-    /// Writes a minimal TrueType font whose glyphs are made of square pixels. It turns the game's baked bitmap font
-    /// into a font file Unity can load at any size (see GameFont). It has no Unity dependencies.
+    /// Writes a minimal TrueType font made of square pixels, so the game's bitmap font loads at any size (see
+    /// GameFont). No Unity dependencies.
     /// </summary>
     internal static class TtfWriter
     {

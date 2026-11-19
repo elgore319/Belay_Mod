@@ -4,15 +4,9 @@ using UnityEngine;
 namespace Belay.Items
 {
     /// <summary>
-    /// What a disk looks like in co-op: a small carved totem (three stacked faces in dark wood, rusty
-    /// wire wrapped around it, bone teeth and horns, and glowing eyes on the top face). Holding one
-    /// revives a teammate, so it reads as a charm, not a save file.
-    ///
-    /// Everything about the look lives in this file: the 3D model (on the ground, in the backpack and
-    /// in teammates' hands), its pixel textures and the first-person hand sprite. To give the revive
-    /// item a different look later, change this file only; <see cref="Totem"/> just swaps it in.
-    ///
-    /// Pure math (no Unity object calls), so tools/avatar-preview can render it without the game.
+    /// The totem's look: a small carved totem with three faces, wire, bone teeth and glowing eyes. The 3D model,
+    /// textures and hand sprite all live here, so a new look only needs this file. Pure math, so
+    /// tools/avatar-preview can render it.
     /// </summary>
     public static class TotemLook
     {
@@ -70,8 +64,8 @@ namespace Belay.Items
         }
 
         /// <summary>
-        /// Builds the totem standing up: the bottom of the base at <paramref name="origin"/>, growing along
-        /// <paramref name="up"/>, faces looking along <paramref name="front"/>, scaled by <paramref name="scale"/>.
+        /// Builds the totem upright: base at <paramref name="origin"/>, along <paramref name="up"/>, facing
+        /// <paramref name="front"/>, scaled by <paramref name="scale"/>.
         /// </summary>
         public static void Build(MeshKit k, Vector3 origin, Vector3 up, Vector3 front, float scale = 1f)
         {
@@ -175,9 +169,8 @@ namespace Belay.Items
         private enum Mat : byte { None, Wood, WoodSide, WoodDark, WoodLight, Wire, WireDark, Bone, BoneDark, Glow, GlowCore }
 
         /// <summary>
-        /// The totem as the player sees it in their own hand: a 128 px pixel-art sprite in the game's
-        /// style (grainy, a few shades, a light one-pixel outline), tilted like the disk was.
-        /// Rows run bottom to top, as Texture2D.SetPixels32 expects.
+        /// First-person hand sprite: 128 px pixel art in the game's style, tilted like the disk. Rows run bottom
+        /// to top (SetPixels32 order).
         /// </summary>
         public static Color32[] DrawSprite()
         {

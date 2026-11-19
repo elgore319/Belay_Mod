@@ -5,9 +5,8 @@ using UnityEngine;
 namespace Belay.Bot
 {
     /// <summary>
-    /// How a climbing bot deals with creatures. Enemies already go after bots like any teammate (they're
-    /// solid bodies the host points enemies at, and hits hurt them). A bot that sees one close by hurries on,
-    /// and if one gets right up to it while it has its feet down, it swings at it.
+    /// How a climbing bot deals with creatures: it hurries past nearby enemies and swings at one that gets right
+    /// up to it.
     /// </summary>
     internal static class BotThreats
     {
@@ -44,9 +43,8 @@ namespace Belay.Bot
         private const int HitsToBreakFree = 4;
 
         /// <summary>
-        /// Barnacle tongues only latch onto the game's own creatures and you, so the bot checks them itself:
-        /// a hanging tongue that touches it grabs it and hauls it up to the mouth, which bites. It swings at
-        /// the barnacle until it dies or the bot tears free, then drops (and tries to catch a hold).
+        /// Barnacle tongues only grab the player and creatures, so bots check them here: caught, hauled up and
+        /// bitten until it kills the barnacle or tears free.
         /// </summary>
         private static bool Barnacles(BotPlayer bot, BotClimber c, Vector3 me)
         {

@@ -8,13 +8,9 @@ using UnityEngine;
 namespace Belay.Items
 {
     /// <summary>
-    /// The totem: Not Alone's own revive item, built from a copy of the game's save disk (so it has a
-    /// disk's weight, pickup sounds and hand animation) but with its own id, name and look. Holding one
-    /// and using it brings a dead teammate back right where you are, for free (see SaveTerminalPatches).
-    /// It doesn't go into terminals. In co-op it's found where save disks are (half of the save disks
-    /// placed in a level are totems instead, picked the same way on every PC) and sold in vending
-    /// machines and by the shopkeeper. Every totem, on the ground, in the bag, in your hand or in a
-    /// teammate's, wears the look from <see cref="TotemLook"/>.
+    /// The totem: the mod's revive item, built from a copy of the save disk with its own id and look (<see
+    /// cref="TotemLook"/>). Using one revives a dead teammate where you stand, free. Found where disks are (half
+    /// of placed disks become totems, same on every PC) and sold in shops.
     /// </summary>
     public static class Totem
     {
@@ -106,8 +102,8 @@ namespace Belay.Items
         // ------------------------------------------------------------------ Found in the world
 
         /// <summary>
-        /// Whether a save disk the level just put down is a totem instead. Decided from the run's seed and
-        /// the disk's place in its level, so every PC turns the same disks into totems.
+        /// Whether a newly placed save disk becomes a totem. Seeded from the run and the disk's place in its
+        /// level, so every PC agrees.
         /// </summary>
         private static bool BecomesTotem(Item_Object obj)
         {
@@ -253,10 +249,7 @@ namespace Belay.Items
             return slotTextures;
         }
 
-        /// <summary>
-        /// The totem's materials, made from the disk's own (so it's lit and outlined like every other item
-        /// on the ground), with the totem's pixel textures in place of the disk's.
-        /// </summary>
+        /// <summary>Totem materials: the disk's own materials with the totem textures swapped in.</summary>
         internal static Material[] MaterialsFor(Material[] original)
         {
             Material sheet = original != null && original.Length > 0 ? original[0] : null;
@@ -304,24 +297,16 @@ namespace Belay.Items
         {
             private MeshFilter filter;
             private MeshRenderer renderer;
-            private Mesh originalMesh;
             private Material[] originalMaterials;
             private BoxCollider box;
-            private Vector3 boxCenter, boxSize;
             internal bool Worn { get; private set; }
 
             internal void Setup(MeshFilter f, BoxCollider collider)
             {
                 filter = f;
                 renderer = f.GetComponent<MeshRenderer>();
-                originalMesh = f.sharedMesh;
                 originalMaterials = renderer.sharedMaterials;
                 box = collider;
-                if (box != null)
-                {
-                    boxCenter = box.center;
-                    boxSize = box.size;
-                }
             }
 
             internal void Apply()
@@ -388,12 +373,10 @@ namespace Belay.Items
         internal class HandSkin : MonoBehaviour
         {
             private SpriteRenderer sprite;
-            private Sprite original;
 
             internal void Setup(SpriteRenderer r)
             {
                 sprite = r;
-                original = r.sprite;
             }
 
             private void LateUpdate()

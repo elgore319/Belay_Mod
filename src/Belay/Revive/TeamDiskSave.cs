@@ -7,12 +7,9 @@ using UnityEngine;
 namespace Belay.Revive
 {
     /// <summary>
-    /// In co-op a disk save belongs to the whole team. Whoever reformats disks at a save terminal makes
-    /// the game's own disk save, and the save (the level it was made in, the levels after it and the
-    /// mass) is sent to everyone, so every PC holds the same save under the same id. It's never used
-    /// while anyone is still up: only when the whole team is down, instead of the game over, the host
-    /// tells everyone to come back from it, and each PC runs the game's own disk revive. Everybody lands
-    /// back at that terminal's level together, so nobody is brought back alone behind the mass.
+    /// In co-op a disk save belongs to the team. The game's own save (its level, later levels and the mass) is
+    /// sent to everyone under the same id. It's only used when the whole team is down: the host tells everyone to
+    /// run the game's disk revive, so the team lands back together.
     /// </summary>
     internal static class TeamDiskSave
     {
@@ -148,8 +145,8 @@ namespace Belay.Revive
         }
 
         /// <summary>
-        /// Make the save with this id the one the game's disk revive uses. False if this PC has no disk
-        /// save at all. Without that exact one (its message never came), the newest one here is used.
+        /// Makes the save with this id the one the disk revive uses (or the newest one if it never arrived). False
+        /// if there is none.
         /// </summary>
         internal static bool Prepare(string id)
         {

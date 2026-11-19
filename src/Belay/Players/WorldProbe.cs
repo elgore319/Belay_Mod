@@ -4,8 +4,7 @@ using UnityEngine;
 namespace Belay.Players
 {
     /// <summary>
-    /// Raycasts against the level geometry only (what the local player's capsule bumps into), skipping
-    /// teammate bodies, loose props and trigger volumes. Used to keep teammate avatars out of walls.
+    /// Raycasts against level geometry only (no teammates, props or triggers). Keeps avatars out of walls.
     /// </summary>
     public static class WorldProbe
     {

@@ -8,11 +8,9 @@ using UnityEngine;
 namespace Belay.Rope
 {
     /// <summary>
-    /// The co-op rope. Players are roped in a chain in lobby join order (1-2, 2-3, ...), and each rope is a
-    /// simulated <see cref="TeamRope"/> that drapes, catches on ledges and can be grabbed. Each client only
-    /// moves its own player: once more rope is out than you have (measured to the teammate, or to the edge
-    /// the rope runs over), you get pulled back, and if that teammate is gripping a wall your fall is
-    /// caught outright and you swing round the edge instead.
+    /// The co-op rope. Players are roped in join order (1-2, 2-3, ...) with simulated <see cref="TeamRope"/>s.
+    /// Each client moves only its own player: past the rope's length you're pulled back, and if the teammate is
+    /// gripping a wall your fall is caught and you swing.
     /// </summary>
     public class Tether : MonoBehaviour
     {

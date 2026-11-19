@@ -4,22 +4,20 @@ using UnityEngine;
 namespace Belay.Players.Avatar
 {
     /// <summary>
-    /// The visible body of a teammate. Builds the climber out of the meshes in <see cref="AvatarDesign"/>
-    /// and poses it every frame from the networked snapshot: arms reach with two-bone IK to wherever each
-    /// hand is (closed fists on a hold, open hands otherwise), legs walk, dangle while hanging and splay
-    /// while falling, the head follows the camera pitch, and the torso leans into the climb.
+    /// A teammate's visible body, built from <see cref="AvatarDesign"/> and posed each frame from the snapshot: IK
+    /// arms to each hand, walking or dangling legs, head follows camera pitch, torso leans into the climb.
     /// </summary>
     public partial class ClimberAvatar
     {
         /// <summary>
-        /// Height of the player's transform above the soles of the feet. ENT_Player's position is the
-        /// middle of its 1.5 m character capsule (standingHeight), with the camera 0.45 m above it.
+        /// Player transform height above the soles. ENT_Player's position is the middle of its 1.5 m capsule; the
+        /// camera is 0.45 m above it.
         /// </summary>
         public const float FeetDrop = 0.75f;
 
         /// <summary>
-        /// The design is a 1.8 m climber; this fits it to the game's 1.5 m player capsule so the head sits
-        /// near the teammate's camera and synced hands are within natural reach.
+        /// Fits the 1.8 m design to the game's 1.5 m capsule, so the head sits near the camera and hands are in
+        /// reach.
         /// </summary>
         public const float Scale = 0.83f;
 
@@ -261,8 +259,8 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// Poses the climber. <paramref name="position"/> is the player's transform position, the hands are
-        /// world positions, <paramref name="velocity"/> is in meters per second.
+        /// Poses the climber. <paramref name="position"/> is the player transform position, hands are world
+        /// positions, <paramref name="velocity"/> is m/s.
         /// </summary>
         public void Pose(Vector3 position, float yaw, float pitch, Vector3 leftHand, Vector3 rightHand,
             bool leftGrip, bool rightGrip, Vector3 velocity, bool inventoryOpen, float dt,
@@ -325,9 +323,7 @@ namespace Belay.Players.Avatar
             crouchAmount = posed ? Mathf.MoveTowards(crouchAmount, crouchTarget, dt / 0.25f) : crouchTarget;
             float c = crouchAmount * crouchAmount * (3f - 2f * crouchAmount);
 
-            // Body yaw trails the camera a little, so turning your head doesn't snap the whole body.
-            // On the wall the body faces the holds instead, so looking around doesn't swing the
-            // backpack or the legs into the rock.
+            // Body yaw trails the camera so head turns don't snap the body. On a wall it faces the holds instead.
             float bodyTarget = yaw;
             bool facingHolds = false;
             if (hanging)
@@ -513,8 +509,8 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// How far to shift the body so its outline (chest in front, backpack behind, shoulders to the
-        /// sides) stays out of walls, probing from the capsule's center at chest and hip height.
+        /// Offset that keeps the body's outline (chest, pack, shoulders) out of walls, probed at chest and hip
+        /// height.
         /// </summary>
         private static Vector3 WallPush(Vector3 center, Vector3 forward, Vector3 right, float crouch)
         {
@@ -552,8 +548,8 @@ namespace Belay.Players.Avatar
         private readonly GameObject[] heldModels = new GameObject[2];
 
         /// <summary>
-        /// Puts the item a teammate holds in the avatar's fist (its own world model, gripped by the
-        /// handle with the heavy end on the thumb side). Returns whether the hand holds something.
+        /// Puts the teammate's held item in the fist (its world model, held by the handle). True if the hand holds
+        /// something.
         /// </summary>
         private bool Hold(int hand, string item, Transform fist)
         {
@@ -607,11 +603,9 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// Poses one arm. A hand on a hold always lands on it, stretching the arm if the hold is far. A
-        /// free hand rests naturally at the side (swinging while walking) and only follows the synced hand
-        /// when the player actually reaches out with it, without stretching. The synced position of a free
-        /// hand is the first-person view model, which normally floats in front of the camera, so "reaching"
-        /// means it has moved away from where it usually sits relative to the view.
+        /// Poses one arm. A hand on a hold always reaches it, stretching if needed. A free hand rests at the side
+        /// and only follows the synced hand (the first-person view model) when it moves away from its usual spot,
+        /// without stretching.
         /// </summary>
         private void PoseArm(int index, Limb arm, float side, Vector3 pelvis, Vector3 hand, bool grip, bool holdsItem, bool holdingPack,
             Vector3 eye, Quaternion look, float dt, Transform fist, Transform open, float flail)
@@ -770,10 +764,9 @@ namespace Belay.Players.Avatar
             }
 
             /// <summary>
-            /// Bends the limb from <paramref name="start"/> toward <paramref name="target"/> with the
-            /// middle joint toward <paramref name="pole"/>. With <paramref name="stretch"/>, a target out of
-            /// reach stretches the limb to touch it (hands always land on their hold); otherwise the limb
-            /// stops at full length. Returns where the end of the limb ended up.
+            /// Two-bone IK from <paramref name="start"/> to <paramref name="target"/>, middle joint toward
+            /// <paramref name="pole"/>. With <paramref name="stretch"/> an out-of-reach target is still touched.
+            /// Returns where the limb ends.
             /// </summary>
             public Vector3 Solve(Vector3 start, Vector3 target, Vector3 pole, Vector3 twistUp, bool stretch)
             {

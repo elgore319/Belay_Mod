@@ -5,16 +5,14 @@ using UnityEngine;
 namespace Belay.Players.Avatar
 {
     /// <summary>
-    /// Builds a copy of an item's own world model (the one you see lying on the ground) for a teammate's
-    /// avatar to hold. Only the meshes and materials are copied, never the item's scripts or colliders,
-    /// so the copy can't be picked up, saved or used.
+    /// Copies an item's world model for an avatar to hold: meshes and materials only, so it can't be picked up or
+    /// used.
     /// </summary>
     public static class HeldItems
     {
         /// <summary>
-        /// One template per item, oriented for a fist: its origin is where the hand closes on the
-        /// handle, +X runs along the item toward its heavy end (the hammer head) and +Z is the item's
-        /// second-longest direction (the way a hammer head points).
+        /// One template per item, set up for a fist: origin at the grip, +X toward the heavy end, +Z the
+        /// second-longest direction.
         /// </summary>
         private static readonly Dictionary<string, GameObject> templates = new Dictionary<string, GameObject>();
         private static readonly Dictionary<string, float> failedUntil = new Dictionary<string, float>();

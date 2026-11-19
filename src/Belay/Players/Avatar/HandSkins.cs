@@ -9,12 +9,8 @@ using UnityEngine;
 namespace Belay.Players.Avatar
 {
     /// <summary>
-    /// Shows each teammate's equipped White Knuckle hand cosmetic (glove skin, palette and color tweak) on
-    /// their avatar's hands.
-    ///
-    /// Nothing is redrawn or shipped: every player has the same cosmetics installed with the game, so we
-    /// only share which one each hand wears (Steam lobby member data, no packets) and draw that
-    /// cosmetic's own sprite with the game's own hand material. Bots and anyone whose skin is unknown
+    /// Shows each teammate's equipped hand cosmetic on their avatar. Everyone has the same cosmetics, so only the
+    /// choice is shared (lobby member data) and drawn with the game's own sprite and material. Bots and unknowns
     /// wear the local player's skins.
     /// </summary>
     public static class HandSkins
@@ -147,8 +143,7 @@ namespace Belay.Players.Avatar
     }
 
     /// <summary>
-    /// Builds (and caches) the material that makes a 3D glove look like a hand skin: the skin's own
-    /// sprite, palette-mapped and color-tweaked, projected over the back of the hand.
+    /// Builds (and caches) a 3D glove material from a hand skin's sprite, palette and color tweak.
     /// </summary>
     public static class HandSkinMaterials
     {
@@ -263,8 +258,8 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// Skins like Inverted, Experienced or Celestial have no art of their own: a special material
-        /// recolors the default hand. Imitate the common ones.
+        /// Skins like Inverted, Experienced or Celestial recolor the default hand with a shader; imitate the
+        /// common ones.
         /// </summary>
         private static SkinBaker.Effect EffectOf(Cosmetic_HandItem cosmetic)
         {

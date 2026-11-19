@@ -2,28 +2,23 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 using Belay.Net;
-using Belay.Players;
 using HarmonyLib;
 using UnityEngine;
 
 namespace Belay.World
 {
     /// <summary>
-    /// The Hunter and the simple chase-killers are pointed at the local player once, when they spawn, so in
-    /// co-op they only went after the host. On the host they now go after the nearest living player.
-    ///
-    /// Their kill is "whoever this PC's player is, once I'm within 2 m of my target", so pointing the host's
-    /// copy at a teammate would have killed the host from afar. The kill now only lands when the target is
-    /// this PC's own player (or this PC's player really is that close). Each PC's copy, held at the host's
-    /// position, still does its own killing. A chase-killer also no longer vanishes when the host dies
-    /// while teammates are still climbing.
+    /// The Hunter and chase-killers only targeted the host's player. On the host they now chase the nearest living
+    /// player. Their kill used to fire on "my target is within 2 m", which would have killed the host from afar,
+    /// so it now only lands on this PC's own player. Each PC's copy still does its own killing, and a chase-killer
+    /// no longer vanishes when the host dies.
     /// </summary>
     public class ChaserSync : MonoBehaviour
     {
         private const float RetargetEvery = 0.5f;
         private float nextRetarget;
 
-        private static bool Live => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        private static bool Live => NetSession.InLobbyRun;
 
         private void Update()
         {

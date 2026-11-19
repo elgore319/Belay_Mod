@@ -6,12 +6,9 @@ using UnityEngine;
 namespace Belay.Rope
 {
     /// <summary>
-    /// One rope between two roped teammates, simulated as a chain of points the way the game's own swinging
-    /// ropes are (ENV_Rope: verlet points, gravity, drag, length constraints), but tied to a harness at each
-    /// end. The points fall, drape, catch on ledges and corners, and slide over them. The rope is drawn as
-    /// one smooth tube and every segment is a handhold you can grab to climb it or swing on it.
-    ///
-    /// Each PC simulates every rope on its own; only the players' positions are networked.
+    /// One rope between two teammates, simulated like the game's ENV_Rope (verlet points, gravity, drag, length)
+    /// and tied to each harness. It drapes and catches on ledges, draws as a smooth tube, and every segment is a
+    /// handhold. Each PC simulates ropes itself; only player positions are networked.
     /// </summary>
     public class TeamRope : MonoBehaviour
     {
@@ -21,8 +18,7 @@ namespace Belay.Rope
         /// <summary>How far points are kept off surfaces.</summary>
         private const float SurfaceGap = 0.03f;
         /// <summary>
-        /// Matches how hard things fall in this game (the player drops far faster than real-world 9.81, and
-        /// the bots use 16); at 9.81 with light drag the rope drifted and swung like it was underwater.
+        /// Matches the game's heavy gravity (bots use 16); at 9.81 the rope floated like it was underwater.
         /// </summary>
         private const float Gravity = 18f;
         /// <summary>Velocity kept per step (air drag).</summary>
@@ -91,8 +87,8 @@ namespace Belay.Rope
         }
 
         /// <summary>
-        /// A rope that hangs from a fixed point (a plunger cup) instead of joining two players: the top is
-        /// pinned to the anchor, the bottom hangs free. Anyone can climb it.
+        /// A rope hanging from a fixed anchor (e.g. a harpoon head with nothing behind you): top pinned, bottom
+        /// free.
         /// </summary>
         public static TeamRope CreateHanging(Vector3 anchorShared, float length)
         {
@@ -105,10 +101,7 @@ namespace Belay.Rope
             return rope;
         }
 
-        /// <summary>
-        /// A rope strung between two fixed points (a harpoon line): both ends pinned, the middle sags and
-        /// can be climbed or swung on.
-        /// </summary>
+        /// <summary>A rope between two fixed points (a harpoon line): both ends pinned, the middle sags.</summary>
         public static TeamRope CreateFixed(Vector3 anchorShared, Vector3 otherShared, float length)
         {
             var go = new GameObject("Belay_FixedRope");
@@ -185,8 +178,8 @@ namespace Belay.Rope
         }
 
         /// <summary>
-        /// A layer the hands' grab casts see. "Interactable No Collide" is what the game's ropes use while you
-        /// swing, so the rope never shoves the player capsule around.
+        /// A layer grab casts see. "Interactable No Collide" is what game ropes use, so the rope never shoves the
+        /// player.
         /// </summary>
         private static int HoldLayer
         {
@@ -448,9 +441,8 @@ namespace Belay.Rope
         }
 
         /// <summary>
-        /// A climber hanging on the rope is far heavier than the rope, so the chain alone would stretch under
-        /// them. Hold the grabbed point within its share of the rope from each far end (or from the edge the
-        /// rope runs over), like a pendulum: it can swing, but not fall farther.
+        /// A hanging climber would stretch the chain, so the grabbed point is held within its share of rope from
+        /// each far end (or the edge it runs over): it swings but can't drop further.
         /// </summary>
         private void HoldUp(int held, int[] pivots)
         {
@@ -496,9 +488,8 @@ namespace Belay.Rope
         }
 
         /// <summary>
-        /// Walking along the rope from <paramref name="from"/> toward an end, the last point still in a
-        /// straight line of sight from <paramref name="fromPos"/>: the end itself on a clear line, or the
-        /// ledge the rope bends over.
+        /// From <paramref name="from"/> toward an end, the last point in straight line of sight from <paramref
+        /// name="fromPos"/>: the end itself, or the ledge the rope bends over.
         /// </summary>
         public int PivotIndex(int from, Vector3 fromPos, int endIndex)
         {

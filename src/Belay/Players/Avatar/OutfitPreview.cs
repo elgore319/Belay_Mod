@@ -5,10 +5,8 @@ using UnityEngine;
 namespace Belay.Players.Avatar
 {
     /// <summary>
-    /// A live model of the local player's climber for the customization page: the climber in their
-    /// current outfit and hand skins, standing in an empty spot far below the world, filmed by its own
-    /// camera into a texture. The menu reserves a rect and calls the drawer hook on repaint; dragging
-    /// inside that rect turns the model. Nothing is rendered while the page isn't showing it.
+    /// Live model of your climber for the customization page, standing far below the world and filmed into a
+    /// texture. Dragging in its rect turns it. Nothing renders while hidden.
     /// </summary>
     public class OutfitPreview : MonoBehaviour
     {
@@ -125,9 +123,8 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// Called by the menu for every IMGUI event with the rect it reserved for the model: drags inside
-        /// it turn the model (events are only read, never used, so the page still gets them), and on
-        /// repaint the model is drawn there.
+        /// Called for every IMGUI event with the model's rect: drags turn the model (events aren't consumed) and
+        /// repaint draws it.
         /// </summary>
         private void Draw(Rect rect)
         {

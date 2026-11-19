@@ -9,20 +9,12 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Shortcuts build a new branch of the map from the level they start in (UT_BranchGenerator) and
-    /// close the normal path ahead. That used to happen only on the PC of whoever opened it, with an
-    /// unseeded pick of which branch to build, so the team ended up on different maps.
-    ///
-    /// In a lobby, the team decides each shortcut by vote (run by the host), at a terminal:
-    ///  - When someone sits at a terminal, every undecided shortcut between that terminal and the next
-    ///    one gets a vote, one after another. A shortcut with no terminal of its own is voted on at the
-    ///    last terminal before it, so one terminal can carry several votes.
-    ///  - Picking the shortcut marks it as approved: when anyone opens it, it opens on every PC at once
-    ///    and builds the same branch (seeded from the lobby). Picking the normal path blocks it off.
-    ///  - A shortcut nobody voted on yet (no terminal before it, or nobody sat down) still asks the team
-    ///    when someone tries to open it, as before.
-    /// Rules: whoever asked counts as a vote for the shortcut. A vote ends when everyone has voted or
-    /// after VoteSeconds, and the shortcut wins with more votes than the normal path.
+    /// Shortcuts (UT_BranchGenerator) build a new map branch and close the normal path. That used to happen on one
+    /// PC with an unseeded branch pick. In a lobby the team votes on each shortcut at a terminal (host runs it):
+    /// sitting at a terminal queues a vote for every undecided shortcut up to the next terminal. Picking the
+    /// shortcut approves it, so it opens on every PC with the same seeded branch; picking the normal path blocks
+    /// it. A vote ends when everyone has voted or after VoteSeconds; the shortcut needs more votes than the normal
+    /// path.
     /// </summary>
     public class ShortcutSync : MonoBehaviour
     {
@@ -69,10 +61,7 @@ namespace Belay.World
         // Everyone: what to draw.
         private bool showVote;
         private string shownId;
-        private string shownTitle;
-        private int shownYes, shownNo, shownVoters;
         private float shownEnds;
-        private bool myVoteSent;
         private int runId;
 
         // Everyone: the running vote as the host last described it, so a new host can carry it on.
@@ -81,8 +70,6 @@ namespace Belay.World
         private readonly HashSet<ulong> shownYesIds = new HashSet<ulong>();
         private readonly HashSet<ulong> shownNoIds = new HashSet<ulong>();
         private SteamId lastHost;
-        private string myRequestId;
-        private Vector3 myRequestPos;
 
         private void Awake()
         {
@@ -116,33 +103,13 @@ namespace Belay.World
             });
         }
 
-        internal static bool Live => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        internal static bool Live => NetSession.InLobbyRun;
 
         // ---------------------------------------------------------------- Starting a vote
-
-        /// <summary>The local player opened a shortcut: ask the team instead of opening it.</summary>
-        internal void RequestVote(UT_BranchGenerator generator)
-        {
-            string id = ButtonSync.ObjectId(generator);
-            if (showVote && shownId == id)
-            {
-                return;
-            }
-            Plugin.Log.LogInfo((Approved.Contains(id) ? "Opening a shortcut the team picked: " : "Asking the team to take a shortcut: ") + id);
-            // Some shortcuts start when you walk into them. If the team picks the normal path, you're
-            // put back where you were when you asked, on the right side of the block.
-            myRequestId = id;
-            myRequestPos = WorldSpace.ToShared(ENT_Player.playerObject.transform.position);
-            Ask(new List<string> { id }, false);
-        }
 
         /// <summary>A vote cast on a vote terminal: starts the team vote for that shortcut if none is running.</summary>
         internal void CastVote(string id, bool inFavour)
         {
-            if (shownId == id)
-            {
-                myVoteSent = true;
-            }
             NetSession net = NetSession.Instance;
             if (net.IsHost)
             {
@@ -201,8 +168,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// The shortcuts a terminal in this level decides: every one from this level up to (not including)
-        /// the next level with a terminal of its own, along the same branch of the map.
+        /// The shortcuts this level's terminal decides: every one from here up to (not including) the next level
+        /// with its own terminal, on the same branch.
         /// </summary>
         internal static List<string> ShortcutsAfter(M_Level level, bool includeDecided)
         {
@@ -246,9 +213,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// Who the vote waits for: living teammates. A dead player can't get to a terminal to vote, so
-        /// counting them made every vote with someone down run out its whole timer. If everyone is dead,
-        /// everyone counts (the run is ending anyway).
+        /// Who a vote waits for: living teammates (dead players can't reach a terminal). If everyone is dead,
+        /// everyone counts.
         /// </summary>
         private List<SteamId> Voters()
         {
@@ -284,9 +250,8 @@ namespace Belay.World
                 }
                 if (!atTerminal)
                 {
-                    // Someone walked or fell into a shortcut the team hasn't turned down. It has to exist
-                    // right now (some shortcuts are a drop: waiting on a vote meant falling to your death),
-                    // so it opens for everyone at once and any vote on it is dropped.
+                    // Someone walked or fell into a shortcut the team hasn't turned down. It must exist now (some
+                    // are drops), so it opens for everyone and any vote on it is dropped.
                     CancelVote(id);
                     HostSend(id, Outcome.Open, NetSession.NameOf(starter));
                     continue;
@@ -305,8 +270,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// The host left mid-vote and this PC took over: carry on the vote everyone was looking at, with the
-        /// votes already cast. Shortcuts still queued behind it get asked again at the next terminal visit.
+        /// This PC became host mid-vote: continue that vote with the votes already cast. Queued shortcuts are
+        /// asked again at the next terminal.
         /// </summary>
         private void TakeOverVote()
         {
@@ -347,8 +312,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// The local player walked or fell into a shortcut: build it here straight away, then have the
-        /// host open it for everyone (same seed, so it's the same shortcut on every PC).
+        /// The local player walked or fell into a shortcut: build it here now, then have the host open it for
+        /// everyone (same seed).
         /// </summary>
         internal void OpenNow(UT_BranchGenerator generator)
         {
@@ -498,7 +463,7 @@ namespace Belay.World
                         w.Write(noIds.Count);
                         foreach (ulong v in noIds) w.Write(v);
                     });
-                    ShowState(id, title, y, n, voters.Count, left);
+                    ShowState(id, title, left);
                 }
                 return;
             }
@@ -527,9 +492,9 @@ namespace Belay.World
         {
             string id = r.ReadString();
             string title = r.ReadString();
-            int y = r.ReadInt32();
-            int n = r.ReadInt32();
-            int voters = r.ReadInt32();
+            r.ReadInt32(); // yes, no and voter counts (unused here, kept for the packet format)
+            r.ReadInt32();
+            r.ReadInt32();
             float left = r.ReadSingle();
             shownAtTerminal = r.ReadBoolean();
             shownAtVoteTerminal = r.ReadBoolean();
@@ -540,22 +505,17 @@ namespace Belay.World
             for (int i = 0; i < yc && i < 64; i++) shownYesIds.Add(r.ReadUInt64());
             int nc = r.ReadInt32();
             for (int i = 0; i < nc && i < 64; i++) shownNoIds.Add(r.ReadUInt64());
-            ShowState(id, title, y, n, voters, left);
+            ShowState(id, title, left);
         }
 
-        private void ShowState(string id, string title, int y, int n, int voters, float left)
+        private void ShowState(string id, string title, float left)
         {
             if (!showVote || shownId != id)
             {
-                myVoteSent = false;
                 Plugin.Log.LogInfo($"Showing shortcut vote: {title} ({id})");
             }
             showVote = true;
             shownId = id;
-            shownTitle = title;
-            shownYes = y;
-            shownNo = n;
-            shownVoters = voters;
             shownEnds = Time.unscaledTime + left;
         }
 
@@ -568,7 +528,6 @@ namespace Belay.World
             }
             if (outcome == Outcome.NoVotes)
             {
-                if (myRequestId == id) myRequestId = null;
                 return;
             }
             if (outcome == Outcome.Approved)
@@ -586,11 +545,6 @@ namespace Belay.World
                 if (g != null) BlockShortcut(g);
                 else lockLater[id] = true;
                 Approved.Remove(id);
-                if (myRequestId == id && ENT_Player.playerObject != null && !ENT_Player.playerObject.dead)
-                {
-                    ENT_Player.playerObject.Teleport(WorldSpace.ToLocal(myRequestPos));
-                }
-                myRequestId = null;
                 return;
             }
             Open(id, starter);
@@ -625,8 +579,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// Decided shortcuts whose level this PC hasn't built yet: locked once it loads (true = the
-        /// shortcut side, false = the normal path).
+        /// Decided shortcuts whose level isn't built here yet, locked when it loads (true = shortcut side, false =
+        /// normal path).
         /// </summary>
         private static readonly Dictionary<string, bool> lockLater = new Dictionary<string, bool>();
 
@@ -677,8 +631,8 @@ namespace Belay.World
         private float nextPathCheck;
 
         /// <summary>
-        /// Once the team has picked a shortcut that hasn't opened yet, nobody may carry on up the normal path:
-        /// anyone who gets past the block into a later level of that branch is put back below it.
+        /// Once the team picks a shortcut that hasn't opened yet, anyone who slips past the block up the normal
+        /// path is put back below it.
         /// </summary>
         private void KeepOffNormalPath()
         {
@@ -723,11 +677,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// Only for a way with nothing the game could keep shut (no door, hatch or lift): seals it with a
-        /// plate that looks like the level around it. It's a solid slab laid across the spot's "up" (paths
-        /// climb upward from entrances and exits), dressed in the material of the nearest wall, floor or
-        /// ceiling, and parented to the level so it follows the world and goes away with it. Same on
-        /// every PC.
+        /// Only where nothing can be kept shut: seals the way with a solid plate across the spot's "up", dressed
+        /// in the nearest wall's material and parented to the level. Same on every PC.
         /// </summary>
         private static void PlaceBarrier(Transform at, M_Level level, string what)
         {
@@ -793,11 +744,9 @@ namespace Belay.World
         internal static int? BuildSeed;
 
         /// <summary>
-        /// Whether to build a branch here now. Building one switches the map over to it, which hides the
-        /// levels behind and (for the main way on, like the Nest entry) deletes them. That used to happen
-        /// on every PC the moment anyone walked in, so teammates still on their way had the map removed
-        /// under them and fell into the void. Now a PC builds it once its own player gets there (or is
-        /// dead and watching a teammate who is).
+        /// Whether to build a branch here now. Building switches the map over and can delete the levels behind,
+        /// which used to drop teammates still on their way into the void. Now each PC builds once its own player
+        /// (or the teammate it spectates) gets there.
         /// </summary>
         private static bool ReadyHere(UT_BranchGenerator g)
         {
@@ -914,30 +863,6 @@ namespace Belay.World
                     Open(pair.Key, pair.Value);
                 }
             }
-        }
-
-        private void SendVote(bool inFavour)
-        {
-            if (!showVote || myVoteSent)
-            {
-                return;
-            }
-            myVoteSent = true;
-            string id = shownId;
-            NetSession net = NetSession.Instance;
-            if (net.IsHost)
-            {
-                HostCount(NetSession.LocalId, id, inFavour);
-            }
-            else
-            {
-                net.Send(PacketType.ShortcutVote, w =>
-                {
-                    w.Write(id);
-                    w.Write(inFavour);
-                });
-            }
-            Run.RunFlow.Instance?.ShowNotice(inFavour ? "You voted for the shortcut." : "You voted for the normal path.", 3f);
         }
 
         private float nextReportTry;
