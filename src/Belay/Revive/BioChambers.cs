@@ -358,7 +358,7 @@ namespace Belay.Revive
             Turn(m, 0f);
             // Sealed: sparks off the control box, a hum, and the pod floods with growth medium.
             fx.Sparks(18);
-            fx.Sound(ChamberFx.Hum, 0.5f);
+            fx.Sound(ReviveSounds.Hum, 0.6f);
             float start = Time.time;
             while (m != null && Time.time - start < GrowSeconds)
             {
@@ -382,19 +382,19 @@ namespace Belay.Revive
             SetGlow(m, baseGlow, 0.6f);
             // Unseal: steam vents round the base, the glass jolts free and swings round the back.
             fx.Steam(40);
-            fx.Sound(ChamberFx.Hiss, 0.8f);
+            fx.Sound(ReviveSounds.Hiss, 0.8f);
             yield return Jolt(m);
-            fx.Sound(ChamberFx.Slide, 0.6f);
+            fx.Sound(ReviveSounds.Slide, 0.6f);
             yield return Swing(m, 0f, 1f);
-            fx.Sound(ChamberFx.Clunk, 0.6f);
+            fx.Sound(ReviveSounds.Clunk, 0.6f);
             start = Time.time;
             while (m != null && Time.time - start < StayOpenSeconds)
             {
                 yield return null;
             }
-            fx.Sound(ChamberFx.Slide, 0.5f);
+            fx.Sound(ReviveSounds.Slide, 0.5f);
             yield return Swing(m, 1f, 0f);
-            fx.Sound(ChamberFx.Clunk, 0.7f);
+            fx.Sound(ReviveSounds.Clunk, 0.7f);
             fx.Steam(10);
         }
 

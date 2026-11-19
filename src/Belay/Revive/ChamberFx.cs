@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Belay.Players.Avatar;
 using UnityEngine;
 
@@ -6,19 +5,11 @@ namespace Belay.Revive
 {
     /// <summary>
     /// The biochamber's revive effects: growth medium filling and draining the glass, bubbles, sparks off the
-    /// control box, steam venting round the base, and sounds borrowed from the game's own clips (by name, so
-    /// nothing is bundled). Built the first time a chamber revives somebody. Every PC plays the revive itself
+    /// control box, steam venting round the base, and synthesized sounds (ReviveSounds). Built the first time a chamber revives somebody. Every PC plays the revive itself
     /// when it hears about it, so everyone sees the same thing.
     /// </summary>
     internal class ChamberFx : MonoBehaviour
     {
-        internal static readonly string[] Hum = { "hum", "drone", "machine", "generator" };
-        internal static readonly string[] Hiss = { "steam", "hiss", "vent", "pressure" };
-        internal static readonly string[] Slide = { "door_open", "dooropen", "slide", "hatch", "door" };
-        internal static readonly string[] Clunk = { "door_close", "doorclose", "clunk", "slam", "latch" };
-
-        private static readonly Dictionary<string, AudioClip> clips = new Dictionary<string, AudioClip>();
-        private static AudioClip[] allClips;
         private static Material puffMaterial, fluidMaterial;
 
         private Transform fluid;
@@ -124,53 +115,7 @@ namespace Belay.Revive
 
         internal void Steam(int count) => steam?.Emit(count);
 
-        internal void Sound(string[] names, float volume)
-        {
-            AudioClip clip = Clip(names);
-            if (clip == null)
-            {
-                return;
-            }
-            try
-            {
-                AudioManager.PlaySound(clip, transform.position + Vector3.up * 1.2f, volume);
-            }
-            catch (System.Exception e)
-            {
-                Plugin.Log.LogWarning("Biochamber sound failed: " + e.Message);
-            }
-        }
-
-        /// <summary>The first loaded game clip whose name contains one of these words, in order of preference.</summary>
-        private static AudioClip Clip(string[] names)
-        {
-            string key = string.Join("|", names);
-            if (clips.TryGetValue(key, out AudioClip found) && found != null)
-            {
-                return found;
-            }
-            if (allClips == null || allClips.Length == 0)
-            {
-                allClips = Resources.FindObjectsOfTypeAll<AudioClip>();
-            }
-            foreach (string word in names)
-            {
-                foreach (AudioClip c in allClips)
-                {
-                    string lower = c != null ? c.name.ToLowerInvariant() : "";
-                    // Skip voice lines (announcer and spoken words).
-                    if (c != null && lower.Contains(word) && c.length < 6f && !lower.StartsWith("ann_") && !lower.StartsWith("wrd_")
-                        && !lower.Contains("human") && !lower.Contains("voice"))
-                    {
-                        clips[key] = c;
-                        Plugin.Log.LogInfo($"Biochamber sound '{word}': {c.name}");
-                        return c;
-                    }
-                }
-            }
-            clips[key] = null;
-            return null;
-        }
+        internal void Sound(AudioClip clip, float volume) => ReviveSounds.Play(clip, transform, volume);
 
         private static void Materials()
         {

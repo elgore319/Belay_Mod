@@ -819,6 +819,7 @@ namespace Belay.Revive
             if (pendingTotem)
             {
                 TotemRevive.PlayFirstPerson();
+                ReviveSounds.PlayFlesh(player.transform, 1.6f, 0f);
             }
             BioChambers.Play(BioChambers.At(spot));
             RunFlowNotice(NetSession.NameOf(pendingReviver) + " revived you");
