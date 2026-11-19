@@ -6,12 +6,12 @@ INSTALL
 3. Double-click "Install Not Alone.bat".
    It finds your game through Steam and installs BepInEx (the mod loader) and Not Alone.
    If Windows shows "Windows protected your PC", click "More info" > "Run anyway".
-4. Start the game and pick NOT ALONE in the main menu (or press F7).
+4. Start the game and pick NOT ALONE in the main menu.
 
 PLAY
 - One player hosts a lobby and invites friends through Steam. Everyone needs Not Alone {VERSION}.
 - The host starts the run and everyone else follows automatically.
-- Keys: F7 menu, Tab switch spectate target.
+- Keys: Tab switches spectate target.
 
 UPDATES
 Not Alone updates itself: new releases download when the game starts and apply after a restart.

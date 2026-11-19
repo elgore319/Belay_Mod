@@ -30,6 +30,7 @@ namespace Belay.UI
         private bool pageMode;
         /// <summary>The page opened from the game's Cosmetics screen: just the outfit and BACK.</summary>
         private bool outfitPage;
+        private bool pageInRun;
         private Vector2 pageScroll;
         private readonly List<Canvas> hiddenCanvases = new List<Canvas>();
         private GUIStyle pageTitle;
@@ -43,6 +44,23 @@ namespace Belay.UI
         private void ShowPage()
         {
             hiddenCanvases.Clear();
+            if (CL_GameManager.IsInGame())
+            {
+                // In a run the page replaces the pause menu while it's open.
+                GameObject pause = CL_GameManager.gMan != null ? CL_GameManager.gMan.pauseMenu : null;
+                if (pause != null)
+                {
+                    foreach (Canvas canvas in pause.GetComponentsInParent<Canvas>(true).Concat(pause.GetComponentsInChildren<Canvas>(true)))
+                    {
+                        if (canvas.isRootCanvas && canvas.enabled)
+                        {
+                            canvas.enabled = false;
+                            hiddenCanvases.Add(canvas);
+                        }
+                    }
+                }
+                return;
+            }
             MenuManager manager = FindObjectOfType<MenuManager>();
             if (manager == null)
             {
@@ -143,7 +161,7 @@ namespace Belay.UI
                     }
                     y += 62f;
                 }
-                if (!outfitPage && GUI.Button(new Rect(Margin, bottom - 136f, NavWidth, 72f), "CAMPAIGN", campaignButton))
+                if (!outfitPage && !pageInRun && GUI.Button(new Rect(Margin, bottom - 136f, NavWidth, 72f), "CAMPAIGN", campaignButton))
                 {
                     GoToCampaign();
                     return;
