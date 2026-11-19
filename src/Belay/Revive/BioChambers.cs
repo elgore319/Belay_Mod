@@ -344,26 +344,75 @@ namespace Belay.Revive
             }
         }
 
+        private const float FillSeconds = 0.6f;
+        private const float DrainSeconds = 0.7f;
+
         private static IEnumerator Run(BioChamberMarker m)
         {
+            if (m == null)
+            {
+                yield break;
+            }
+            ChamberFx fx = ChamberFx.For(m);
             Color baseGlow = Color.white;
+            Turn(m, 0f);
+            // Sealed: sparks off the control box, a hum, and the pod floods with growth medium.
+            fx.Sparks(18);
+            fx.Sound(ChamberFx.Hum, 0.5f);
             float start = Time.time;
             while (m != null && Time.time - start < GrowSeconds)
             {
                 float t = (Time.time - start) / GrowSeconds;
-                float pulse = 1f + 2.5f * Mathf.Sin(t * Mathf.PI) * (0.75f + 0.25f * Mathf.Sin(Time.time * 18f));
-                SetGlow(m, baseGlow * pulse, 0.6f + 2.4f * Mathf.Sin(t * Mathf.PI));
-                Turn(m, 0f);
+                float tSec = Time.time - start;
+                float level = Mathf.Min(Mathf.SmoothStep(0f, 1f, tSec / FillSeconds),
+                    Mathf.SmoothStep(0f, 1f, (GrowSeconds - tSec) / DrainSeconds));
+                fx.SetFluid(level);
+                fx.Bubbles(level > 0.3f ? 0.06f : 0f);
+                // The lamp ring throbs and flickers while the body is regrown.
+                float flicker = Random.value < 0.06f ? 0.3f : 1f;
+                float pulse = (1f + 2.5f * Mathf.Sin(t * Mathf.PI) * (0.75f + 0.25f * Mathf.Sin(Time.time * 18f))) * flicker;
+                SetGlow(m, baseGlow * pulse, (0.6f + 2.4f * Mathf.Sin(t * Mathf.PI)) * flicker);
                 yield return null;
             }
+            if (m == null)
+            {
+                yield break;
+            }
+            fx.SetFluid(0f);
             SetGlow(m, baseGlow, 0.6f);
+            // Unseal: steam vents round the base, the glass jolts free and swings round the back.
+            fx.Steam(40);
+            fx.Sound(ChamberFx.Hiss, 0.8f);
+            yield return Jolt(m);
+            fx.Sound(ChamberFx.Slide, 0.6f);
             yield return Swing(m, 0f, 1f);
+            fx.Sound(ChamberFx.Clunk, 0.6f);
             start = Time.time;
             while (m != null && Time.time - start < StayOpenSeconds)
             {
                 yield return null;
             }
+            fx.Sound(ChamberFx.Slide, 0.5f);
             yield return Swing(m, 1f, 0f);
+            fx.Sound(ChamberFx.Clunk, 0.7f);
+            fx.Steam(10);
+        }
+
+        /// <summary>The glass pops out a few centimeters as the seal breaks, then settles back.</summary>
+        private static IEnumerator Jolt(BioChamberMarker m)
+        {
+            float start = Time.time;
+            while (m != null && m.Door != null)
+            {
+                float t = (Time.time - start) / 0.35f;
+                if (t >= 1f)
+                {
+                    m.Door.localPosition = Vector3.zero;
+                    yield break;
+                }
+                m.Door.localPosition = Vector3.forward * (0.04f * Mathf.Sin(t * Mathf.PI)) + Random.insideUnitSphere * 0.004f;
+                yield return null;
+            }
         }
 
         private static IEnumerator Swing(BioChamberMarker m, float from, float to)
