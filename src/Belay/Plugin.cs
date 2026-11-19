@@ -18,7 +18,7 @@ namespace Belay
     {
         public const string Guid = "elgore319.belay";
         public const string Name = "Tethered";
-        public const string Version = "0.7.47";
+        public const string Version = "0.7.49";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
