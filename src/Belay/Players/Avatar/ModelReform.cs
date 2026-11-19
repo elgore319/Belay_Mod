@@ -5,9 +5,8 @@ using UnityEngine.Rendering;
 namespace Belay.Players.Avatar
 {
     /// <summary>
-    /// Plays the totem revive on a teammate shown as one of the game's own models (<see cref="ReformModel"/>):
-    /// bones and muscle along the model's rig, then skin, then the model itself spreading over the body.
-    /// Works on copies of the model's meshes and puts the originals back at the end.
+    /// Totem revive on a teammate shown as a game model (<see cref="ReformModel"/>): bones and muscle along its
+    /// rig, then skin, then the model itself. Works on mesh copies and restores the originals after.
     /// </summary>
     internal sealed class ModelReform
     {
@@ -398,8 +397,8 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// The mesh cut into small separate triangles (<see cref="ReformModel.Split"/>), so it grows patch
-        /// by patch instead of in big shards, with its UVs and bone weights carried over.
+        /// The mesh split into small separate triangles (<see cref="ReformModel.Split"/>) with UVs and bone
+        /// weights carried over.
         /// </summary>
         private static Mesh Split(Mesh source)
         {
@@ -507,9 +506,8 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// A copy of a mesh the revive can change. The game's meshes usually can't be read on the CPU, so
-        /// their vertex and index buffers are read back from the GPU into a new mesh with the same layout
-        /// (bone weights included). Null if that isn't possible.
+        /// A modifiable mesh copy. Game meshes usually aren't CPU-readable, so buffers are read back from the GPU
+        /// into a matching mesh. Null if that fails.
         /// </summary>
         private static Mesh ReadableCopy(Mesh source)
         {

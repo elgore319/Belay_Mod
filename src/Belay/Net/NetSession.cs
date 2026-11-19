@@ -17,9 +17,7 @@ namespace Belay.Net
     }
 
     /// <summary>
-    /// Owns the Steam lobby and the P2P transport. The lobby owner is the host; every packet goes
-    /// client -> host -> other clients (star topology), so the host can validate and later own
-    /// authoritative state such as enemies.
+    /// Owns the Steam lobby and P2P transport. The lobby owner is host; packets go client -> host -> clients.
     /// </summary>
     public class NetSession : MonoBehaviour
     {
@@ -51,8 +49,8 @@ namespace Belay.Net
         public SteamId HostId => Loopback.IsClient ? Loopback.HostId : CurrentLobby.HasValue ? CurrentLobby.Value.Owner.Id : default;
 
         /// <summary>
-        /// Who this game is in the session. Use this instead of SteamClient.SteamId: a local test client runs
-        /// on the same Steam account as the host, so it has its own id (LoopbackLink.ClientId).
+        /// This game's id in the session. Use instead of SteamClient.SteamId, since a local test client has its
+        /// own id.
         /// </summary>
         public static SteamId LocalId => Instance != null && Instance.Loopback.IsClient ? LoopbackLink.ClientId : SteamClient.SteamId;
 
@@ -305,8 +303,7 @@ namespace Belay.Net
         }
 
         // ---------------------------------------------------------------- Local test bots
-        // Bot/TestBot.cs adds fake teammates that live only on this machine. They count as members for
-        // gameplay (rope, goo, revive, interlude gate) but have no Steam connection, so nothing is sent to them.
+        // Fake teammates that live only on this machine: members for gameplay, but nothing is sent to them.
 
         public readonly List<SteamId> LocalBots = new List<SteamId>();
         public readonly Dictionary<SteamId, string> LocalBotNames = new Dictionary<SteamId, string>();
@@ -452,8 +449,7 @@ namespace Belay.Net
         }
 
         /// <summary>
-        /// Error notice for a Belay version mismatch. A missing version means a Belay from before
-        /// versions were shared, so older. When the other side is newer, this game updates right away.
+        /// Version mismatch notice. A missing version means an older mod; if the other side is newer, update now.
         /// </summary>
         private void WarnVersion(string theirs, string who, bool joined)
         {
@@ -547,10 +543,7 @@ namespace Belay.Net
             handlers[type] = handler;
         }
 
-        /// <summary>
-        /// Send a gameplay packet. From a client it goes to the host (which may relay it); from the host it
-        /// goes to every client.
-        /// </summary>
+        /// <summary>Sends a gameplay packet: client to host (which may relay), or host to every client.</summary>
         public void Send(PacketType type, Action<BinaryWriter> payload, bool reliable = true)
         {
             if (!InLobby)

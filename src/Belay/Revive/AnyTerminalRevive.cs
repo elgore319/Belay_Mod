@@ -5,9 +5,8 @@ using UnityEngine;
 namespace Belay.Revive
 {
     /// <summary>
-    /// In co-op, sitting at a terminal while a teammate is down asks whether to revive them for roaches.
-    /// The save page's disk functions are the game's own again (disks make team saves, see TeamDiskSave),
-    /// so the offer comes up at every terminal, save terminals included.
+    /// In co-op, sitting at any terminal while a teammate is down offers a revive for roaches. Disk functions stay
+    /// vanilla (team saves, see TeamDiskSave).
     /// </summary>
     [HarmonyPatch(typeof(OS_Manager), nameof(OS_Manager.Activate))]
     internal static class AnyTerminalRevive

@@ -5,9 +5,8 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// In a co-op run the pause menu no longer stops the game. Opening it only takes your hands off the
-    /// controls (the way the game's console does) while the world, the mass and your teammates carry on,
-    /// so one player pausing can't freeze things for the team.
+    /// In co-op the pause menu doesn't stop the game: it only takes your hands off the controls while the world
+    /// and teammates carry on.
     /// </summary>
     public class CoopPause : MonoBehaviour
     {

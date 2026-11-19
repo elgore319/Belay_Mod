@@ -6,11 +6,8 @@ using UnityEngine;
 namespace Belay.Players
 {
     /// <summary>
-    /// The game keeps you riding a moving floor (elevators, platforms) by casting a sphere down from
-    /// your feet every physics step: if it hits a "Platform" or "World" collider you stay attached to
-    /// it, anything else detaches you and hands you the floor's speed. A teammate's solid body standing
-    /// next to you in a crowded elevator was that "anything else", so riders kept detaching and
-    /// re-attaching and were flung by the elevator's own speed. That cast now looks through teammates.
+    /// The game keeps you on a moving floor with a sphere cast from your feet, and a teammate's body in a crowded
+    /// elevator broke it (riders got flung). The cast now ignores teammates.
     /// </summary>
     [HarmonyPatch(typeof(ENT_Player), "Movement")]
     internal static class RideThroughTeammates

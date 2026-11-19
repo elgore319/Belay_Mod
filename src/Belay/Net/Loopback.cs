@@ -10,14 +10,9 @@ using UnityEngine;
 namespace Belay.Net
 {
     /// <summary>
-    /// A local link between two copies of the game on the same PC, used for solo testing. The host listens
-    /// on 127.0.0.1; a second game started with -belay-testclient connects to it and plays as a real client
-    /// (its own world, its own level generation), without Steam networking. Steam can't put the same
-    /// account in a lobby twice, so the test client has its own fake id and gets the lobby data from the
-    /// host over this link.
-    ///
-    /// Datagram format: [kind][...]. kind 0 = game packet [channel][packet]; 1 = host snapshot;
-    /// 2 = client heartbeat.
+    /// Local link between two game copies on one PC, for solo testing. The host listens on 127.0.0.1 and a
+    /// -belay-testclient copy joins as a real client with a fake id, getting lobby data over this link. Datagram:
+    /// [kind][...]; 0 = game packet [channel][packet], 1 = host snapshot, 2 = client heartbeat.
     /// </summary>
     public class LoopbackLink
     {
@@ -143,8 +138,8 @@ namespace Belay.Net
         }
 
         /// <summary>
-        /// Read everything waiting. Game packets go to onGame(channel, packet); returns true when the member
-        /// list or lobby data changed (or the link came up or went down).
+        /// Reads everything waiting; game packets go to onGame. True when members, lobby data or link state
+        /// changed.
         /// </summary>
         public bool Poll(Action<int, byte[]> onGame)
         {

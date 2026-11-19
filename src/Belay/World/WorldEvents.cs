@@ -9,14 +9,9 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// The game's random world events (weather, blizzards, event spawns, announcements) are rolled by
-    /// CL_EventManager on each PC, every time that PC's own player enters a level or region and once a
-    /// second, each with its own dice. So teammates got different events.
-    ///
-    /// In a lobby only the host rolls. Every event the host's roll starts is sent to the others, who start
-    /// the same event (seeded the same way, so its own random set-up matches as far as it can). Events
-    /// that a level starts on purpose (scripted ones) are left to each PC, since the level is the same.
-    /// A PC that hasn't reached a level yet starts the event as soon as it has one.
+    /// Random world events (weather, spawns, announcements) were rolled by CL_EventManager on each PC separately.
+    /// In a lobby only the host rolls and sends each event to the others, who start it with the same seed.
+    /// Scripted level events stay per PC. A PC without that level yet starts the event once it has one.
     /// </summary>
     public class WorldEvents : MonoBehaviour
     {

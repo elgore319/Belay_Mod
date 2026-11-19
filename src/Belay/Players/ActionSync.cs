@@ -8,9 +8,8 @@ using UnityEngine;
 namespace Belay.Players
 {
     /// <summary>
-    /// Shares what players do with the items in their hands (hammer swings, charging a heavy swing,
-    /// setting pitons, throwing, shooting, eating, other uses) so teammates' avatars act it out. The
-    /// moments come from the game's own item code, so nothing new needs pressing.
+    /// Shares item actions (swings, pitons, throws, shots, eating) so teammates' avatars act them out. Hooks the
+    /// game's own item code.
     /// </summary>
     public static class ActionSync
     {

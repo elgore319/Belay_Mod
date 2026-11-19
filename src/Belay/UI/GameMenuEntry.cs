@@ -8,20 +8,15 @@ using UnityEngine.UI;
 namespace Belay.UI
 {
     /// <summary>
-    /// Puts a "NOT ALONE" entry into the game's own main menu and pause menu, so the mod menu opens from
-    /// the game's menus like any other option. The entry is a copy of one of the menu's own buttons
-    /// (same look, font, hover and select effects), with the copy's game behaviour stripped and its
-    /// click wired to the Belay window. Only the copy is created; the game's buttons keep their
-    /// listeners. When no button column can be found the old corner button in <see cref="BelayMenu"/>
-    /// is drawn instead, and the menu key works either way.
+    /// Adds a NOT ALONE entry to the game's main and pause menus: a copy of one of its buttons with the game
+    /// behaviour stripped and the click wired to the mod menu. The originals are untouched. Without a button
+    /// column the corner button in <see cref="BelayMenu"/> is drawn instead.
     /// </summary>
     public class GameMenuEntry : MonoBehaviour
     {
         private const string EntryName = "Belay Menu Entry";
 
-        // Game components a menu button may carry that only change how it looks when hovered or
-        // selected. Every other game component on the copy is removed, so it can't open a game screen,
-        // grab the first selection, or react to a hotkey.
+        // Game components a button may keep (hover/select visuals only). Everything else is removed from the copy.
         private static readonly HashSet<string> LookOnly = new HashSet<string>
         {
             "UI_AnimateOnSelect", "UI_OutlineOnSelect", "UI_CopyColor", "UI_CopySelectedColor",

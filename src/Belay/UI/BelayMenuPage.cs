@@ -5,16 +5,14 @@ using UnityEngine;
 namespace Belay.UI
 {
     /// <summary>
-    /// The full-screen multiplayer page shown on the main menu in place of the floating window. The game's
-    /// menu canvas is switched off while it's open (IMGUI doesn't block uGUI clicks, so the game's buttons
-    /// would otherwise still react underneath), and switched back on when the page closes. In a run the
-    /// menu key and the pause-menu entry still open the floating window.
+    /// The full-screen mod page. The game's menu canvases are switched off while it's open (IMGUI doesn't block
+    /// uGUI clicks) and back on when it closes.
     /// </summary>
     public partial class BelayMenu
     {
         /// <summary>
-        /// Draws the live 3D climber preview on the Outfit tab of the page. Set by the outfit preview
-        /// component; called for every IMGUI event with the rect reserved for it, so it can handle drags too.
+        /// Draws the live 3D climber preview on the Outfit tab. Called for every IMGUI event with its rect, so it
+        /// can handle drags.
         /// </summary>
         internal static System.Action<Rect> OutfitPreviewDrawer;
 
@@ -218,8 +216,7 @@ namespace Belay.UI
         }
 
         /// <summary>
-        /// Leaves the page for the game's own campaign screen (where the run is started as usual; in a lobby
-        /// only the host's start counts, see RunFlow).
+        /// Leaves the page for the game's campaign screen (in a lobby only the host's start counts, see RunFlow).
         /// </summary>
         private void GoToCampaign()
         {

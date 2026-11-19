@@ -3,8 +3,8 @@ using UnityEngine;
 namespace Belay.Players.Avatar
 {
     /// <summary>
-    /// Whether the local player is in Roach Mode (the binding that turns you into a roach). Shared with
-    /// teammates as part of the outfit, so they see a giant roach instead of a climber.
+    /// Whether the local player is in Roach Mode (the binding). Shared as part of the outfit so teammates see a
+    /// roach.
     /// </summary>
     public static class RoachMode
     {

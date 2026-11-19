@@ -8,9 +8,8 @@ using BepInEx.Bootstrap;
 namespace Belay.UI
 {
     /// <summary>
-    /// Turns other BepInEx mods on and off. BepInEx can't unload a plugin (or undo its Harmony patches)
-    /// while the game runs, so a switch renames the mod's DLL to/from ".dll.disabled" and takes effect on
-    /// the next launch. Nothing else about other mods is touched.
+    /// Turns other BepInEx mods on and off by renaming their DLL to/from ".dll.disabled", effective next launch
+    /// (BepInEx can't unload plugins).
     /// </summary>
     public static class ModManager
     {

@@ -8,15 +8,10 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Loose physics objects (boxes, crates, barrels: the game's CL_Prop) move the same for everyone.
-    ///  - Each prop gets the same id on every PC (its place in the level, taken as it spawns).
-    ///  - Whoever moves a prop owns it: the player holding it, or else the nearest player when it gets
-    ///    knocked loose. The owner streams its position; everyone else plays it back (kinematic) and hands
-    ///    it back to their own physics once it comes to rest.
-    ///  - Two people grabbing the same prop: the holder beats a pusher, then the lower Steam id wins, and
-    ///    the other hand lets go.
-    ///  - When a prop breaks, it breaks for everyone.
-    /// Items you can pick up into your inventory are left to <see cref="ItemSync"/>.
+    /// Loose physics props (CL_Prop) move the same for everyone. Each gets the same id on every PC. Whoever moves
+    /// it owns it (holder, else nearest player when knocked) and streams it; others play it back kinematic until
+    /// it rests. Holder beats pusher, then lower Steam id wins. Breaks are shared. Pickable items are left to <see
+    /// cref="ItemSync"/>.
     /// </summary>
     public class PropSync : MonoBehaviour
     {
@@ -103,8 +98,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// Teammate bodies don't shove props on our PC: the teammate isn't pushing it on theirs, so it would
-        /// only drift apart. Props move through holding, hits and knocks, which do sync.
+        /// Teammate bodies don't shove props here (they aren't pushing on their PC). Holding, hits and knocks sync
+        /// instead.
         /// </summary>
         private static void IgnoreTeammateBodies(CL_Prop prop)
         {

@@ -12,9 +12,9 @@ using UnityEngine;
 namespace Belay.UI
 {
     /// <summary>
-    /// The Belay mod menu. It's drawn with IMGUI on its own (no game UI objects are moved or patched,
-    /// so other mods' menus are untouched), opens from the "NOT ALONE" entry that <see cref="GameMenuEntry"/>
-    /// adds to the game's main and pause menus or from the menu key, and only captures input while it is open.
+    /// The mod menu. Drawn with its own IMGUI (no game UI is patched, so other mods are untouched), opened from
+    /// the NOT ALONE entry <see cref="GameMenuEntry"/> adds to the main and pause menus, and only captures input
+    /// while open.
     /// </summary>
     public partial class BelayMenu : MonoBehaviour
     {
@@ -200,8 +200,8 @@ namespace Belay.UI
         }
 
         /// <summary>
-        /// The conflict warning on the main menu, and a small corner button kept only as a fallback for
-        /// when the BELAY entry couldn't be added to the game's own menu.
+        /// The conflict warning on the main menu, plus a corner button fallback for when the menu entry couldn't
+        /// be added.
         /// </summary>
         private void DrawMenuButton()
         {

@@ -8,11 +8,8 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Interludes and breakrooms wait for the whole team, so nobody gets left behind by someone racing
-    /// ahead and pressing on:
-    ///  - doors and hatches never wait, so whoever is behind can always catch up;
-    ///  - elevators and lifts wait until every living teammate is aboard (within reach of the button);
-    ///  - any other button waits until every living teammate is inside the room.
+    /// Interludes and breakrooms wait for the team: doors and hatches never wait, elevators wait until every
+    /// living teammate is aboard, and other buttons wait until everyone is in the room.
     /// </summary>
     internal static class InterludeGate
     {
@@ -62,8 +59,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// Living teammates (not counting you) who aren't where <paramref name="there"/> says yet. Bots never
-        /// hold the team up: once you're there, a bot that isn't is brought along.
+        /// Living teammates (not you) who aren't where <paramref name="there"/> says. Bots never hold things up;
+        /// they're brought along.
         /// </summary>
         internal static List<string> Missing(System.Func<Vector3, bool> there)
         {
@@ -105,10 +102,8 @@ namespace Belay.World
         private const float GatherReach = 15f;
 
         /// <summary>
-        /// Opening a door or hatch never waits: anyone can open the way on, so a teammate who's behind can
-        /// still catch up. Elevators (and lifts) are where the team waits: they leave only once everyone is
-        /// aboard. Anything that closes or seals a way behind the team, or moves the mass (an interlude's
-        /// lockdown button, for one), waits until every living teammate is in the room, like everything else.
+        /// Doors and hatches never wait. Elevators leave only once everyone is aboard. Anything that seals the way
+        /// behind or moves the mass (a lockdown button) waits until everyone is in the room.
         /// </summary>
         internal static GateKind Classify(Component control, M_Level level, params UnityEngine.Events.UnityEventBase[] events)
         {
@@ -157,9 +152,8 @@ namespace Belay.World
                 kind = GateKind.Room;
             }
             kinds[key] = kind;
-            // Only controls that carry the team on wait for the area vote. A lockdown that seals the hatch
-            // behind the team (Silo to Pipeworks' pressure seal) is how you make the room safe, not how you
-            // leave it: it only waits until everyone is in the room.
+            // Only controls that carry the team on wait for the area vote. A lockdown sealing the hatch behind
+            // (Silo to Pipeworks) just waits for everyone in the room.
             if (kind == GateKind.Elevator || kind == GateKind.Gathered)
             {
                 wayOn.Add(key);
@@ -169,9 +163,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// Buttons that carry whoever is there on to the next area and strand anyone left behind: the pair
-        /// right after the Teeth climb (Habitation pier entrance) and the Hadal diver's. These wait for the
-        /// whole team even outside interludes.
+        /// Buttons that carry everyone on and strand the rest (the pair after the Teeth climb, the Hadal diver's).
+        /// These wait for the team even outside interludes.
         /// </summary>
         private static bool GathersTeam(string all, M_Level level)
         {

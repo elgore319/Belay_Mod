@@ -8,13 +8,9 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Bits of a level that change for good when one player touches them, and used to change only on
-    /// that player's PC:
-    ///  - Crumbling handholds (CL_Handhold_Breakable) that give way: gone for everyone, and anyone
-    ///    hanging on it there drops too.
-    ///  - Glass and other shatter props (UT_ShatterProp): shatter for everyone.
-    ///  - Item slots (UT_InsertableItem), where you put an item in to make something happen: the slot
-    ///    goes off for everyone. Slots on computer terminals stay personal, like the terminals.
+    /// Permanent level changes that used to happen on one PC only, now shared: breakable handholds
+    /// (CL_Handhold_Breakable, anyone on it drops), shatter props (UT_ShatterProp), and item slots
+    /// (UT_InsertableItem, except on terminals, which stay personal).
     /// </summary>
     public class LevelBreaks : MonoBehaviour
     {

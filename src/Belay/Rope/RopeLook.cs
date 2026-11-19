@@ -3,8 +3,7 @@ using UnityEngine;
 namespace Belay.Rope
 {
     /// <summary>
-    /// The team rope's material: a dynamic climbing rope (kernmantle) with a woven sheath and a dark tracer
-    /// thread spiralling round it, in the same chunky pixel style and self-lit shading as the climbers.
+    /// Team rope material: kernmantle with a woven sheath and a dark tracer, in the climbers' pixel style.
     /// </summary>
     public static class RopeLook
     {

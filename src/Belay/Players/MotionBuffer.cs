@@ -5,11 +5,8 @@ using UnityEngine;
 namespace Belay.Players
 {
     /// <summary>
-    /// Plays a teammate's snapshots back smoothly. Snapshots arrive 10-30 times a second, unevenly, so
-    /// instead of chasing the newest one (which steps, rubber-bands and cuts corners) the body is drawn a
-    /// short, self-adjusting delay in the past, on a curve through the snapshots either side of that
-    /// moment. Head turns are interpolated the same way. If packets stop for a moment the body coasts a
-    /// little on its last velocity rather than freezing in mid-air.
+    /// Plays a teammate's snapshots back smoothly: drawn a short self-adjusting delay in the past on a curve
+    /// through nearby snapshots (head turns too). If packets stop, the body coasts briefly instead of freezing.
     /// </summary>
     public class MotionBuffer
     {
@@ -156,8 +153,8 @@ namespace Belay.Players
         }
 
         /// <summary>
-        /// Slope of the curve at snapshot <paramref name="index"/> (Catmull-Rom style, from its neighbours),
-        /// held to a sensible size so a sudden stop or turn doesn't overshoot into a wall.
+        /// Curve slope at snapshot <paramref name="index"/> (Catmull-Rom from neighbours), clamped so sudden stops
+        /// don't overshoot into walls.
         /// </summary>
         private Vector3 Tangent(int index, Vector3 p1, Vector3 p2, float span, Vector3 segment)
         {
@@ -232,8 +229,7 @@ namespace Belay.Players
         }
 
         /// <summary>
-        /// Where a snapshot's body is on this PC. A teammate riding an elevator is placed on our own copy
-        /// of it, so they stand on its floor here even if it's a little ahead or behind theirs.
+        /// A snapshot's body position on this PC. Elevator riders are placed on our own copy of the elevator.
         /// </summary>
         public static Vector3 Body(PlayerState state)
         {

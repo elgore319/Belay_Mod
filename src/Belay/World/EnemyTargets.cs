@@ -9,17 +9,10 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Enemies the game points straight at "the player" (this PC's own) used to go only after the host in
-    /// co-op, because the host runs every enemy and the others copy it. On the host they now go after the
-    /// nearest living player:
-    ///  - Drones and bloodbugs that always hunt the player, and any that has a player in its sights,
-    ///    switch to whoever is nearest.
-    ///  - The rat king follows the nearest player.
-    /// Each PC's copy still does its own hurting, so it only hurts the teammate it actually reaches.
-    ///
-    /// A few creatures are personal by nature: they react to whether YOU are looking at them, ride on
-    /// your face or stalk your own fall (the mask, the remains, the ladder nightmare, ticks). Those
-    /// aren't copied from the host any more: each PC runs its own, for its own player.
+    /// Enemies aimed at "the player" only chased the host in co-op. On the host, drones, bloodbugs and the rat
+    /// king now go after the nearest living player; each copy still only hurts whoever it reaches. Personal
+    /// creatures (the mask, the remains, ticks) react to YOUR view or body, so each PC runs its own instead of
+    /// copying the host.
     /// </summary>
     public class EnemyTargets : MonoBehaviour
     {

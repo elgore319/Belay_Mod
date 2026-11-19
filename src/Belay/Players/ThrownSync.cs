@@ -8,10 +8,8 @@ using UnityEngine;
 namespace Belay.Players
 {
     /// <summary>
-    /// What a teammate shoots or throws (bullets, flares, spears, rebar, grenades, grapples) used to show only as the throw
-    /// animation. Now the shot flies on everyone's screen: the same projectile model, on the same path
-    /// (same speed, drop and drag). It's only a look-alike: it hits nothing and leaves nothing, because
-    /// the real one already does its damage on the thrower's PC and that damage is shared on its own.
+    /// A teammate's shots and throws now fly on everyone's screen with the same model and path. Look-alike only:
+    /// it hits nothing, since the real one's damage is shared separately.
     /// </summary>
     public class ThrownSync : MonoBehaviour
     {
@@ -130,9 +128,8 @@ namespace Belay.Players
     }
 
     /// <summary>
-    /// A teammate's shot: flies like the real one until it meets something, then plays the same impact
-    /// (sound, sparks, a burning flare, an explosion's blast). Shots that stick (spears, flares) stay
-    /// where they landed for as long as the real one would.
+    /// A teammate's shot: flies like the real one, then plays the same impact. Sticking shots stay as long as the
+    /// real one would.
     /// </summary>
     internal class GhostShot : MonoBehaviour
     {

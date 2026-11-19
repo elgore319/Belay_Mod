@@ -4,10 +4,8 @@ using HarmonyLib;
 namespace Belay.Run
 {
     /// <summary>
-    /// When anyone reaches the ending, the run ends with a win for the whole team. The winner's game
-    /// tells everyone else, and every other PC (alive, dead or spectating) runs the game's own win: the
-    /// end-of-run fade, the win score screen and its stats. Before, only the player who got there saw the
-    /// ending; a dead teammate was left spectating a body still standing in the game.
+    /// Anyone reaching the ending wins for the whole team: every other PC (alive, dead or spectating) runs the
+    /// game's own win sequence.
     /// </summary>
     internal static class WinSync
     {

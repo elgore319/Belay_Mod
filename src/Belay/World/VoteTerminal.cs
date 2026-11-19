@@ -12,16 +12,12 @@ namespace Belay.World
     }
 
     /// <summary>
-    /// A terminal used only for shortcut votes. Wherever a level has a game terminal and there are
-    /// shortcuts between it and the next terminal, Belay places a copy of that terminal beside it, with
-    /// an empty desktop and an amber tint and glow. Sitting down at it (the game's normal terminal controls) shows
-    /// one on-screen choice per shortcut ahead: Shortcut or Normal path. The first choice starts the team
-    /// vote, everyone sees the banner, and anyone can vote at their own copy of the terminal (or with the
-    /// vote keys). Results, barriers and seeded shortcut generation are unchanged (see ShortcutSync).
-    /// In an interlude or breakroom with a way on (an elevator's button, a lockdown) the copy goes in even
-    /// with no shortcut ahead: it's where the team votes to move on to the next area (AreaVote), asked before any shortcut.
-    /// The game's own terminals never start votes. If there's no clear spot beside the terminal, the
-    /// copy goes in the least blocked one.
+    /// A terminal just for votes. Placed beside a level's game terminal when there are shortcuts before the next
+    /// one, with an empty desktop and amber tint. Sitting at it offers Shortcut or Normal path per shortcut ahead;
+    /// the first pick starts the team vote and anyone can vote at their own copy (results and branch seeding in
+    /// ShortcutSync). In an interlude or breakroom with a way on it's also placed for the area vote (AreaVote),
+    /// asked first. The game's own terminals never start votes. With no clear spot it goes in the least blocked
+    /// one.
     /// </summary>
     public class VoteTerminal : MonoBehaviour
     {

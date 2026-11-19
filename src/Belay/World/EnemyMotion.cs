@@ -10,13 +10,9 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// The host runs the enemies:
-    ///  - The host streams where each moving enemy near the team is, about ten times a second. On the
-    ///    other PCs the same enemy is held at the host's position, so everyone sees it in the same place.
-    ///    Each PC's copy still does its own attacking, so an enemy the host moves next to you hurts you
-    ///    on your own PC.
-    ///  - On the host, an enemy looking for someone to chase picks the nearest player it can see,
-    ///    teammates included, not only the host.
+    /// The host runs enemies: it streams nearby moving enemies about 10 times a second and other PCs hold their
+    /// copy there (each copy still attacks on its own PC). On the host, enemies pick the nearest visible player,
+    /// not just the host.
     /// </summary>
     public class EnemyMotion : MonoBehaviour
     {
@@ -49,10 +45,8 @@ namespace Belay.World
 
         private readonly Dictionary<long, Follow> follows = new Dictionary<long, Follow>();
 
-        // Owners: a few creatures are wired to "the player" so deeply (the vent hand, the phage, the
-        // tracker) that only the PC of the player they're after can run them properly. The host hands each
-        // of those to the PC of the nearest living player; that PC runs it and streams it, everyone else
-        // (the host included) copies it. Everything else is run by the host.
+        // Owners: a few creatures are tied to "the player" (vent hand, phage, tracker), so the host hands each to
+        // the nearest living player's PC, which runs and streams it. The host runs the rest.
         private const float OwnerEvery = 0.5f;
         private const float OwnerSwitchMargin = 5f;
         private const float OwnerMinHold = 3f;
@@ -201,8 +195,7 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// Host only: after an enemy looks around for someone to chase, swap its pick for a teammate if
-        /// one it can see is closer than the host.
+        /// Host only: after an enemy picks a target, swap to a visible teammate if one is closer than the host.
         /// </summary>
         internal static void ConsiderTeammates(AITargetComponent component, Vector3 pos, float radius, AISightComponent sight, Transform self)
         {

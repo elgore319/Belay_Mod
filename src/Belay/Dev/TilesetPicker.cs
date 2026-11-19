@@ -7,10 +7,8 @@ using UnityEngine;
 namespace Belay.Dev
 {
     /// <summary>
-    /// Dev window "Tilesets" page: choose which subregions (the game's tilesets, like the different
-    /// versions of each area) the generator may pick. Unticked ones are left out of every level generated
-    /// from then on. In a lobby the host's choice is shared through lobby data and applies to everyone,
-    /// so all players keep generating the same levels.
+    /// Dev menu Tilesets page: choose which subregions the generator may pick. In a lobby the host's choice
+    /// applies to everyone.
     /// </summary>
     internal static class TilesetPicker
     {
@@ -167,10 +165,7 @@ namespace Belay.Dev
     [HarmonyPatch]
     internal static class TilesetPickerPatches
     {
-        /// <summary>
-        /// If the filter would leave a region with no tileset at all, generating it would fail, so that
-        /// region ignores the filter.
-        /// </summary>
+        /// <summary>A region the filter would leave empty ignores the filter, or generation would fail.</summary>
         [HarmonyPatch(typeof(M_Region), nameof(M_Region.GetLevels))]
         [HarmonyPrefix]
         private static void GetLevelsPrefix(M_Region __instance)

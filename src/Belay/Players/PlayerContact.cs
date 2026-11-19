@@ -6,14 +6,10 @@ using UnityEngine;
 namespace Belay.Players
 {
     /// <summary>
-    /// Teammates are physical:
-    ///  - Their bodies are solid (<see cref="RemoteBody"/>). You bump into them and can stand on them.
-    ///  - Grip a teammate like a handhold. If you're only hanging off them, you ride along as they climb.
-    ///    If you're standing, or gripping the wall with your other hand, you lift them instead: they're
-    ///    carried to the spot in front of your face, and letting go while swinging your view throws them.
-    ///    The carried player jumps to wriggle free.
-    ///  - Hit a teammate with a hammer: the hit connects and knocks them back, but never hurts.
-    /// Each PC still only moves its own player; the grip and the carry point ride along in PlayerState.
+    /// Teammates are physical: solid bodies (<see cref="RemoteBody"/>) you can bump and stand on; grip one to ride
+    /// along as they climb, or lift and throw them if you're standing or holding the wall (they jump to wriggle
+    /// free); hammer hits knock back but never hurt. Each PC moves only its own player; grip and carry point ride
+    /// in PlayerState.
     /// </summary>
     public class PlayerContact : MonoBehaviour
     {
@@ -31,8 +27,8 @@ namespace Belay.Players
         private static int bodyLayer = -1;
 
         /// <summary>
-        /// Layer for teammate bodies: one the hands' grab casts see and the player capsule collides with.
-        /// The game's masks come from its scenes, so this is worked out from the live player.
+        /// Layer for teammate bodies that grab casts see and the player capsule collides with. Worked out from the
+        /// live player.
         /// </summary>
         public static int BodyLayer
         {

@@ -6,9 +6,8 @@ using UnityEngine;
 namespace Belay.Revive
 {
     /// <summary>
-    /// What a totem revive looks like. Teammates watch the revived player's body rebuilt from the inside
-    /// out as it reappears (<see cref="Reform"/>, played by the avatar). The revived player sees their
-    /// view open up from the middle outward through an ember glow.
+    /// Totem revive visuals: teammates see the body rebuilt (<see cref="Reform"/>); the revived player's view
+    /// opens outward through an ember glow.
     /// </summary>
     public class TotemRevive : MonoBehaviour
     {

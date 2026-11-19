@@ -3,13 +3,9 @@ using UnityEngine;
 namespace Belay.Players.Avatar
 {
     /// <summary>
-    /// How a teammate's avatar grips the item in its hand. Pure vector math (no engine calls), so the
-    /// avatar preview tool poses items exactly like the game does.
-    ///
-    /// Template space: the origin is where the fist closes, +X runs along the item from the fist toward
-    /// its heavy end (a hammer's head), +Z is the item's second-longest direction (the way a hammer head
-    /// points) and +Y = Z x X. In the fist, +X comes out of the thumb side, so with the thumb up a
-    /// hammer stands up out of the fist with its head forward.
+    /// How an avatar grips its held item. Pure vector math, so the preview tool poses items like the game.
+    /// Template space: origin where the fist closes, +X along the item to its heavy end, +Z its second-longest
+    /// direction, +Y = Z x X. +X leaves the fist on the thumb side.
     /// </summary>
     public static class HeldGrip
     {
@@ -27,17 +23,16 @@ namespace Belay.Players.Avatar
             /// <summary>Held flat in the palm (food, notes, small things) instead of gripped like a tool.</summary>
             public bool Palm;
             /// <summary>
-            /// A pistol grip, given in the item's own (world model) space: where the hand closes, which way
-            /// the barrel points and which way is the top of the gun. Overrides the shape guess.
+            /// A pistol grip in the item's world model space: hand position, barrel direction and the gun's top.
+            /// Overrides the shape guess.
             /// </summary>
             public bool Pistol;
             public Vector3 PistolGrip, PistolForward, PistolUp;
         }
 
         /// <summary>
-        /// How big the held copy is next to the item lying in the world. The game's world items are
-        /// chunky (a hammer is 0.7 m long, a can of beans 0.3 m tall) so they read on the ground; in a
-        /// teammate's fist at that size they look like props from a cartoon.
+        /// Held copy size relative to the world item. World items are oversized so they read on the ground; at
+        /// that size they look cartoonish in a fist.
         /// </summary>
         public const float HeldScale = 0.5f;
 
@@ -153,8 +148,8 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// Root space to template space for an item whose renderers span <paramref name="min"/>..<paramref name="max"/>
-        /// (in the item's root space) with most of their mass around <paramref name="mass"/>.
+        /// Root space to template space for an item whose renderers span <paramref name="min"/>..<paramref
+        /// name="max"/>, mass centered near <paramref name="mass"/>.
         /// </summary>
         public static Matrix4x4 Fit(Vector3 min, Vector3 max, Vector3 mass, string prefabName, bool plain = false)
         {
@@ -217,8 +212,8 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// Template space to the fist's local space (the fist is built at avatar scale, so
-        /// <paramref name="avatarScale"/> undoes that and the item keeps its real size).
+        /// Template space to fist space. <paramref name="avatarScale"/> undoes the avatar's scale so the item
+        /// keeps its real size.
         /// </summary>
         public static Matrix4x4 InFist(bool left, string prefabName, float length, float avatarScale)
         {
@@ -252,8 +247,8 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// Which way the hand points: along the forearm, except that a hand held out with a gun bends at
-        /// the wrist to point it where the player looks (by <paramref name="reach"/>, 0 at rest by the side).
+        /// Hand direction: along the forearm, except a held-out gun bends toward the look direction by <paramref
+        /// name="reach"/> (0 at rest).
         /// </summary>
         public static Vector3 HandForward(Vector3 forearm, Vector3 look, string prefabName, float reach)
         {
@@ -266,10 +261,9 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// Which way the back of the hand faces. Empty hands: up when reaching forward, away from the wall
-        /// when reaching up, out to the side when the arm hangs down. A hand holding an item turns its
-        /// back out to the side whenever it isn't reaching up, so the thumb (and the item) points up
-        /// when the arm is forward and forward when the arm hangs, like a person holding a tool.
+        /// Which way the back of the hand faces. Empty: up when reaching forward, away from the wall reaching up,
+        /// outward hanging down. Holding something: outward unless reaching up, so the item points up or forward
+        /// like a held tool.
         /// </summary>
         public static Vector3 HandBack(Vector3 forearm, Vector3 up, Vector3 forward, Vector3 right, float side, bool holdsItem)
         {

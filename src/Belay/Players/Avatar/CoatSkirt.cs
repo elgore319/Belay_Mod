@@ -4,11 +4,9 @@ using UnityEngine;
 namespace Belay.Players.Avatar
 {
     /// <summary>
-    /// A coat that hangs below the waist (the lab coat, the pier slicker, the expedition parka), simulated
-    /// as panels hanging from the waist all the way round: each panel's hem swings with the body, settles
-    /// back under gravity, and is pushed out of the way by the thighs and shins, so a stride or a high step
-    /// lifts the coat instead of the leg going through it. Works in the torso's design space (pelvis at the
-    /// origin, +y up, +z forward); the coat's mesh is bent to follow the panels.
+    /// A coat that hangs below the waist (lab coat, pier slicker, parka), simulated as panels that swing with the
+    /// body, settle under gravity and get pushed aside by the legs. Torso design space (pelvis at origin, +y up,
+    /// +z forward); the mesh bends to follow the panels.
     /// </summary>
     public sealed class CoatSkirt
     {
@@ -62,8 +60,8 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// One step. <paramref name="down"/> is the direction of gravity and <paramref name="acceleration"/>
-        /// the pelvis's acceleration (m/s², gravity not included), both in the torso's space.
+        /// One step. <paramref name="down"/> is gravity's direction and <paramref name="acceleration"/> the pelvis
+        /// acceleration without gravity, both in torso space.
         /// </summary>
         public void Step(float dt, Vector3 down, Vector3 acceleration, IList<Capsule> legs)
         {
@@ -162,8 +160,8 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// Bends the coat's mesh (built at rest) to the panels: everything below the waist moves with the
-        /// panel it hangs on, more the further down it is. Vertices above the waist stay put.
+        /// Bends the rest mesh to the panels: below the waist, vertices follow their panel more the lower they
+        /// are.
         /// </summary>
         public void Deform(IList<Vector3> vertices, Vector3[] output)
         {

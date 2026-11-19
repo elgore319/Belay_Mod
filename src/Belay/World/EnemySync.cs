@@ -9,13 +9,9 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Enemies are shared:
-    ///  - Hits add up: when you hurt an enemy, its health drops on every PC, so teammates can wear the
-    ///    same enemy down together.
-    ///  - When an enemy dies on one PC, it dies on every PC.
-    /// Each enemy is recognised by its kind and where it spawned (the seeded level puts it at the same
-    /// spot for everyone), falling back to the nearest enemy of that kind close to where it was hit.
-    /// Roaches are left alone: picking them up is your own money.
+    /// Shared enemies: hits add up across PCs and a death on one PC is a death on all. Enemies are matched by kind
+    /// and spawn spot, falling back to the nearest of that kind near the hit. Roaches are left alone (they're your
+    /// own money).
     /// </summary>
     public class EnemySync : MonoBehaviour
     {
@@ -187,8 +183,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// For enemies whose hit does more than take health (a turret knocked over, a phage stunned, a
-        /// tracker scared off, the vent thing driven back): the hit itself is replayed on every PC.
+        /// Enemies whose hit does more than damage (turret knocked over, phage stunned, tracker scared, vent thing
+        /// driven back): the hit is replayed on every PC.
         /// </summary>
         internal void OnLocalHit(AIGameEntity enemy, Damageable.DamageInfo info)
         {

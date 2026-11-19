@@ -11,15 +11,9 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Things in a level that go off on their own random clock used to go off at different moments on
-    /// each PC. Now one PC decides when and everyone sees it at once:
-    ///  - Lightning discharges (the arcs between conductors).
-    ///  - Random timers that drive sparks, bursts, flickers and other repeating level effects
-    ///    (only the slow ones: anything firing faster than every 1.5 s stays local, it looks the same).
-    ///  - Gantry turrets launching their drones: the drones come out on every PC together, so their
-    ///    flight can be shared like any other enemy's.
-    /// The host decides. If the host isn't near that part of the level, the first PC that is takes over,
-    /// so nothing stops working.
+    /// Level effects on their own random clock now fire at once for everyone: lightning arcs, slow random timers
+    /// (sparks, bursts, flickers; anything under 1.5 s stays local), and gantry turret drone launches. The host
+    /// decides, or the first nearby PC if the host isn't close.
     /// </summary>
     public class LevelPulses : MonoBehaviour
     {
@@ -160,8 +154,8 @@ namespace Belay.World
         private static string DroneKey(DEN_GantryTurret g) => "gantry:" + EnemySync.KindOf(g) + EnemySync.Instance.SpawnOf(g);
 
         /// <summary>
-        /// Whether this PC launches the drones itself. The host always does; a client only when it hasn't
-        /// heard about this turret for a while (the host isn't near it).
+        /// Whether this PC launches the drones: always on the host, or on a client that hasn't heard from the host
+        /// about this turret for a while.
         /// </summary>
         internal static bool LaunchesHere(DEN_GantryTurret g)
         {

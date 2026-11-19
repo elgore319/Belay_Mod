@@ -5,8 +5,8 @@ using System.Linq;
 namespace Belay.Net
 {
     /// <summary>
-    /// The run the host is currently playing, stored in lobby data so late joiners can follow it too.
-    /// Format: "runId;seed;gamemodeName;setting1,setting2".
+    /// The host's current run, in lobby data for late joiners. Format:
+    /// "runId;seed;gamemodeName;setting1,setting2".
     /// </summary>
     public struct RunInfo
     {

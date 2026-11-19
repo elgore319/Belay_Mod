@@ -9,11 +9,9 @@ using UnityEngine;
 namespace Belay.Revive
 {
     /// <summary>
-    /// Death in a lobby doesn't end your run: you spectate your teammates instead. A living player brings
-    /// a dead teammate back at a terminal (paying roaches from their own wallet; see AnyTerminalRevive)
-    /// or by using a totem they're holding (free, uses up the totem). Wallets are never shared. When
-    /// everyone is dead the team comes back from its disk save if it has one (TeamDiskSave), and the run
-    /// only ends when it doesn't.
+    /// Dying in a lobby means spectating. Teammates revive you at a terminal (roaches from their own wallet, see
+    /// AnyTerminalRevive) or with a held totem (free, used up). If everyone is dead the team returns from its disk
+    /// save (TeamDiskSave), or the run ends.
     /// </summary>
     public class ReviveSystem : MonoBehaviour
     {
@@ -265,9 +263,8 @@ namespace Belay.Revive
         }
 
         /// <summary>
-        /// The game moves its camera rig only on physics steps while you're alive, so following a
-        /// teammate through it looked choppy. While spectating, the camera is placed right before it
-        /// renders instead, every frame.
+        /// The camera rig only moves on physics steps, so spectating looked choppy. While spectating it's placed
+        /// every frame right before rendering.
         /// </summary>
         private void PlaceSpectateCamera(Camera camera)
         {
@@ -399,9 +396,8 @@ namespace Belay.Revive
         }
 
         /// <summary>
-        /// Checks that the game-over screen really started after the run ended. If the game's own death
-        /// call returned early (it thought you were already dead, or it went for a disk revive instead),
-        /// the end sequence is started directly.
+        /// Makes sure the game-over screen started after the run ended; if the game's death call bailed early,
+        /// starts it directly.
         /// </summary>
         private void CheckGameOverStarted()
         {
@@ -499,8 +495,7 @@ namespace Belay.Revive
         }
 
         /// <summary>
-        /// The whole team is down and has a disk save: come back from it with the game's own disk revive,
-        /// on every PC at once (each one runs this when the host says so).
+        /// Whole team down with a disk save: every PC runs the game's disk revive when the host says so.
         /// </summary>
         private void StartTeamReload(string id)
         {
@@ -605,8 +600,8 @@ namespace Belay.Revive
         // ---------------------------------------------------------------- Totems in hand
 
         /// <summary>
-        /// Using a totem held in your hand revives a dead teammate right where you are, for free. The
-        /// totem is used up. Returns false when nobody is dead.
+        /// Using a held totem revives a dead teammate where you stand, free; the totem is used up. False when
+        /// nobody is dead.
         /// </summary>
         internal static bool HeldTotemRevive()
         {
@@ -621,8 +616,8 @@ namespace Belay.Revive
         }
 
         /// <summary>
-        /// A climbing bot got to a terminal (or the room ahead) while you were down: it brings you back next
-        /// to itself, free. Bots only run on the host, which approves its own revives.
+        /// A climbing bot reached a terminal (or the room ahead) while you were down: it revives you next to
+        /// itself, free. Host only.
         /// </summary>
         internal static bool BotRevive(SteamId bot, SteamId target, Vector3 localSpawn)
         {
@@ -656,8 +651,8 @@ namespace Belay.Revive
         }
 
         /// <summary>
-        /// Revive the first dead teammate next to the local player (who is standing at the terminal),
-        /// paid from the local player's own wallet. Returns the message to show on the terminal.
+        /// Revives the first dead teammate next to you at the terminal, paid from your wallet. Returns the
+        /// terminal message.
         /// </summary>
         internal static string TerminalRevive()
         {
@@ -753,9 +748,8 @@ namespace Belay.Revive
             {
                 return;
             }
-            // The revive spot may be somewhere this PC hasn't built yet (a teammate rode the Hadal diver or
-            // took a shortcut while you were dead): getting up there meant falling through nothing. Stay
-            // down until the ground there exists, then get up.
+            // The revive spot may not be built on this PC yet (shortcut, Hadal diver), so stay down until the
+            // ground exists.
             pendingRevive = true;
             pendingSpawn = sharedSpawn;
             pendingReviver = reviver;
@@ -844,9 +838,8 @@ namespace Belay.Revive
         private static float lastNoLevelWarning = -100f;
 
         /// <summary>
-        /// Make the level at this spot the active one (switching map branch if needed) so its terrain
-        /// is loaded before we put someone there. While dead, the game stopped tracking where you are,
-        /// so a revive far above could drop you into a level that was never switched on.
+        /// Makes the level at this spot active (switching branch if needed) so its terrain is loaded before
+        /// placing someone there.
         /// </summary>
         internal static void EnsureLevelAt(Vector3 worldPos)
         {
@@ -898,8 +891,7 @@ namespace Belay.Revive
     }
 
     /// <summary>
-    /// When the run ends (the whole team is dead and has no disk save left), it must really end, not
-    /// drop into the game's disk revive.
+    /// When the run ends (all dead, no disk save), it must really end instead of falling into the disk revive.
     /// </summary>
     [HarmonyPatch(typeof(CL_SaveManager), nameof(CL_SaveManager.GetMostRecentSaveStateByType))]
     internal static class NoDiskReviveAtGameOverPatch
@@ -920,8 +912,7 @@ namespace Belay.Revive
     internal static class DiePatch
     {
         /// <summary>
-        /// In a lobby, dying starts spectating instead of the game-over screen or the disk revive. Those
-        /// only run once the whole team is down (ReviveSystem lets the call through then).
+        /// In a lobby, dying starts spectating instead of game over or disk revive, until the whole team is down.
         /// </summary>
         [HarmonyPrefix]
         private static bool Prefix(CL_GameManager __instance, string type)

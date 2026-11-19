@@ -7,13 +7,9 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Scripted sequences in interludes and breakrooms (the habitation elevator ride, for one) start
-    /// when a player walks into a one-shot trigger zone. Those used to start only on that player's PC.
-    /// Now, in gated rooms:
-    ///  - a one-shot zone waits until every living teammate is in the room (like the room's buttons),
-    ///    so nobody is left behind when an elevator leaves, and
-    ///  - when it fires, it fires on every PC.
-    /// Listeners that act on the presser (camera, teleport, terminal) are left out on other PCs.
+    /// Scripted sequences in gated rooms (e.g. the Habitation elevator ride) start from one-shot trigger zones.
+    /// Now such a zone waits until every living teammate is in the room and then fires on every PC. Listeners that
+    /// act on the presser (camera, teleport, terminal) stay local.
     /// </summary>
     public class ZoneSync : MonoBehaviour
     {
@@ -57,8 +53,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// Who the zone is still waiting for. A door zone waits for nobody; an elevator's zone waits until
-        /// everyone is standing in it (the elevator is the wait); anything else waits for the whole room.
+        /// Who the zone waits for: a door zone nobody, an elevator zone everyone standing in it, anything else the
+        /// whole room.
         /// </summary>
         private static List<string> MissingFor(UT_TriggerZone zone, M_Level level, out string where)
         {

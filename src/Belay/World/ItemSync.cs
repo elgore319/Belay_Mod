@@ -8,14 +8,9 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Items in the world are shared:
-    ///  - Every item lying in a level gets the same id on every PC (level, height and place in the
-    ///    level, taken when it spawns). When someone picks one up, it disappears for everyone else.
-    ///  - When someone drops or throws an item, a copy appears for everyone at the same spot with the
-    ///    same contents (charge, uses, notes...), and whoever grabs it first takes it from the others.
-    ///  - An item that's the only one of its kind in its level is one per player: when a teammate takes
-    ///    it, yours stays where it is.
-    /// What you carry stays yours: inventories and wallets are never shared.
+    /// Shared world items: each gets the same id on every PC (level, height, place). Pickups vanish for everyone;
+    /// drops and throws appear for everyone with the same contents, first grab wins. A level's only item of its
+    /// kind is one per player. Inventories and wallets are never shared.
     /// </summary>
     public class ItemSync : MonoBehaviour
     {
@@ -29,9 +24,8 @@ namespace Belay.World
         /// <summary>Our own drops still flying or rolling: once they stop, teammates' copies snap to the same spot.</summary>
         private readonly List<(string id, Item_Object obj, float time)> settling = new List<(string, Item_Object, float)>();
         /// <summary>
-        /// How many of each item kind spawned in each level (or loose, with their spots). An item that's the
-        /// only one of its kind where it spawned is a one-off: everyone gets their own copy, so a teammate
-        /// picking it up doesn't take it away from you.
+        /// Count of each item kind per level (or loose, with spots). A level's only item of its kind is a one-off:
+        /// everyone gets their own copy.
         /// </summary>
         private readonly Dictionary<string, int> levelCounts = new Dictionary<string, int>();
         private readonly Dictionary<Item_Object, string> levelKeyOf = new Dictionary<Item_Object, string>();
@@ -41,9 +35,8 @@ namespace Belay.World
         private int runId;
 
         /// <summary>
-        /// Who got each shared item, as the host decided. Two players grabbing the same item at once both
-        /// took it on their own PC; the host gives it to whoever's grab reached it first and the other
-        /// player's copy goes away. Every PC keeps this so a new host knows it too.
+        /// Who got each shared item, as the host decided. If two players grab at once, the first grab to reach the
+        /// host wins and the other copy goes away. Kept on every PC for host handover.
         /// </summary>
         private readonly Dictionary<string, ulong> claims = new Dictionary<string, ulong>();
         /// <summary>What the local player took, by id, until the host has decided who keeps it.</summary>
@@ -326,9 +319,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// A bot on this PC (only the host runs bots) picks up a world item: it goes away for everyone, the
-        /// same as a player's pickup. One-off items (everyone's own copy) are left for you. The world object
-        /// is kept, switched off, so the bot can drop it again or hand it to you.
+        /// A bot (host only) picks up a world item: gone for everyone, like a player pickup. One-offs are left for
+        /// you. The object is kept switched off so the bot can drop or hand it over.
         /// </summary>
         internal bool BotTake(Item_Object obj, SteamId bot)
         {

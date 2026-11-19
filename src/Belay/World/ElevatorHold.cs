@@ -7,12 +7,8 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// An elevator in an interlude (the ascent's, for one) doesn't move off while part of the team is off
-    /// it. When something tells it to go (the button someone got off to press, say) and some riders are
-    /// aboard but not every living player, the start is held until everyone is back on, then it goes. It waits quietly: nothing on screen says who it's waiting for.
-    /// An empty elevator (nobody aboard, e.g. one being called) is never held. Every PC runs this check
-    /// itself, since every PC moves its own copy of the elevator.
-    /// Covers the game's path movers (UT_PathMover) and simple platforms (UT_Platform).
+    /// An interlude elevator with some of the team aboard won't leave until every living player is on, quietly.
+    /// Empty elevators are never held. Every PC checks for its own copy. Covers UT_PathMover and UT_Platform.
     /// </summary>
     public class ElevatorHold : MonoBehaviour
     {

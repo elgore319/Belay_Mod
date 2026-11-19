@@ -6,9 +6,8 @@ using UnityEngine;
 namespace Belay.Bot
 {
     /// <summary>
-    /// Climbing tools a bot carries. When there's no hold within reach on its way, it makes one, the way
-    /// you would: hammers a piton into the wall (it stays there for everyone and anyone can climb it), or
-    /// throws a rebar into the wall just above it and climbs onto that.
+    /// Climbing tools a bot carries: with no hold in reach it hammers in a piton or throws a rebar, just like you
+    /// would.
     /// </summary>
     internal static class BotTools
     {

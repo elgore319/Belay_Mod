@@ -5,9 +5,8 @@ using UnityEngine.Events;
 namespace Belay.Players
 {
     /// <summary>
-    /// The solid part of a teammate: a capsule you bump into and can stand on, that your hands can grip
-    /// like a handhold (grip a teammate to climb them, or lift them if you're standing or holding the
-    /// wall), and that a hammer swing knocks back instead of hurting.
+    /// The solid part of a teammate: a capsule you bump into, stand on and grip like a handhold. Hammer swings
+    /// knock it back.
     /// </summary>
     public class RemoteBody : MonoBehaviour, Damageable
     {
@@ -96,10 +95,8 @@ namespace Belay.Players
         }
 
         /// <summary>
-        /// A teammate's body is moved by the network, not by physics, so to the physics engine it is an
-        /// unstoppable wall. Anything here that physics moves (a swinging elevator car, loose debris) got
-        /// shoved and yanked around by it, on this PC only. Their own PC moves those things for them, so
-        /// here their body simply passes through anything physics-driven.
+        /// Network-moved bodies act as unstoppable walls to physics and shoved physics objects around on this PC
+        /// only. Their own PC handles those, so here the body passes through physics-driven objects.
         /// </summary>
         private void FixedUpdate()
         {
