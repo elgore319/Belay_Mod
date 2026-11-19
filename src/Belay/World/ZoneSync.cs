@@ -29,7 +29,7 @@ namespace Belay.World
             NetSession.Instance.On(PacketType.ZoneEntered, (origin, r) => Apply(r.ReadString()));
         }
 
-        internal static bool Live => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready && !Applying;
+        internal static bool Live => NetSession.InLobbyRun && !Applying;
 
         internal static bool Shared(UT_TriggerZone zone, out M_Level level)
         {

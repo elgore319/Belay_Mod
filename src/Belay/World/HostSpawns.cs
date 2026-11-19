@@ -65,7 +65,7 @@ namespace Belay.World
             NetSession.Instance.On(PacketType.AreaDelegate, HandleAreaDelegate);
         }
 
-        internal static bool Live => Instance != null && NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready && !Applying;
+        internal static bool Live => Instance != null && NetSession.InLobbyRun && !Applying;
         internal static bool IsHost => NetSession.Instance.IsHost;
 
         private void Update()

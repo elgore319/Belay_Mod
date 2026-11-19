@@ -232,7 +232,7 @@ namespace Belay.World
         private static float pendingJumpY = float.NaN;
         private static float savedFrameMult = float.NaN;
 
-        private static bool Active => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        private static bool Active => NetSession.InLobbyRun;
 
         private static void PinToHost(DEN_DeathFloor goo)
         {

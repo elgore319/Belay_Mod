@@ -103,7 +103,7 @@ namespace Belay.World
             });
         }
 
-        internal static bool Live => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        internal static bool Live => NetSession.InLobbyRun;
 
         // ---------------------------------------------------------------- Starting a vote
 

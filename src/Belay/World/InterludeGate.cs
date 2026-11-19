@@ -30,7 +30,7 @@ namespace Belay.World
             }
         }
 
-        private static bool InLobbyRun => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        private static bool InLobbyRun => NetSession.InLobbyRun;
 
         public static bool IsGatedRoom(M_Level level)
         {

@@ -30,7 +30,7 @@ namespace Belay.World
             NetSession.Instance.On(PacketType.ItemInserted, HandleInserted);
         }
 
-        internal static bool Live => Instance != null && !Applying && NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        internal static bool Live => Instance != null && !Applying && NetSession.InLobbyRun;
 
         internal static void Share(PacketType type, Component c, string extra = null)
         {

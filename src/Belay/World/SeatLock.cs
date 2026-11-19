@@ -22,7 +22,7 @@ namespace Belay.World
             NetSession.Instance.OnLobbyChanged += () => taken.Clear();
         }
 
-        internal static bool Live => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        internal static bool Live => NetSession.InLobbyRun;
 
         internal static void Share(VEH_ControlSeat seat, bool sitting)
         {

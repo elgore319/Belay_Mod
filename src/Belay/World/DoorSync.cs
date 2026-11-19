@@ -745,7 +745,7 @@ namespace Belay.World
     {
         private static bool Synced =>
             !DoorSync.Applying && !DoorSync.InDoorSelfUpdate
-            && NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+            && NetSession.InLobbyRun;
 
         [HarmonyPatch("Start")]
         [HarmonyPrefix]

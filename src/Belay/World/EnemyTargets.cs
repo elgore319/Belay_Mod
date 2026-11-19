@@ -19,7 +19,7 @@ namespace Belay.World
         private const float RetargetEvery = 0.5f;
         private float nextRetarget;
 
-        private static bool Live => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        private static bool Live => NetSession.InLobbyRun;
 
         /// <summary>Creatures each PC runs for its own player instead of copying the host's.</summary>
         internal static bool Personal(AIGameEntity e) =>

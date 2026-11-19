@@ -21,7 +21,7 @@ namespace Belay.World
 
         private float nextRetarget;
 
-        private static bool Live => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        private static bool Live => NetSession.InLobbyRun;
 
         private void Update()
         {

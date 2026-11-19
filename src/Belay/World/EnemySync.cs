@@ -41,7 +41,7 @@ namespace Belay.World
             NetSession.Instance.On(PacketType.EnemyHit, HandleHit);
         }
 
-        internal static bool Live => Instance != null && NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready && !Applying;
+        internal static bool Live => Instance != null && NetSession.InLobbyRun && !Applying;
 
         private void Update()
         {

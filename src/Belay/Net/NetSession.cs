@@ -45,6 +45,8 @@ namespace Belay.Net
 
         public Lobby? CurrentLobby { get; private set; }
         public bool InLobby => CurrentLobby.HasValue || Loopback.ClientConnected;
+        /// <summary>In a lobby with the world ready: the usual guard for co-op sync code.</summary>
+        public static bool InLobbyRun => Instance != null && Instance.InLobby && Players.WorldSpace.Ready;
         public bool IsHost => CurrentLobby.HasValue && CurrentLobby.Value.Owner.Id == SteamClient.SteamId;
         public SteamId HostId => Loopback.IsClient ? Loopback.HostId : CurrentLobby.HasValue ? CurrentLobby.Value.Owner.Id : default;
 

@@ -75,7 +75,7 @@ namespace Belay.Players
             NetSession.Instance.On(PacketType.Knockback, HandleKnockback);
         }
 
-        private static bool Live => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready && Plugin.SolidTeammates.Value;
+        private static bool Live => NetSession.InLobbyRun && Plugin.SolidTeammates.Value;
 
         // ---------------------------------------------------------------- Outgoing state
 

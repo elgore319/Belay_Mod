@@ -23,7 +23,7 @@ namespace Belay.Players
             NetSession.Instance.On(PacketType.ProjectileFired, HandleFired);
         }
 
-        internal static bool Live => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        internal static bool Live => NetSession.InLobbyRun;
 
         internal static void OnLocalShot(Projectile p)
         {

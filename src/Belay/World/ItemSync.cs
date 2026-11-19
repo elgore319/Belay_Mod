@@ -66,7 +66,7 @@ namespace Belay.World
             NetSession.Instance.On(PacketType.ItemSettled, HandleSettled);
         }
 
-        internal static bool Live => Instance != null && NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready && !Applying;
+        internal static bool Live => Instance != null && NetSession.InLobbyRun && !Applying;
 
         private void Update()
         {
@@ -596,7 +596,7 @@ namespace Belay.World
         [HarmonyPrefix]
         private static void ItemStart(Item_Object __instance)
         {
-            if (ItemSync.Instance != null && NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready)
+            if (ItemSync.Instance != null && NetSession.InLobbyRun)
             {
                 ItemSync.Instance.OnItemSpawned(__instance);
             }
@@ -611,7 +611,7 @@ namespace Belay.World
             {
                 __instance.gameObject.SetActive(true);
             }
-            if (ItemSync.Instance != null && __instance.gameObject.activeSelf && NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready)
+            if (ItemSync.Instance != null && __instance.gameObject.activeSelf && NetSession.InLobbyRun)
             {
                 ItemSync.Instance.OnItemShown(__instance);
             }

@@ -34,7 +34,7 @@ namespace Belay.World
             NetSession.Instance.On(PacketType.Blast, HandleBlast);
         }
 
-        internal static bool Live => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        internal static bool Live => NetSession.InLobbyRun;
 
         internal static void MarkCopy(GameObject go)
         {

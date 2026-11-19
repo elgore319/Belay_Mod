@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Belay.Net;
-using Belay.Players;
 using HarmonyLib;
 using UnityEngine;
 
@@ -36,7 +35,7 @@ namespace Belay.World
             NetSession.Instance.On(PacketType.HandTouch, (origin, r) => ApplyHandTouch(r.ReadString()));
         }
 
-        internal static bool Live => Instance != null && NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready && !ButtonSync.Applying;
+        internal static bool Live => Instance != null && NetSession.InLobbyRun && !ButtonSync.Applying;
 
         // ---------------------------------------------------------------- Sending
 

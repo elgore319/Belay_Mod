@@ -78,7 +78,7 @@ namespace Belay.World
             NetSession.Instance.On(PacketType.EnemyOwner, HandleOwner);
         }
 
-        private static bool Live => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready && EnemySync.Instance != null;
+        private static bool Live => NetSession.InLobbyRun && EnemySync.Instance != null;
 
         private void Update()
         {

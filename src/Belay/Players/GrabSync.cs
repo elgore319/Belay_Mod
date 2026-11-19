@@ -32,7 +32,7 @@ namespace Belay.Players
             NetSession.Instance.On(PacketType.EnemyShot, HandleShot);
         }
 
-        internal static bool Live => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        internal static bool Live => NetSession.InLobbyRun;
 
         // ---------------------------------------------------------------- Grabs
 

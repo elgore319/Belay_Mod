@@ -41,7 +41,7 @@ namespace Belay.Players
             NetSession.Instance.On(PacketType.HeldLight, HandleLight);
         }
 
-        internal static bool Live => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        internal static bool Live => NetSession.InLobbyRun;
 
         // ---------------------------------------------------------------- Sounds
 

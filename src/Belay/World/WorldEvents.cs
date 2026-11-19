@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
 using Belay.Net;
-using Belay.Players;
 using HarmonyLib;
 using Steamworks;
 using UnityEngine;
@@ -40,7 +39,7 @@ namespace Belay.World
             NetSession.Instance.On(PacketType.EventStarted, HandleStarted);
         }
 
-        internal static bool InLobby => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        internal static bool InLobby => NetSession.InLobbyRun;
 
         internal static int SeedFor(string id)
         {

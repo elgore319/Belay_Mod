@@ -26,7 +26,7 @@ namespace Belay.World
             Instance = this;
         }
 
-        internal static bool Live => Instance != null && !Releasing && NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        internal static bool Live => Instance != null && !Releasing && NetSession.InLobbyRun;
 
         /// <summary>Returns false (hold it) when this mover should wait for the team before starting.</summary>
         internal bool OnStart(Component mover, Transform car, System.Action start)

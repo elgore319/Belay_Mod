@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 using Belay.Net;
-using Belay.Players;
 using HarmonyLib;
 using UnityEngine;
 
@@ -19,7 +18,7 @@ namespace Belay.World
         private const float RetargetEvery = 0.5f;
         private float nextRetarget;
 
-        private static bool Live => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        private static bool Live => NetSession.InLobbyRun;
 
         private void Update()
         {
