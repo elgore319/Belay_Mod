@@ -140,6 +140,7 @@ namespace Belay.UI
                     HidePage();
                 }
                 pageMode = false;
+                outfitPage = false;
                 // Closing the menu used to put back the cursor state from when it was opened. Opened from
                 // the pause menu, that was "free", so you went on playing with an unlocked cursor.
                 if (ShouldBeLocked())
@@ -222,6 +223,15 @@ namespace Belay.UI
             bool paused = World.CoopPause.InPauseMenu;
             if (open || (!onMainMenu && !paused))
             {
+                return;
+            }
+            if (onMainMenu && CosmeticsScreen.Showing && GUI.Button(CosmeticsScreen.ButtonRect, "CLIMBER OUTFIT"))
+            {
+                // Outfits live with the game's own cosmetics: the outfit page opens over the Cosmetics
+                // screen, and BACK returns to it.
+                tab = Tab.Outfit;
+                outfitPage = true;
+                SetOpen(true);
                 return;
             }
             if (!GameMenuEntry.Showing && GameMenuEntry.GaveUp && GUI.Button(new Rect(Screen.width - 150, Screen.height - 54, 140, 40), "NOT ALONE (" + Plugin.MenuKey.Value + ")"))

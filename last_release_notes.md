@@ -1,5 +1,6 @@
-## Not Alone 0.8.4
+## Not Alone 0.8.6
 
-- **See your climber while you customize.** The Outfit tab on the multiplayer page now shows a live 3D model of your climber beside the options, in your current outfit, look and hand skins. It updates as you change things, turns slowly on its own, and you can drag it to turn it yourself.
+- **Outfits moved to the game's Cosmetics screen.** Your climber's look, colors and live 3D model now open from a CLIMBER OUTFIT button on the game's own Cosmetics screen, next to the gloves. BACK returns you to the Cosmetics screen. The Outfit tab is gone from the multiplayer page.
+- **No changing your character mid-run.** The in-run Not Alone menu no longer has an Outfit tab.
 
 No network change.
