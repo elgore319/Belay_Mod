@@ -71,6 +71,6 @@ jobs:
           [ "$PRE" = "true" ] && FLAGS+=(--prerelease)
           gh release create "$TAG" dist/*.zip dist/Belay.dll \
             --target "$(git rev-parse HEAD)" \
-            --title "Tethered ${{ steps.ver.outputs.version }}" \
+            --title "Not Alone ${{ steps.ver.outputs.version }}" \
             --notes-file last_release_notes.md \
             "${FLAGS[@]}"

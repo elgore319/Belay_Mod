@@ -1,6 +1,6 @@
-# Tethered architecture and game notes
+# Not Alone architecture and game notes
 
-Tethered was called Belay; the code, namespaces, GUID, files and lobby keys still use `Belay`/`belay` so installs and saved settings keep working.
+Not Alone was called Tethered, and before that Belay; the code, namespaces, GUID, files and lobby keys still use `Belay`/`belay` so installs and saved settings keep working.
 
 Findings from decompiling White Knuckle's `Assembly-CSharp.dll` (Unity 6000.3.9, Mono, Steam app 3195790), plus how Belay is built on top of them.
 

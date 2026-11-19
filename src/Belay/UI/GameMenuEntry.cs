@@ -8,7 +8,7 @@ using UnityEngine.UI;
 namespace Belay.UI
 {
     /// <summary>
-    /// Puts a "TETHERED" entry into the game's own main menu and pause menu, so the mod menu opens from
+    /// Puts a "NOT ALONE" entry into the game's own main menu and pause menu, so the mod menu opens from
     /// the game's menus like any other option. The entry is a copy of one of the menu's own buttons
     /// (same look, font, hover and select effects), with the copy's game behaviour stripped and its
     /// click wired to the Belay window. Only the copy is created; the game's buttons keep their
@@ -260,11 +260,11 @@ namespace Belay.UI
             }
         }
 
-        /// <summary>Names the copy "TETHERED", in the same letter case as the button it was copied from.</summary>
+        /// <summary>Names the copy "NOT ALONE", in the same letter case as the button it was copied from.</summary>
         private static void Relabel(GameObject entry, string templateLabel)
         {
             bool upper = templateLabel == templateLabel.ToUpperInvariant();
-            string text = upper ? "TETHERED" : "Tethered";
+            string text = upper ? "NOT ALONE" : "Not Alone";
             bool first = true;
             foreach (TMP_Text tmp in entry.GetComponentsInChildren<TMP_Text>(true))
             {
