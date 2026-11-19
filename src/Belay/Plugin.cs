@@ -88,6 +88,7 @@ namespace Belay
             gameObject.AddComponent<LevelBreaks>();
             gameObject.AddComponent<ThrownSync>();
             gameObject.AddComponent<GrabSync>();
+            gameObject.AddComponent<LadderNightmareSync>();
             gameObject.AddComponent<ItemFx>();
             gameObject.AddComponent<Blasts>();
             gameObject.AddComponent<LevelPulses>();
