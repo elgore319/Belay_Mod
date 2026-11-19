@@ -1,6 +1,6 @@
-# Releasing Tethered
+# Releasing Not Alone
 
-Tethered was called Belay. Files, folders, the GUID and the `Belay.dll` asset keep the old name on purpose (see below).
+Not Alone was called Tethered, and before that Belay. Files, folders, the GUID and the `Belay.dll` asset keep the old name on purpose (see below).
 
 1. **Bump the version in a PR.**
    - Set the version in `src/Belay/Belay.csproj` (`<Version>`) and `src/Belay/Plugin.cs` (`Version`).
@@ -8,7 +8,7 @@ Tethered was called Belay. Files, folders, the GUID and the `Belay.dll` asset ke
    - Write `last_release_notes.md`.
    - Merge the PR to main.
 2. **Run the release workflow.** On GitHub, open Actions > **Release** > **Run workflow** on main, and enter `tag = vX.Y.Z`. You can also tick or untick pre-release. The workflow creates the tag and the release itself. Pushing a `vX.Y.Z` tag works too.
-3. **Wait about a minute.** The workflow checks that the tag, `Belay.csproj`, `Plugin.cs` and `release/Belay.dll` all agree, and fails on purpose if they don't. It then builds `Tethered-X.Y.Z-installer.zip` (with BepInEx) and `Tethered-X.Y.Z-mod-only.zip` with `installer/make-package.sh`, and publishes them with `last_release_notes.md` as the release text.
+3. **Wait about a minute.** The workflow checks that the tag, `Belay.csproj`, `Plugin.cs` and `release/Belay.dll` all agree, and fails on purpose if they don't. It then builds `NotAlone-X.Y.Z-installer.zip` (with BepInEx) and `NotAlone-X.Y.Z-mod-only.zip` with `installer/make-package.sh`, and publishes them with `last_release_notes.md` as the release text.
 
 Players' games update themselves. Belay.dll carries a small BepInEx patcher (`src/BelayUpdater`, built automatically with Belay) and installs it to `BepInEx\patchers\Belay`. On every launch that patcher reads this repo's releases (the repo must be public) and replaces `Belay.dll` with the newest release's `Belay.dll` asset before Belay loads, so one start is enough. While the game runs, Belay also rechecks every 10 minutes and offers a restart when a new release is downloaded. Keep the asset name `Belay.dll` (older installs only look for that name, so it must not follow the rename), and always bump the version, because the updater only installs versions that are higher than the one running.
 
