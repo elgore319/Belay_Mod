@@ -479,6 +479,22 @@ namespace Belay.Players.Avatar
             }
         }
 
+        /// <summary>
+        /// The coat skirt a look wears (hem height below the pelvis, how far it flares out, how far the
+        /// back hangs behind), or false if it has none. <see cref="CoatSkirt"/> swings it out of the legs' way.
+        /// </summary>
+        public static bool SkirtShape(int look, out float hem, out float flare, out float back)
+        {
+            back = 0f;
+            switch (look)
+            {
+                case Researcher: hem = -0.5f; flare = 0.05f; return true;
+                case PierWorker: hem = -0.42f; flare = 0.07f; back = 0.02f; return true;
+                case Expedition: hem = -0.3f; flare = 0.04f; return true;
+                default: hem = 0f; flare = 0f; return false;
+            }
+        }
+
         /// <summary>A coat's skirt from the waist down to <paramref name="hem"/> (negative, below the pelvis).</summary>
         private static void Skirt(MeshKit k, float hem, float flare, float back = 0f)
         {

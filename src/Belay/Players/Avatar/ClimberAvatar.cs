@@ -502,6 +502,7 @@ namespace Belay.Players.Avatar
             rightBoot.SetPositionAndRotation(ankleRight, Quaternion.Slerp(rightBoot.rotation, bootRotation, posed ? follow : 1f));
 
             posed = true;
+            UpdateCoat(dt);
             UpdateModel(position, velocity, hanging, dt);
         }
 

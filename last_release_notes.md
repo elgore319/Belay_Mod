@@ -1,6 +1,5 @@
-## Tethered 0.7.44
+## Tethered 0.7.50
 
-- **The totem revive plays on every look.** The lore outfits now grow their extras (coats, badges, tanks) back with the rest of the clothes instead of showing them from the start. Teammates wearing one of the game's own models (the zombie scientist, the zombie security guard, the Soach shopkeeper and Roach Mode's giant roach) are rebuilt along that model's own skeleton: bones grow out from the hips to the ends of the limbs (and the legs and antennae on the roaches), muscle knits over them, then skin, then the model itself spreads back over the body patch by patch.
-- **Roaches grow back as roaches.** On the Soach and the giant roach the meat is waxy, yellow-brown bug flesh with greenish ichor, a glossy chitin shell grows in place of skin, and the bones are yellowed cartilage.
+- **Mod menu font.** The Tethered menu and death messages now use the game's own menu font, as intended. The font was being built correctly but then wrongly rejected when it loaded, so the menu always fell back to Unity's default font.
 
 No network change.

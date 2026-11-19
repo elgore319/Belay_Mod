@@ -204,6 +204,17 @@ internal static class Program
             Figures.Add("\"grip:" + item + "\":[" + tris.ToString().TrimEnd(',') + "]");
         }
 
+        // STEP: a hanging climber bringing the left knee up, at these amounts (0 leg down .. 1 high step).
+        string steps = Environment.GetEnvironmentVariable("STEP");
+        if (!string.IsNullOrEmpty(steps))
+        {
+            foreach (string part in steps.Split(','))
+            {
+                Figure("step:" + part, standing: false, leftGrip: true, rightGrip: true,
+                    new Vector3(-0.2f, 1.95f, 0.32f), new Vector3(0.22f, 1.9f, 0.34f), step: float.Parse(part, CultureInfo.InvariantCulture));
+            }
+        }
+
         string reform = Environment.GetEnvironmentVariable("REFORM");
         if (!string.IsNullOrEmpty(reform))
         {
@@ -241,7 +252,7 @@ internal static class Program
     }
 
     private static void Figure(string name, bool standing, bool leftGrip, bool rightGrip, Vector3 leftHand, Vector3 rightHand,
-        bool inventory = false, bool crouch = false, string leftItem = null, string rightItem = null)
+        bool inventory = false, bool crouch = false, string leftItem = null, string rightItem = null, float step = -1f)
     {
         tris = new StringBuilder();
         // Crouched: same offsets as ClimberAvatar, in the design's unscaled units.
@@ -251,10 +262,6 @@ internal static class Program
         float rad = lean * Mathf.Deg2Rad;
         Frame torso = Frame.Look(pelvis, new Vector3(0, -Mathf.Sin(rad), Mathf.Cos(rad)), Vector3.up);
         Emit(AvatarDesign.BuildTorso, torso, Reform.Part.Torso);
-        if (LoreLooks.Valid(look))
-        {
-            Emit(k => LoreLooks.BuildExtra(k, look), torso, Reform.Part.Torso, clothesOnly: true);
-        }
 
         // Backpack on the back, or held open in front (same placement as ClimberAvatar).
         Frame pack;
@@ -283,17 +290,40 @@ internal static class Program
         Arm(torso, 1, rightHand, rightGrip, rightItem);
 
         float legLength = AvatarDesign.Thigh + AvatarDesign.Shin;
+        var legs = new List<CoatSkirt.Capsule>();
+        Vector3 InTorso(Vector3 p) => new Vector3(Vector3.Dot(p - torso.Origin, torso.Right), Vector3.Dot(p - torso.Origin, torso.Up), Vector3.Dot(p - torso.Origin, torso.Forward));
         for (int side = -1; side <= 1; side += 2)
         {
             Vector3 hip = pelvis + new Vector3(side * AvatarDesign.HipWidth, -0.07f, 0);
             Vector3 foot = standing
                 ? new Vector3(hip.x, AvatarDesign.AnkleHeight, (side < 0 ? 0.12f : -0.1f) * (1f - c) + hip.z - 0.3f / 0.83f * c)
+                : step >= 0f && side < 0 ? hip + Vector3.down * (legLength * Mathf.Lerp(0.95f, 0.55f, step)) + new Vector3(0.04f, 0, Mathf.Lerp(0.05f, 0.36f, step))
                 : (side < 0 ? hip + Vector3.down * (legLength * 0.78f) + new Vector3(0.04f, 0, 0.22f)
                             : hip + Vector3.down * (legLength * 0.95f) + new Vector3(0.03f, 0, 0.05f));
+            Vector3 knee = hip;
             Vector3 ankle = Limb(hip, foot, hip + new Vector3(side * 0.1f, -0.4f * c, 0.6f), AvatarDesign.Thigh, AvatarDesign.Shin,
-                AvatarDesign.BuildThigh, AvatarDesign.BuildShin, false);
+                AvatarDesign.BuildThigh, AvatarDesign.BuildShin, false, m => knee = m);
+            legs.Add(new CoatSkirt.Capsule { A = InTorso(hip), B = InTorso(knee), Radius = CoatSkirt.ThighRadius });
+            legs.Add(new CoatSkirt.Capsule { A = InTorso(knee), B = InTorso(ankle), Radius = CoatSkirt.ShinRadius });
             float toe = standing ? 0f : 35f * Mathf.Deg2Rad;
             Emit(AvatarDesign.BuildBoot, Frame.Look(ankle, new Vector3(0, -Mathf.Sin(toe), Mathf.Cos(toe)), Vector3.up), Reform.Part.Boot);
+        }
+        if (LoreLooks.Valid(look))
+        {
+            // The look's extras; a coat skirt settles out of the legs' way (COAT=0 shows it unbent, for comparison).
+            CoatSkirt coat = LoreLooks.SkirtShape(look, out float hem, out float flare, out float back) && Environment.GetEnvironmentVariable("COAT") != "0"
+                ? new CoatSkirt(hem, flare, back) : null;
+            coat?.Settle(legs);
+            Emit(k =>
+            {
+                LoreLooks.BuildExtra(k, look);
+                if (coat != null)
+                {
+                    var bent = new Vector3[k.Vertices.Count];
+                    coat.Deform(k.Vertices, bent);
+                    for (int i = 0; i < bent.Length; i++) k.Vertices[i] = bent[i];
+                }
+            }, torso, Reform.Part.Torso, clothesOnly: true);
         }
         Figures.Add("\"" + name + "\":[" + tris.ToString().TrimEnd(',') + "]");
     }

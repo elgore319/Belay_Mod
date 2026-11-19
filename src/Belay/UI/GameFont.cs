@@ -90,9 +90,15 @@ namespace Belay.UI
                 var loaded = new Font(path);
                 loaded.name = "Belay Ticketing";
                 loaded.hideFlags = HideFlags.HideAndDontSave;
-                if (!loaded.dynamic)
+                // A font loaded from a file doesn't always report itself as dynamic, so don't go by that:
+                // it's usable if it can actually draw a letter at sizes of our choosing (and they differ).
+                loaded.RequestCharactersInTexture("A", 16);
+                loaded.RequestCharactersInTexture("A", 48);
+                if (!loaded.GetCharacterInfo('A', out CharacterInfo small, 16) || !loaded.GetCharacterInfo('A', out CharacterInfo big, 48)
+                    || small.advance <= 0 || big.advance <= small.advance)
                 {
-                    Plugin.Log.LogWarning("[Theme] The game font file didn't load as a font: " + path);
+                    Plugin.Log.LogWarning($"[Theme] The game font file didn't load as a font (dynamic={loaded.dynamic}): " + path);
+                    UnityEngine.Object.Destroy(loaded);
                     return false;
                 }
                 font = loaded;

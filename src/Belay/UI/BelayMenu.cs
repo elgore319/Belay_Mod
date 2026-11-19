@@ -17,7 +17,7 @@ namespace Belay.UI
     /// so other mods' menus are untouched), opens from the "TETHERED" entry that <see cref="GameMenuEntry"/>
     /// adds to the game's main and pause menus or from the menu key, and only captures input while it is open.
     /// </summary>
-    public class BelayMenu : MonoBehaviour
+    public partial class BelayMenu : MonoBehaviour
     {
         private enum Tab
         {
@@ -78,6 +78,11 @@ namespace Belay.UI
             {
                 SetOpen(!open);
             }
+            if (open && pageMode && CL_GameManager.IsInGame())
+            {
+                // The page belongs to the main menu; a run starting (or following the host in) closes it.
+                SetOpen(false);
+            }
             bool anyOpen = open || Dev.DevTools.Open;
             CapturingInput = anyOpen && CL_GameManager.IsInGame();
             if (anyOpen)
@@ -110,6 +115,11 @@ namespace Belay.UI
             rebinding = null;
             if (open)
             {
+                pageMode = !CL_GameManager.IsInGame();
+                if (pageMode)
+                {
+                    ShowPage();
+                }
                 previousLock = Cursor.lockState;
                 previousVisible = Cursor.visible;
                 ModManager.Refresh();
@@ -123,6 +133,11 @@ namespace Belay.UI
             }
             else
             {
+                if (pageMode)
+                {
+                    HidePage();
+                }
+                pageMode = false;
                 // Closing the menu used to put back the cursor state from when it was opened. Opened from
                 // the pause menu, that was "free", so you went on playing with an unlocked cursor.
                 if (ShouldBeLocked())
@@ -180,7 +195,11 @@ namespace Belay.UI
             {
                 DrawMenuButton();
                 DrawUpdatePopup();
-                if (open)
+                if (open && pageMode)
+                {
+                    DrawPage();
+                }
+                else if (open)
                 {
                     window = GUILayout.Window(0x8E1A7, window, DrawWindow, "TETHERED  v" + Plugin.Version);
                 }
@@ -297,7 +316,13 @@ namespace Belay.UI
             }
             GUILayout.EndHorizontal();
             GUILayout.Space(10);
+            DrawTabContent();
+            GUI.DragWindow();
+        }
 
+        /// <summary>The selected tab's controls, shared by the floating window and the main-menu page.</summary>
+        private void DrawTabContent()
+        {
             NetSession net = NetSession.Instance;
             switch (tab)
             {
@@ -339,14 +364,19 @@ namespace Belay.UI
                     Bot.TestBot.Instance?.DrawTab();
                     break;
                 case Tab.Outfit:
-                    DrawOutfitTab();
+                    if (pageMode)
+                    {
+                        DrawOutfitWithPreview();
+                    }
+                    else
+                    {
+                        DrawOutfitTab();
+                    }
                     break;
                 case Tab.Settings:
                     DrawSettingsTab();
                     break;
             }
-
-            GUI.DragWindow();
         }
 
         private void DrawHostSection(NetSession net)
@@ -472,7 +502,7 @@ namespace Belay.UI
                     net.SetLobbyData(NetSession.KeyRopeLength, newLength.ToString(CultureInfo.InvariantCulture));
                 }
                 float doorDelay = DoorSync.Instance.CloseDelay;
-                GUILayout.Label($"Door close countdown: {doorDelay:0} s");
+                GUILayout.Label($"Door shuts {doorDelay:0} s after the last teammate is through");
                 float newDelay = Mathf.Round(GUILayout.HorizontalSlider(doorDelay, DoorSync.MinCloseDelay, DoorSync.MaxCloseDelay));
                 if (!Mathf.Approximately(newDelay, doorDelay))
                 {
@@ -489,7 +519,7 @@ namespace Belay.UI
             else
             {
                 GUILayout.Label($"Rope: {(tether ? "on" : "off")}, {length:0} m");
-                GUILayout.Label($"Door close countdown: {DoorSync.Instance.CloseDelay:0} s");
+                GUILayout.Label($"Door shuts {DoorSync.Instance.CloseDelay:0} s after the last teammate is through");
                 GUILayout.Label($"Revive cost: {ReviveSystem.Instance.Cost} roaches (paid by the reviver)");
             }
 

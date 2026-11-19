@@ -11,18 +11,22 @@ namespace Belay.World
 {
     /// <summary>
     /// Shared doors. Opening a door opens it for everyone. Closing one (the first player through its
-    /// trigger) starts a host-run countdown that everyone sees. When it runs out, the door still stays open
-    /// until every living player has passed through it (walked through its trigger, or climbed well above
-    /// it), and then shuts for everyone at the same moment, so nobody is ever locked out behind it.
+    /// trigger) holds it open until every living player has passed through it (walked through its trigger,
+    /// or climbed well above it). Once the last one is through, it shuts for everyone at the same moment
+    /// after a short grace (the host's "door close delay", 1 s by default), so nobody is ever locked out
+    /// behind it and nobody stands around waiting on a timer once the whole team is in.
     /// Some doors (the big blast doors) don't close through UT_Door at all: their "close" trigger zone
     /// drives them some other way. Those zones are held the same way: walking in starts the countdown,
     /// and the zone fires for everyone when it runs out.
     /// </summary>
     public class DoorSync : MonoBehaviour
     {
-        public const float DefaultCloseDelay = 15f;
-        public const float MinCloseDelay = 10f;
-        public const float MaxCloseDelay = 20f;
+        /// <summary>Seconds a door waits after the last living player passed before it shuts.</summary>
+        public const float DefaultCloseDelay = 1f;
+        public const float MinCloseDelay = 0f;
+        public const float MaxCloseDelay = 10f;
+        /// <summary>Marks a held door whose grace hasn't started yet (someone is still behind it).</summary>
+        private const float Waiting = float.MaxValue;
 
         public static DoorSync Instance { get; private set; }
 
@@ -31,7 +35,10 @@ namespace Belay.World
         /// <summary>Set while a door runs its own Start/FixedUpdate logic, which every client does by itself.</summary>
         internal static bool InDoorSelfUpdate;
 
-        /// <summary>Door id -> time (Time.unscaledTime) it shuts. Host is authoritative; clients mirror it for the HUD.</summary>
+        /// <summary>
+        /// Door id -> time (Time.unscaledTime) it shuts, or <see cref="Waiting"/> while someone is still behind it.
+        /// Host is authoritative; clients mirror it so a new host can carry on.
+        /// </summary>
         private readonly Dictionary<string, float> countdowns = new Dictionary<string, float>();
         private readonly Dictionary<string, UT_Door> doorCache = new Dictionary<string, UT_Door>();
         private readonly Dictionary<string, UT_TriggerZone> zoneCache = new Dictionary<string, UT_TriggerZone>();
@@ -95,11 +102,27 @@ namespace Belay.World
                 return;
             }
             List<string> due = null;
+            List<string> graceStarts = null;
             foreach (KeyValuePair<string, float> entry in countdowns)
             {
-                if (Time.unscaledTime >= entry.Value && EveryonePassed(entry.Key))
+                if (!EveryonePassed(entry.Key))
+                {
+                    continue;
+                }
+                if (entry.Value == Waiting)
+                {
+                    (graceStarts ?? (graceStarts = new List<string>())).Add(entry.Key);
+                }
+                else if (Time.unscaledTime >= entry.Value)
                 {
                     (due ?? (due = new List<string>())).Add(entry.Key);
+                }
+            }
+            if (graceStarts != null)
+            {
+                foreach (string id in graceStarts)
+                {
+                    HostStartGrace(id);
                 }
             }
             if (due == null)
@@ -181,7 +204,7 @@ namespace Belay.World
                 // Cache only: this runs from OnGUI several times a frame.
                 Component door = IsZone(entry.Key) ? (Component)FindZone(entry.Key, allowScan: false) : Find(entry.Key, allowScan: false);
                 float d = door != null ? Vector3.Distance(door.transform.position, me) : float.MaxValue - 1f;
-                if (d < bestDistance)
+                if (d < bestDistance && entry.Value != Waiting)
                 {
                     bestDistance = d;
                     best = Mathf.Max(0f, entry.Value - Time.unscaledTime);
@@ -477,23 +500,26 @@ namespace Belay.World
                 passed[id] = through = new HashSet<SteamId>();
             }
             through.Add(who);
-            if (NetSession.Instance.IsHost)
+            if (!countdowns.ContainsKey(id))
             {
-                HostStartCountdown(id);
+                // Held open until the last living player is through; Update starts the short grace then.
+                // Every PC tracks it, so whoever takes over as host carries on.
+                countdowns[id] = Waiting;
+                if (IsZone(id)) FindZone(id); else Find(id);
             }
         }
 
-        private void HostStartCountdown(string id)
+        /// <summary>Host: everyone is through this door, so it shuts for everyone after the short grace.</summary>
+        private void HostStartGrace(string id)
         {
             NetSession net = NetSession.Instance;
-            if (!net.IsHost || countdowns.ContainsKey(id))
+            if (!net.IsHost)
             {
                 return;
             }
             float delay = IsZone(id) && IsGooZone(FindZone(id)) ? 0f : CloseDelay;
             countdowns[id] = Time.unscaledTime + delay;
-            if (IsZone(id)) FindZone(id); else Find(id);
-            Plugin.Log.LogInfo($"Door closing for everyone in {delay:0} s: {id}");
+            Plugin.Log.LogInfo($"Everyone is through, door closing in {delay:0.#} s: {id}");
             net.Send(PacketType.DoorCountdown, w =>
             {
                 w.Write(id);
@@ -511,7 +537,7 @@ namespace Belay.World
             {
                 countdowns[id] = Time.unscaledTime + delay;
                 if (IsZone(id)) FindZone(id); else Find(id);
-                Plugin.Log.LogInfo($"Door closing for everyone in {delay:0} s: {id}");
+                Plugin.Log.LogInfo($"Everyone is through, door closing in {delay:0.#} s: {id}");
             }
         }
 

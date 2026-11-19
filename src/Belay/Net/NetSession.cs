@@ -199,7 +199,7 @@ namespace Belay.Net
             lobby.SetData(KeyRopeLength, Plugin.DefaultRopeLength.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
             lobby.SetData(KeyTether, Plugin.RopeOnByDefault.Value ? "1" : "0");
             lobby.SetData(KeyRopePull, "1");
-            lobby.SetData(KeyDoorDelay, "15");
+            lobby.SetData(KeyDoorDelay, "1");
             lobby.SetData(KeyReviveCost, Revive.ReviveSystem.DefaultCost.ToString(System.Globalization.CultureInfo.InvariantCulture));
             RerollSeed(lobby);
             // OnLobbyEntered fires for the creator as well, which sets CurrentLobby.
