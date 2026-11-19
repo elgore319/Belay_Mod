@@ -8,7 +8,7 @@ using UnityEngine;
 namespace Belay.Items
 {
     /// <summary>
-    /// The totem: Tethered's own revive item, built from a copy of the game's save disk (so it has a
+    /// The totem: Not Alone's own revive item, built from a copy of the game's save disk (so it has a
     /// disk's weight, pickup sounds and hand animation) but with its own id, name and look. Holding one
     /// and using it brings a dead teammate back right where you are, for free (see SaveTerminalPatches).
     /// It doesn't go into terminals. In co-op it's found where save disks are (half of the save disks

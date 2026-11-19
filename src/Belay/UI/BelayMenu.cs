@@ -14,10 +14,10 @@ namespace Belay.UI
 {
     /// <summary>
     /// The Belay mod menu. It's drawn with IMGUI on its own (no game UI objects are moved or patched,
-    /// so other mods' menus are untouched), opens from the "TETHERED" entry that <see cref="GameMenuEntry"/>
+    /// so other mods' menus are untouched), opens from the "NOT ALONE" entry that <see cref="GameMenuEntry"/>
     /// adds to the game's main and pause menus or from the menu key, and only captures input while it is open.
     /// </summary>
-    public class BelayMenu : MonoBehaviour
+    public partial class BelayMenu : MonoBehaviour
     {
         private enum Tab
         {
@@ -78,6 +78,11 @@ namespace Belay.UI
             {
                 SetOpen(!open);
             }
+            if (open && pageMode && CL_GameManager.IsInGame())
+            {
+                // The page belongs to the main menu; a run starting (or following the host in) closes it.
+                SetOpen(false);
+            }
             bool anyOpen = open || Dev.DevTools.Open;
             CapturingInput = anyOpen && CL_GameManager.IsInGame();
             if (anyOpen)
@@ -110,6 +115,11 @@ namespace Belay.UI
             rebinding = null;
             if (open)
             {
+                pageMode = !CL_GameManager.IsInGame();
+                if (pageMode)
+                {
+                    ShowPage();
+                }
                 previousLock = Cursor.lockState;
                 previousVisible = Cursor.visible;
                 ModManager.Refresh();
@@ -123,6 +133,11 @@ namespace Belay.UI
             }
             else
             {
+                if (pageMode)
+                {
+                    HidePage();
+                }
+                pageMode = false;
                 // Closing the menu used to put back the cursor state from when it was opened. Opened from
                 // the pause menu, that was "free", so you went on playing with an unlocked cursor.
                 if (ShouldBeLocked())
@@ -180,9 +195,13 @@ namespace Belay.UI
             {
                 DrawMenuButton();
                 DrawUpdatePopup();
-                if (open)
+                if (open && pageMode)
                 {
-                    window = GUILayout.Window(0x8E1A7, window, DrawWindow, "TETHERED  v" + Plugin.Version);
+                    DrawPage();
+                }
+                else if (open)
+                {
+                    window = GUILayout.Window(0x8E1A7, window, DrawWindow, "NOT ALONE  v" + Plugin.Version);
                 }
             }
             finally
@@ -203,7 +222,7 @@ namespace Belay.UI
             {
                 return;
             }
-            if (!GameMenuEntry.Showing && GameMenuEntry.GaveUp && GUI.Button(new Rect(Screen.width - 150, Screen.height - 54, 140, 40), "TETHERED (" + Plugin.MenuKey.Value + ")"))
+            if (!GameMenuEntry.Showing && GameMenuEntry.GaveUp && GUI.Button(new Rect(Screen.width - 150, Screen.height - 54, 140, 40), "NOT ALONE (" + Plugin.MenuKey.Value + ")"))
             {
                 SetOpen(true);
             }
@@ -211,7 +230,7 @@ namespace Belay.UI
             {
                 GUI.color = new UnityEngine.Color(1f, 0.45f, 0.4f);
                 GUI.Label(new Rect(Screen.width - 520, Screen.height - 90, 510, 40),
-                    "Another multiplayer mod (MultiPlayer Mod) is on and conflicts with Tethered. Turn it off in Tethered > Mods, then restart.");
+                    "Another multiplayer mod (MultiPlayer Mod) is on and conflicts with Not Alone. Turn it off in Not Alone > Mods, then restart.");
                 GUI.color = UnityEngine.Color.white;
             }
         }
@@ -233,8 +252,8 @@ namespace Belay.UI
             var box = new Rect(Screen.width / 2f - 230f, 40f, 460f, 112f);
             GUI.Box(box, "");
             GUI.Label(new Rect(box.x + 16f, box.y + 12f, box.width - 32f, 50f), ready
-                ? "Tethered " + up.LatestVersion + " is downloaded (you're on " + Plugin.Version + "). Restart the game to use it."
-                : "Tethered " + up.LatestVersion + " is out (you're on " + Plugin.Version + ").");
+                ? "Not Alone " + up.LatestVersion + " is downloaded (you're on " + Plugin.Version + "). Restart the game to use it."
+                : "Not Alone " + up.LatestVersion + " is out (you're on " + Plugin.Version + ").");
             if (GUI.Button(new Rect(box.x + 16f, box.y + 64f, 200f, 36f), ready ? "Restart now" : "Update"))
             {
                 if (ready) Updater.RestartGame();
@@ -258,7 +277,7 @@ namespace Belay.UI
             {
                 return;
             }
-            string text = $"Tethered: {net.MemberOrder().Count}/{NetSession.MaxPlayers} roped in";
+            string text = $"Not Alone: {net.MemberOrder().Count}/{NetSession.MaxPlayers} roped in";
             string revivePrompt = ReviveSystem.Instance != null ? ReviveSystem.Instance.Prompt : null;
             if (revivePrompt != null)
             {
@@ -297,7 +316,13 @@ namespace Belay.UI
             }
             GUILayout.EndHorizontal();
             GUILayout.Space(10);
+            DrawTabContent();
+            GUI.DragWindow();
+        }
 
+        /// <summary>The selected tab's controls, shared by the floating window and the main-menu page.</summary>
+        private void DrawTabContent()
+        {
             NetSession net = NetSession.Instance;
             switch (tab)
             {
@@ -305,7 +330,7 @@ namespace Belay.UI
                     GUILayout.Label("Status: " + net.Status);
                     if (net.IsTestClient)
                     {
-                        GUILayout.Label("This window is a Tethered test client. It joins the game running on this PC by itself; close it to stop.");
+                        GUILayout.Label("This window is a Not Alone test client. It joins the game running on this PC by itself; close it to stop.");
                         if (net.InLobby)
                         {
                             GUILayout.Label($"Lobby: {net.GetLobbyData(NetSession.KeyName)}");
@@ -339,14 +364,19 @@ namespace Belay.UI
                     Bot.TestBot.Instance?.DrawTab();
                     break;
                 case Tab.Outfit:
-                    DrawOutfitTab();
+                    if (pageMode)
+                    {
+                        DrawOutfitWithPreview();
+                    }
+                    else
+                    {
+                        DrawOutfitTab();
+                    }
                     break;
                 case Tab.Settings:
                     DrawSettingsTab();
                     break;
             }
-
-            GUI.DragWindow();
         }
 
         private void DrawHostSection(NetSession net)
@@ -571,7 +601,7 @@ namespace Belay.UI
                 Players.Avatar.Outfits.Local = outfit;
             }
             GUILayout.Space(6);
-            GUILayout.Label("Teammates need Tethered 0.7.21 or newer to see it. Test bots wear your outfit, so you can check it on one.",
+            GUILayout.Label("Teammates need Not Alone 0.7.21 or newer to see it. Test bots wear your outfit, so you can check it on one.",
                 BelayTheme.Hint ?? GUI.skin.label);
         }
 
@@ -612,7 +642,7 @@ namespace Belay.UI
 
         private void DrawSettingsTab()
         {
-            DrawKeyBinding("Open Tethered menu", Plugin.MenuKey);
+            DrawKeyBinding("Open Not Alone menu", Plugin.MenuKey);
             DrawKeyBinding("Next spectated player", Plugin.SpectateNextKey);
             DrawKeyBinding("Pull teammate up (rope)", Plugin.RopePullKey);
             GUILayout.Space(6);
@@ -628,7 +658,7 @@ namespace Belay.UI
         private void DrawUpdates()
         {
             var up = Updater.Instance;
-            GUILayout.Label("Updates (you have Tethered " + Plugin.Version + ")");
+            GUILayout.Label("Updates (you have Not Alone " + Plugin.Version + ")");
             Plugin.AutoUpdate.Value = GUILayout.Toggle(Plugin.AutoUpdate.Value, "Update automatically when the game starts");
             if (up == null) return;
             if (!string.IsNullOrEmpty(up.Message)) GUILayout.Label(up.Message);
