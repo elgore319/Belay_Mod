@@ -11,8 +11,7 @@
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
 
-    <!-- Path to your White Knuckle install. Override with -p:GameDir=... or a Directory.Build.props.user. -->
-    <GameDir Condition="'$(GameDir)' == ''">D:\SteamLibrary\steamapps\common\White Knuckle</GameDir>
+    <!-- GameDir (the White Knuckle install) is found by src/Directory.Build.props. -->
     <ManagedDir>$(GameDir)\White Knuckle_Data\Managed</ManagedDir>
     <BepInExDir>$(GameDir)\BepInEx</BepInExDir>
     <!-- Set to true to copy the built DLL straight into BepInEx\plugins\Belay after each build. -->
