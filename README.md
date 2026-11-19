@@ -17,7 +17,7 @@ Built on BepInEx 5 + Harmony, using Steam lobbies and Steam P2P (the game alread
 - **Death and revives**: dying in a lobby doesn't end your run. You spectate your teammates (Tab switches who you watch). A living teammate brings you back at a terminal (paying the revive cost in roaches from **their own wallet**, default 4; host sets 0-50) or by using a totem they're holding (free, the totem is used up). Money is never shared. When everyone is dead, the team comes back from its disk save if it has one; otherwise the run ends.
 - **Totems**: a co-op revive item. Half of the save disks a level puts down are totems instead (the same ones on every PC), and vending machines and the shopkeeper sell them (4 roaches). Using a totem you're holding revives a dead teammate right where you are, for free.
 - **Disks and save terminals in co-op**: disks work as in the base game. Insert them at a save terminal and reformat them into a disk save, which belongs to the whole team. It's only used when everyone is dead (when the team would have had its game over), and then the whole team comes back from it together, so nobody respawns alone behind the mass. It can't be loaded by hand in co-op. Solo play is unchanged.
-- **Not Alone menu**: a NOT ALONE entry in the main menu and pause menu (or F7) opens a tabbed menu: Lobby, Players (rope order, flags players running different mods than the host), Rules (host sets rope, door timer, revive cost), Mods and Settings (rebind keys). It draws on its own and doesn't touch the game's menus or other mods' UI.
+- **Not Alone menu**: a NOT ALONE entry in the main menu and pause menu opens a full-screen page: Lobby, Players (rope order, flags players running different mods than the host), Rules (host sets rope, door timer, revive cost), Mods and Settings (rebind keys).
 - **Mod manager**: the Mods tab lists every installed BepInEx mod with an on/off switch. Mods can't be unloaded while the game runs, so a switch applies the next time you start the game (the menu says so and has a Quit button). It works by renaming the mod's DLL to `.dll.disabled` and back.
 - **Teammates in the world**: each player shows up as a colored body with two hands and a name tag. Hands turn white while gripping.
 - **The rope**: players are roped in a chain in join order (1-2, 2-3, ...). Past the rope length you get reeled back toward your partner, and if your partner is gripping a wall, your fall is caught (no fall damage). The host sets rope length and can turn it off.
@@ -28,7 +28,7 @@ Not synced yet: enemies, items, pitons, or crank-operated doors. See [docs/ARCHI
 
 1. Install BepInEx 5 (x64) into the game folder if it isn't there yet.
 2. Put `Belay.dll` in `BepInEx\plugins\Belay\`.
-3. Start the game and pick **NOT ALONE** in the main menu (or press **F7**).
+3. Start the game and pick **NOT ALONE** in the main menu.
 4. Host a lobby (or join one). The host picks a gamemode from the main menu and everyone follows automatically.
 
 If another White Knuckle multiplayer mod is installed, switch it off in the Not Alone menu's Mods tab and restart the game.

@@ -74,13 +74,10 @@ namespace Belay.UI
         private void Update()
         {
             GameFont.Tick();
-            if (Input.GetKeyDown(Plugin.MenuKey.Value))
+            if (open && (CL_GameManager.IsInGame() != pageInRun || (pageInRun && !World.CoopPause.InPauseMenu)))
             {
-                SetOpen(!open);
-            }
-            if (open && pageMode && CL_GameManager.IsInGame())
-            {
-                // The page belongs to the main menu; a run starting (or following the host in) closes it.
+                // The page belongs to the menu it was opened from: a run starting, the run ending, or the
+                // pause menu closing closes it too.
                 SetOpen(false);
             }
             bool anyOpen = open || Dev.DevTools.Open;
@@ -115,11 +112,9 @@ namespace Belay.UI
             rebinding = null;
             if (open)
             {
-                pageMode = !CL_GameManager.IsInGame();
-                if (pageMode)
-                {
-                    ShowPage();
-                }
+                pageMode = true;
+                pageInRun = CL_GameManager.IsInGame();
+                ShowPage();
                 previousLock = Cursor.lockState;
                 previousVisible = Cursor.visible;
                 ModManager.Refresh();
@@ -195,13 +190,9 @@ namespace Belay.UI
             {
                 DrawMenuButton();
                 DrawUpdatePopup();
-                if (open && pageMode)
+                if (open)
                 {
                     DrawPage();
-                }
-                else if (open)
-                {
-                    window = GUILayout.Window(0x8E1A7, window, DrawWindow, "NOT ALONE  v" + Plugin.Version);
                 }
             }
             finally
@@ -222,7 +213,7 @@ namespace Belay.UI
             {
                 return;
             }
-            if (!GameMenuEntry.Showing && GameMenuEntry.GaveUp && GUI.Button(new Rect(Screen.width - 150, Screen.height - 54, 140, 40), "NOT ALONE (" + Plugin.MenuKey.Value + ")"))
+            if (!GameMenuEntry.Showing && GameMenuEntry.GaveUp && GUI.Button(new Rect(Screen.width - 150, Screen.height - 54, 140, 40), "NOT ALONE"))
             {
                 SetOpen(true);
             }
@@ -642,7 +633,6 @@ namespace Belay.UI
 
         private void DrawSettingsTab()
         {
-            DrawKeyBinding("Open Not Alone menu", Plugin.MenuKey);
             DrawKeyBinding("Next spectated player", Plugin.SpectateNextKey);
             DrawKeyBinding("Pull teammate up (rope)", Plugin.RopePullKey);
             GUILayout.Space(6);

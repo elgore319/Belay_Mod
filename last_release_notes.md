@@ -1,5 +1,6 @@
-## Not Alone 0.8.4
+## Not Alone 0.8.7
 
-- **See your climber while you customize.** The Outfit tab on the multiplayer page now shows a live 3D model of your climber beside the options, in your current outfit, look and hand skins. It updates as you change things, turns slowly on its own, and you can drag it to turn it yourself.
+- **The mod menu is part of the pause menu now.** In a run, NOT ALONE in the pause menu opens the same full-screen page as the main menu, in place of the pause menu, instead of a separate small window. Back (or Esc) returns to the pause menu, and unpausing closes it.
+- **No more F7.** The menu only opens from the NOT ALONE entry in the game's main menu and pause menu. The F7 key and its setting are gone.
 
-No network change.
+Everyone in the lobby should update.
