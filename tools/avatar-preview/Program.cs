@@ -133,6 +133,17 @@ internal static class Program
             File.WriteAllBytes("totem-sprite.raw", raw);
         }
 
+        // BIOCHAMBER=1: the terminal-room revive pod (src/Belay/Revive/BioChamberLook.cs), closed and open.
+        bool chamber = Environment.GetEnvironmentVariable("BIOCHAMBER") == "1";
+        if (chamber)
+        {
+            chamberTexBase = textures.Count;
+            foreach (PixelTextures.Recipe r in Belay.Revive.BioChamberLook.Recipes())
+            {
+                textures.Add(Tex(PixelTextures.Generate(r, 701 + (textures.Count - chamberTexBase) * 7), PixelTextures.Size, PixelTextures.Size));
+            }
+        }
+
         boneTex = textures.Count;
         textures.Add(Tex(PixelTextures.Generate(Belay.Items.TotemLook.Recipes()[Belay.Items.TotemLook.BoneSlot], 501), PixelTextures.Size, PixelTextures.Size));
         coreTex = textures.Count;
@@ -167,6 +178,11 @@ internal static class Program
         sb.Append(string.Join(",", textures)).Append("],\"skins\":[");
         sb.Append(string.Join(",", skinNames.ConvertAll(n => "\"" + n + "\""))).Append("],");
         sb.Append("\"emissive\":[" + coreTex + (totem ? "," + (totemTexBase + Belay.Items.TotemLook.GlowSlot) : "") + "],");
+        if (chamber)
+        {
+            sb.Append("\"emissive2\":[" + (chamberTexBase + Belay.Revive.BioChamberLook.GlowSlot) + "],");
+            sb.Append("\"glass\":[" + (chamberTexBase + Belay.Revive.BioChamberLook.GlassSlot) + "],");
+        }
         sb.Append("\"figures\":{");
 
         Figure("standing", standing: true, leftGrip: false, rightGrip: false,
@@ -240,6 +256,31 @@ internal static class Program
             Belay.Items.TotemLook.Build(kit, Vector3.zero, new Vector3(0, 1, 0), new Vector3(0, 0, 1));
             EmitKit(kit, totemTexBase);
             Figures.Add("\"totem\":[" + tris.ToString().TrimEnd(',') + "]");
+        }
+
+        if (chamber)
+        {
+            foreach (float open in new[] { 0f, 1f })
+            {
+                // The climber stands on the chamber floor; the chamber is lowered so its floor is at 0.
+                Figure("chamber:" + open, standing: true, leftGrip: false, rightGrip: false,
+                    new Vector3(-0.22f, 1.25f, 0.45f), new Vector3(0.22f, 1.25f, 0.45f));
+                string climber = Figures[Figures.Count - 1];
+                tris = new StringBuilder();
+                var kit = new MeshKit(Belay.Revive.BioChamberLook.SlotCount);
+                Belay.Revive.BioChamberLook.BuildBody(kit);
+                Belay.Revive.BioChamberLook.BuildDoor(kit, open);
+                for (int i = 0; i < kit.Vertices.Count; i++) kit.Vertices[i] -= new Vector3(0, Belay.Revive.BioChamberLook.FloorHeight, 0);
+                EmitKit(kit, chamberTexBase);
+                Figures[Figures.Count - 1] = climber.Substring(0, climber.Length - 1) + "," + tris.ToString().TrimEnd(',') + "]";
+                tris = new StringBuilder();
+                kit = new MeshKit(Belay.Revive.BioChamberLook.SlotCount);
+                Belay.Revive.BioChamberLook.BuildBody(kit);
+                Belay.Revive.BioChamberLook.BuildDoor(kit, open);
+                for (int i = 0; i < kit.Vertices.Count; i++) kit.Vertices[i] -= new Vector3(0, Belay.Revive.BioChamberLook.FloorHeight, 0);
+                EmitKit(kit, chamberTexBase);
+                Figures.Add("\"empty:" + open + "\":[" + tris.ToString().TrimEnd(',') + "]");
+            }
         }
 
         if (skinNames.Count > 0)
@@ -846,6 +887,7 @@ internal static class Program
 
     private const string TotemItem = "Belay_Totem";
     private static int totemTexBase;
+    private static int chamberTexBase;
 
     /// <summary>Triangles of a kit built in place (no frame), with texture slots from <paramref name="texBase"/>.</summary>
     private static void EmitKit(MeshKit kit, int texBase)

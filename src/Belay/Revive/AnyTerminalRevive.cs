@@ -46,7 +46,7 @@ namespace Belay.Revive
                 yield break;
             }
             Plugin.Log.LogInfo("Offering a revive at a terminal: " + World.ButtonSync.ObjectId(os.worldInterface));
-            Show(os, status + "\nRevive them here?", "Revive", () => Show(os, ReviveSystem.TerminalRevive(), "OK", null, null), "Cancel");
+            Show(os, status + "\nRevive them here?", "Revive", () => Show(os, ReviveSystem.TerminalRevive(os), "OK", null, null), "Cancel");
         }
 
         private static void Show(OS_Manager os, string text, string main, System.Action onMain, string other)

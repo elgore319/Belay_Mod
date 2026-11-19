@@ -7,11 +7,12 @@
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Version>0.8.14</Version>
+    <Version>0.8.15</Version>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
 
-    <!-- GameDir (the White Knuckle install) is found by src/Directory.Build.props. -->
+    <!-- Path to your White Knuckle install. Override with -p:GameDir=... or a Directory.Build.props.user. -->
+    <GameDir Condition="'$(GameDir)' == ''">D:\SteamLibrary\steamapps\common\White Knuckle</GameDir>
     <ManagedDir>$(GameDir)\White Knuckle_Data\Managed</ManagedDir>
     <BepInExDir>$(GameDir)\BepInEx</BepInExDir>
     <!-- Set to true to copy the built DLL straight into BepInEx\plugins\Belay after each build. -->

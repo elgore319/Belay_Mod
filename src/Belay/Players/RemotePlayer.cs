@@ -118,6 +118,7 @@ namespace Belay.Players
             {
                 // Brought back with a totem: rebuilt from the inside out as they reappear.
                 avatar.StartReform();
+                Belay.Revive.ReviveSounds.PlayFlesh(transform, Belay.Players.Avatar.Reform.Duration);
             }
             wasVisible = visible;
             SetVisible(visible);
