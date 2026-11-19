@@ -35,6 +35,8 @@ namespace Belay.Net
         public const string KeyRun = "belay_run";
         public const string KeyDoorDelay = "belay_door_delay";
         public const string KeyReviveCost = "belay_revive_cost";
+        /// <summary>Trinket and binding asset names the host banned for the run, '|'-separated.</summary>
+        public const string KeyBannedTrinkets = "belay_banned_trinkets";
         public const string KeyMods = "belay_mods";
         /// <summary>The Belay release (Plugin.Version), on the lobby for the host and as member data for everyone.</summary>
         public const string KeyModVersion = "belay_mod_ver";

@@ -513,6 +513,40 @@ namespace Belay.UI
                 GUILayout.Label($"Door shuts {DoorSync.Instance.CloseDelay:0} s after the last teammate is through");
                 GUILayout.Label($"Revive cost: {ReviveSystem.Instance.Cost} roaches (paid by the reviver)");
             }
+            DrawTrinketRules(net);
+        }
+
+        private void DrawTrinketRules(NetSession net)
+        {
+            System.Collections.Generic.List<Trinket> all = TrinketRules.All();
+            if (all.Count == 0)
+            {
+                return;
+            }
+            bool? lastBinding = null;
+            foreach (Trinket t in all)
+            {
+                if (lastBinding != t.isBinding)
+                {
+                    lastBinding = t.isBinding;
+                    GUILayout.Space(8);
+                    GUILayout.Label(t.isBinding ? "Bindings" : "Trinkets");
+                }
+                string title = string.IsNullOrEmpty(t.title) ? t.name : t.title;
+                bool allowed = !TrinketRules.IsBanned(t);
+                if (net.IsHost)
+                {
+                    bool newAllowed = GUILayout.Toggle(allowed, "  " + title + (allowed ? "" : "  (banned)"));
+                    if (newAllowed != allowed)
+                    {
+                        TrinketRules.SetBanned(t, !newAllowed);
+                    }
+                }
+                else
+                {
+                    GUILayout.Label("  " + title + (allowed ? "" : "  (banned)"));
+                }
+            }
 
         }
 

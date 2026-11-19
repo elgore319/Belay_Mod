@@ -21,6 +21,7 @@ namespace Belay.Run
             try
             {
                 string mode = __instance.GetGamemodeName();
+                TrinketRules.StripBanned(mode);
                 List<string> picked = StatManager.saveData.GetGamemodeTrinkets(mode);
                 if (picked == null || picked.Count == 0)
                 {
