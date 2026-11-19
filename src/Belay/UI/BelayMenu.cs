@@ -31,6 +31,8 @@ namespace Belay.UI
         }
 
         private static readonly string[] TabLabels = { "Lobby", "Players", "Rules", "Mods", "Bot", "Outfit", "Settings" };
+        private static readonly Tab[] WindowTabs = { Tab.Lobby, Tab.Players, Tab.Rules, Tab.Mods, Tab.Bot, Tab.Settings };
+        private static readonly string[] WindowTabLabels = System.Array.ConvertAll(WindowTabs, t => TabLabels[(int)t]);
 
         private static BelayMenu instance;
 
@@ -114,6 +116,15 @@ namespace Belay.UI
             {
                 pageMode = true;
                 pageInRun = CL_GameManager.IsInGame();
+                if (pageInRun)
+                {
+                    outfitPage = false;
+                }
+                if (!outfitPage && tab == Tab.Outfit)
+                {
+                    // The outfit only opens from the game's Cosmetics screen, never mid-run.
+                    tab = Tab.Lobby;
+                }
                 ShowPage();
                 previousLock = Cursor.lockState;
                 previousVisible = Cursor.visible;
@@ -133,6 +144,7 @@ namespace Belay.UI
                     HidePage();
                 }
                 pageMode = false;
+                outfitPage = false;
                 // Closing the menu used to put back the cursor state from when it was opened. Opened from
                 // the pause menu, that was "free", so you went on playing with an unlocked cursor.
                 if (ShouldBeLocked())
@@ -211,6 +223,15 @@ namespace Belay.UI
             bool paused = World.CoopPause.InPauseMenu;
             if (open || (!onMainMenu && !paused))
             {
+                return;
+            }
+            if (onMainMenu && CosmeticsScreen.Showing && GUI.Button(CosmeticsScreen.ButtonRect, "CLIMBER OUTFIT"))
+            {
+                // Outfits live with the game's own cosmetics: the outfit page opens over the Cosmetics
+                // screen, and BACK returns to it.
+                tab = Tab.Outfit;
+                outfitPage = true;
+                SetOpen(true);
                 return;
             }
             if (!GameMenuEntry.Showing && GameMenuEntry.GaveUp && GUI.Button(new Rect(Screen.width - 150, Screen.height - 54, 140, 40), "NOT ALONE"))
@@ -300,7 +321,14 @@ namespace Belay.UI
         private void DrawWindow(int id)
         {
             GUILayout.BeginHorizontal();
-            tab = (Tab)GUILayout.Toolbar((int)tab, TabLabels, BelayTheme.Tab ?? GUI.skin.button);
+            // No Outfit tab in the floating window: characters are chosen before the run, not during it.
+            if (tab == Tab.Outfit)
+            {
+                tab = Tab.Lobby;
+            }
+            int shown = System.Array.IndexOf(WindowTabs, tab);
+            shown = GUILayout.Toolbar(shown < 0 ? 0 : shown, WindowTabLabels, BelayTheme.Tab ?? GUI.skin.button);
+            tab = WindowTabs[shown];
             if (GUILayout.Button("X", BelayTheme.Tab ?? GUI.skin.button, GUILayout.Width(32)))
             {
                 SetOpen(false);
