@@ -1,6 +1,5 @@
-## Not Alone 0.8.11
+## Not Alone 0.8.12
 
-- **Outfits moved to the game's Cosmetics screen.** Your climber's look, colors and live 3D model now open from a CLIMBER OUTFIT button on the game's own Cosmetics screen, next to the gloves. BACK returns you to the Cosmetics screen. The Outfit tab is gone from the multiplayer page.
-- **No changing your character mid-run.** The Not Alone page in the pause menu has no outfit options.
+- **The host can ban trinkets and bindings.** The multiplayer page's Rules section lists every trinket and binding. The host unticks one to ban it for the lobby. Banned ones don't show up in anyone's trinket picker, and if one was already picked it is left behind when the run starts. Everyone else sees the list with the banned ones marked.
 
-No network change.
+Network change: everyone in a lobby needs 0.8.12.
