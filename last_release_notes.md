@@ -1,5 +1,5 @@
-## Not Alone 0.8.10
+## Not Alone 0.8.12
 
-- The mod's button in the pause menu is now called **GAME LOBBY**. On the main menu it's still NOT ALONE.
+- Behind-the-scenes cleanup: leftover code from removed features is gone and the code is tidier. Nothing changes in game.
 
 Everyone in the lobby should update.
