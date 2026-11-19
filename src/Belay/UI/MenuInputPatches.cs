@@ -4,10 +4,8 @@ using UnityEngine;
 namespace Belay.UI
 {
     /// <summary>
-    /// While the Belay menu is open in a run, moving the mouse doesn't turn the camera and clicking
-    /// doesn't grab, so using the menu never tugs your character. Grips you're already holding stay
-    /// held (only new presses are dropped), so you don't fall off a wall by opening the menu.
-    /// While a menu text box has focus, keyboard presses don't reach the player either.
+    /// While the menu is open in a run, mouse moves don't turn the camera and clicks don't grab. Held grips stay
+    /// held. A focused text box also keeps keys from the player.
     /// </summary>
     [HarmonyPatch]
     internal static class MenuInputPatches

@@ -5,11 +5,8 @@ using UnityEngine;
 namespace Belay.Players
 {
     /// <summary>
-    /// Elevators and lifts move on every PC by themselves, never at exactly the same height at the same
-    /// moment. A rider's position used to be sent in world space, so on other screens they hovered above
-    /// or sank through the floor of the elevator, as if they weren't on it. Now a player standing on a
-    /// moving floor sends their position in that floor's own space, and every PC places them on its own
-    /// copy of the elevator, moving with it smoothly between updates.
+    /// Elevators move on every PC on their own and never match exactly, so riders send their position in the
+    /// moving floor's space and each PC places them on its own copy.
     /// </summary>
     internal static class PlatformRide
     {

@@ -38,10 +38,16 @@ If another White Knuckle multiplayer mod is installed, switch it off in the Not 
 Requires the .NET SDK (6 or newer) and a White Knuckle install with BepInEx.
 
 ```
-dotnet build src/Belay -c Release -p:GameDir="D:\SteamLibrary\steamapps\common\White Knuckle" -p:DeployToGame=true
+dotnet build src/Belay -c Release -p:DeployToGame=true
 ```
 
-`GameDir` defaults to `D:\SteamLibrary\steamapps\common\White Knuckle`. With `DeployToGame=true` the DLL is copied into `BepInEx\plugins\Belay` after each build. Game DLLs are referenced from your install and are never committed.
+The build finds the game by itself in the usual Steam folders (`C:\Program Files (x86)\Steam`, or a `SteamLibrary` on drives C to F). If yours is elsewhere, either pass `-p:GameDir="<path to White Knuckle>"`, set a `WHITE_KNUCKLE_DIR` environment variable, or create `src/GameDir.props.user` (git-ignored):
+
+```xml
+<Project><PropertyGroup><GameDir>E:\Games\White Knuckle</GameDir></PropertyGroup></Project>
+```
+
+Without an install, copy the game DLLs into `lib/` at the repo root (`lib/White Knuckle_Data/Managed/*.dll` and `lib/BepInEx/core/*.dll`). With `DeployToGame=true` the DLL is copied into `BepInEx\plugins\Belay` after each build. Game DLLs are never committed.
 
 ## Config
 

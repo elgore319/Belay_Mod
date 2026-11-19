@@ -3,14 +3,9 @@ using UnityEngine;
 namespace Belay.Players.Avatar
 {
     /// <summary>
-    /// Outfits drawn from the people and things of the superstructure: its staff (Delta Labs researchers,
-    /// Pipeworks maintenance crews, pier workers), the folk scraping by in Habitation's lower decks,
-    /// Chimney expeditions, and what the Nest and the denizens make of a climber. Each look has its own
-    /// headgear, an extra piece of clothing worn over the torso and a palette; the player's swatch picks
-    /// still recolor it on top.
-    ///
-    /// Pure geometry and colors (no Unity scene calls), so the preview tool can render them too.
-    /// Units and spaces match <see cref="AvatarDesign"/>: torso extras at the pelvis, heads at the neck.
+    /// Outfits based on the superstructure's people (Delta Labs, Pipeworks, pier workers, Habitation, Chimney
+    /// expeditions, the Nest, denizens). Each has headgear, a torso extra and a palette; swatch picks recolor on
+    /// top. Pure geometry, so the preview tool can render them. Same spaces as <see cref="AvatarDesign"/>.
     /// </summary>
     public static class LoreLooks
     {
@@ -120,15 +115,12 @@ namespace Belay.Players.Avatar
         public static bool Valid(int look) => look > 0 && look < Count;
 
         /// <summary>
-        /// Whether the look wears a headlamp. The lab researcher, pier worker, scavenger and denizen go
-        /// without, so each look reads differently (and their teammate light stays off).
+        /// Whether the look wears a headlamp (researcher, pier worker, scavenger and denizen don't, and their
+        /// teammate light stays off).
         /// </summary>
         public static bool HasLamp(int look) => !(look == Researcher || look == PierWorker || look == Scavenger || look == Denizen);
 
-        /// <summary>
-        /// The texture recipes for a look. Swatch picks (null = none) still win over the look's own colors,
-        /// so a researcher can wear a red coat if they want.
-        /// </summary>
+        /// <summary>Texture recipes for a look. Swatch picks (null = none) override the look's colors.</summary>
         public static PixelTextures.Recipe[] Recipes(int look, Color player, Color? jacket, Color? hat, Color? pants, Color? pack)
         {
             if (!Valid(look))
@@ -174,9 +166,8 @@ namespace Belay.Players.Avatar
             return r;
         }
 
-        // ---------------------------------------------------------------------------------------------
-        // Heads. Origin at the base of the neck, +z where they look. Every head keeps the headlamp in the
-        // standard spot (the light source sits there in game).
+        // --------------------------------------------------------------------------------------------- Heads
+        // Origin at the base of the neck, +z forward. Every head keeps the headlamp in the standard spot.
 
         public static void BuildHead(MeshKit k, int look)
         {
@@ -205,8 +196,7 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// A head under a balaclava or wrappings: rounded skull, jaw and chin, the nose and ears showing
-        /// through the cloth, and a breathing patch over the mouth.
+        /// A head under a balaclava or wrappings, with nose, ears and a mouth patch showing through.
         /// </summary>
         private static void CoveredHead(MeshKit k, int cloth, int mouth)
         {
@@ -480,8 +470,8 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// The coat skirt a look wears (hem height below the pelvis, how far it flares out, how far the
-        /// back hangs behind), or false if it has none. <see cref="CoatSkirt"/> swings it out of the legs' way.
+        /// The look's coat skirt (hem below pelvis, flare, back hang), or false. <see cref="CoatSkirt"/> moves it
+        /// out of the legs' way.
         /// </summary>
         public static bool SkirtShape(int look, out float hem, out float flare, out float back)
         {
@@ -689,8 +679,7 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// One growth: a dark tear in the cloth, a lumpy mass of nodules swelling out of it, spines and
-        /// glowing pustules set in fleshy rims.
+        /// One growth: a dark tear with nodules, spines and glowing pustules swelling out of it.
         /// </summary>
         private static void Growth(MeshKit k, Vector3 center, float size, int seed)
         {

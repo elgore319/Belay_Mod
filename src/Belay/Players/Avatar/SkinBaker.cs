@@ -3,11 +3,8 @@ using UnityEngine;
 namespace Belay.Players.Avatar
 {
     /// <summary>
-    /// Turns a White Knuckle hand-skin sprite into a texture for the 3D glove. The game's hand sprites
-    /// are palette-indexed (the red channel holds an index into a 16x1 palette strip), so this applies the
-    /// chosen palette and the player's hue/saturation/value tweak, finds the hand's outline, and bleeds
-    /// edge colors into the empty background so the 3D hand's sides pick up sensible colors.
-    /// Pure pixel math, shared with the preview tool.
+    /// Turns a hand-skin sprite into a 3D glove texture: applies the palette (red channel indexes a 16x1 strip)
+    /// and HSV tweak, finds the outline, and bleeds edge colors into the background. Shared with the preview tool.
     /// </summary>
     public static class SkinBaker
     {
@@ -18,8 +15,8 @@ namespace Belay.Players.Avatar
             /// <summary>Bounds of the visible hand in pixels (inclusive min, exclusive max).</summary>
             public int MinX, MinY, MaxX, MaxY;
             /// <summary>
-            /// The hand's own frame: the art is drawn at a slant, so this is its center, the direction from
-            /// cuff to fingertips, and how far it reaches along and across that direction.
+            /// The hand's own frame (the art is slanted): center, cuff-to-fingertip direction, and extent along
+            /// and across it.
             /// </summary>
             public float CenterX, CenterY, AxisX, AxisY, MinAlong, MaxAlong, MinAcross, MaxAcross;
             /// <summary>Colors drawn on the fingers (outline and shadow lines left out), for the 3D fingers.</summary>
@@ -27,8 +24,7 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// Stand-ins for skins whose look comes from a special shader instead of their own art
-        /// (Inverted, Experienced, Streaked, Celestial, Sunspot), worked out on the CPU.
+        /// CPU stand-ins for shader-based skins (Inverted, Experienced, Streaked, Celestial, Sunspot).
         /// </summary>
         public class Effect
         {
@@ -250,10 +246,7 @@ namespace Belay.Players.Avatar
             }
         }
 
-        /// <summary>
-        /// The colors of the top part of the hand (the fingers), skipping the darkest fifth, which is
-        /// the shading and the lines between fingers.
-        /// </summary>
+        /// <summary>Finger colors from the top of the hand, minus the darkest fifth (shading and lines).</summary>
         private static Color32[] FingerColors(Color32[] px, int w, int h, Result r)
         {
             var picked = new System.Collections.Generic.List<Color32>();
@@ -374,11 +367,9 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// Packs the back-of-hand picture (left third), the palm picture (middle third) and a swatch of
-        /// the finger colors (right third) into one texture, each picture cropped to the hand and
-        /// stretched to fill its cell (nearest neighbor, so pixels stay crisp).
-        /// With <paramref name="mirror"/>, both pictures are flipped left to right (for the other hand).
-        /// The texture is <paramref name="cellWidth"/> * 3 wide.
+        /// Packs back of hand, palm and finger swatch into thirds of one texture, each cropped and stretched
+        /// (nearest neighbor). <paramref name="mirror"/> flips them for the other hand. Width is <paramref
+        /// name="cellWidth"/> * 3.
         /// </summary>
         public static Color32[] Atlas(Result back, Result palm, bool mirror, int cellWidth, int cellHeight)
         {

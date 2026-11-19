@@ -4,8 +4,7 @@ using HarmonyLib;
 namespace Belay.Patches
 {
     /// <summary>
-    /// Everyone in a lobby generates the same tower: WorldLoader seeds level generation from
-    /// presetSeed, so we feed it the lobby's seed right before each run is generated.
+    /// Same level layout for the whole lobby: feed WorldLoader the lobby seed before each run is generated.
     /// </summary>
     [HarmonyPatch(typeof(WorldLoader))]
     internal static class WorldLoaderPatches
@@ -24,11 +23,8 @@ namespace Belay.Patches
         }
 
         /// <summary>
-        /// WorldLoader reseeds Random from its seed field every time it builds more map, and adds 1 to that
-        /// field each time it carries on building. Each PC carries on at its own moments (spectating,
-        /// catching up, a branch firing late), so by the Nest the seeds had drifted apart and a branch
-        /// built there picked different levels on each PC. Seed each build from the lobby seed and how
-        /// many levels the map has had so far instead, which every PC agrees on.
+        /// WorldLoader reseeds from a field it bumps each time it builds more map, and each PC does that at
+        /// different moments, so seeds drifted. Seed from the lobby seed plus the level count instead.
         /// </summary>
         [HarmonyPatch("GenerateLevels")]
         [HarmonyPrefix]

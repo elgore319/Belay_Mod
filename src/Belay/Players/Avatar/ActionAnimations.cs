@@ -25,12 +25,9 @@ namespace Belay.Players.Avatar
     }
 
     /// <summary>
-    /// Arm motions for <see cref="PlayerAction"/>s. Each is a few keyframes of where the hand goes,
-    /// relative to the shoulder in the direction the player looks (x out to the side, y up, z forward,
-    /// meters at full 1.8 m design size), plus how far the wrist bends (positive toward the palm) and
-    /// how far the torso leans into it. The game's own item animations are 2D first-person sprites, so
-    /// these are drawn for the 3D avatar instead, timed like the game's (a hammer swing lands in about
-    /// a tenth of a second after the wind-up).
+    /// Arm motions for <see cref="PlayerAction"/>s: keyframes of hand position relative to the shoulder in look
+    /// space (x side, y up, z forward, meters at 1.8 m), plus wrist bend and torso lean. Timed like the game's 2D
+    /// item animations.
     /// </summary>
     public static class ActionAnimations
     {
@@ -59,10 +56,7 @@ namespace Belay.Players.Avatar
             public float Lean;
             /// <summary>The hand position is relative to the mouth instead of the shoulder.</summary>
             public bool AtMouth;
-            /// <summary>
-            /// Gripped like a hammer: thumb up, so the handle stands up out of the fist and
-            /// <see cref="Wrist"/> swings the head forward and down instead of tipping the knuckles.
-            /// </summary>
+            /// <summary>Hammer grip: thumb up, so <see cref="Wrist"/> swings the head forward and down.</summary>
             public bool ThumbUp;
         }
 

@@ -6,18 +6,15 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// One death goo for the whole lobby. The host's goo is the real one: it rubberbands to the lowest
-    /// living player instead of the host, and its height is streamed to clients, who pin their goo to it.
-    /// The goo still kills each player locally when it reaches them.
+    /// One mass for the lobby. The host's is real: it follows the lowest living player and its height streams to
+    /// clients, who pin theirs to it. It still kills each player locally.
     /// </summary>
     public class GooSync : MonoBehaviour
     {
         private const float SendInterval = 0.25f;
 
         /// <summary>
-        /// Faster than this (m/s) between two updates is a scripted jump or a teleport, not climbing.
-        /// Clients don't extrapolate those: running a 50 m jump forward for another second put their mass
-        /// far above the host's, on top of the lowest climber.
+        /// Faster than this (m/s) between updates is a scripted jump or teleport; clients don't extrapolate those.
         /// </summary>
         private const float MaxStreamedSpeed = 40f;
 
@@ -133,25 +130,15 @@ namespace Belay.World
             return WorldSpace.ToLocal(new Vector3(0f, shared, 0f)).y;
         }
 
-        /// <summary>
-        /// Host: lowest living player's height, local space. A player already under the mass is about to
-        /// die (their own PC kills them a moment later), so they don't hold the mass back.
-        /// </summary>
-        public static float LowestPlayerHeight()
-        {
-            return LowestPlayerPosition().y;
-        }
-
-        /// <summary>Host: the lowest living player's position, local space (see <see cref="LowestPlayerHeight"/>).</summary>
+        /// <summary>Host: the lowest living player's position, local space.</summary>
         public static Vector3 LowestPlayerPosition()
         {
             return LowestPlayerPosition(DEN_DeathFloor.instance != null ? ((Component)DEN_DeathFloor.instance).transform.position.y : float.MinValue);
         }
 
         /// <summary>
-        /// Same, judging "already under the mass" against a given goo height (local space). A scripted jump
-        /// is judged against where the goo was before it jumped: against the new height, everyone it jumped
-        /// over looked already dead, didn't count, and the jump landed on them.
+        /// Same, but judging "already under the mass" against the goo height before a jump, so the jump doesn't
+        /// land on everyone it passed.
         /// </summary>
         public static Vector3 LowestPlayerPosition(float gooY)
         {
@@ -180,9 +167,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// Host: the game paces the mass by the level the host is in. In a lobby it chases the lowest
-        /// climber, so it should go at their level's pace: a host up in a faster region made the mass race
-        /// through the slower levels the others were still climbing. Returns lowest's pace / host's pace.
+        /// Host: the game paces the mass by the host's level; in a lobby use the lowest climber's level instead.
+        /// Returns lowest pace / host pace.
         /// </summary>
         private static float paceCache = 1f;
         private static float paceCheckedAt = -10f;
@@ -234,8 +220,8 @@ namespace Belay.World
         private const float ScriptedJumpMargin = 10f;
 
         /// <summary>
-        /// Rises slower than this (m/s) outside the goo's own Update are the level speeding the mass up
-        /// (UT_GooController.RaiseOverTime and friends) and go through. Only real jumps get held.
+        /// Rises slower than this (m/s) from outside the goo's Update are level speed-ups
+        /// (UT_GooController.RaiseOverTime etc.) and go through; only real jumps are held.
         /// </summary>
         private const float ScriptedJumpSpeed = 8f;
 
@@ -246,7 +232,7 @@ namespace Belay.World
         private static float pendingJumpY = float.NaN;
         private static float savedFrameMult = float.NaN;
 
-        private static bool Active => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        private static bool Active => NetSession.InLobbyRun;
 
         private static void PinToHost(DEN_DeathFloor goo)
         {
@@ -261,11 +247,9 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// Interludes and breakrooms move the goo with scene scripts (UT_GooController, UT_GooTakeover and
-        /// friends) when the player who triggers them arrives. Single-player that's fine; in a lobby it
-        /// dropped the goo on everyone still climbing below. On the host, any rise that happens outside
-        /// the goo's own Update is held just under the lowest living player and applied once everyone is
-        /// above it. The goo still climbs and kills normally.
+        /// Interlude scripts (UT_GooController, UT_GooTakeover...) move the mass when someone arrives, dropping it
+        /// on everyone below. On the host, such rises are held just under the lowest living player until everyone
+        /// is above.
         /// </summary>
         private static void HoldScriptedJumps(DEN_DeathFloor goo)
         {
@@ -318,10 +302,8 @@ namespace Belay.World
         private static float lastFrameAt;
 
         /// <summary>
-        /// The mass speeds up with its distance to the lowest living climber. When that climber died, the
-        /// next lowest could be a hundred meters higher, the distance jumped, and the mass raced up at many
-        /// times its speed. After a drop-out, the distance it paces on stays where it was and only grows
-        /// back very slowly, until the mass has caught up to the normal gap again.
+        /// The mass speeds up with distance to the lowest climber, so a death could make it race. After a drop-out
+        /// the pacing distance holds and only grows back slowly.
         /// </summary>
         private static float PacedDistance(float actual, float lowestY)
         {

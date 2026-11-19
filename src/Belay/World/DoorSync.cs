@@ -10,14 +10,9 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Shared doors. Opening a door opens it for everyone. Closing one (the first player through its
-    /// trigger) holds it open until every living player has passed through it (walked through its trigger,
-    /// or climbed well above it). Once the last one is through, it shuts for everyone at the same moment
-    /// after a short grace (the host's "door close delay", 1 s by default), so nobody is ever locked out
-    /// behind it and nobody stands around waiting on a timer once the whole team is in.
-    /// Some doors (the big blast doors) don't close through UT_Door at all: their "close" trigger zone
-    /// drives them some other way. Those zones are held the same way: walking in starts the countdown,
-    /// and the zone fires for everyone when it runs out.
+    /// Shared doors. Opening opens for everyone. A closing door is held open until every living player has passed
+    /// (walked through its trigger or climbed well above), then shuts for everyone after the host's close delay
+    /// (1 s by default). Doors closed by their own trigger zone (blast doors) are held the same way.
     /// </summary>
     public class DoorSync : MonoBehaviour
     {
@@ -36,8 +31,8 @@ namespace Belay.World
         internal static bool InDoorSelfUpdate;
 
         /// <summary>
-        /// Door id -> time (Time.unscaledTime) it shuts, or <see cref="Waiting"/> while someone is still behind it.
-        /// Host is authoritative; clients mirror it so a new host can carry on.
+        /// Door id -> unscaled time it shuts, or <see cref="Waiting"/> while someone is behind. Host decides;
+        /// clients mirror so a new host can carry on.
         /// </summary>
         private readonly Dictionary<string, float> countdowns = new Dictionary<string, float>();
         private readonly Dictionary<string, UT_Door> doorCache = new Dictionary<string, UT_Door>();
@@ -147,8 +142,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// Host: true when every living player has passed this door. Players count as past it once they've
-        /// walked through its trigger or are well above it. Bots don't hold doors.
+        /// Host: true once every living player has walked through this door's trigger or is well above it. Bots
+        /// don't hold doors.
         /// </summary>
         private bool EveryonePassed(string id)
         {
@@ -188,32 +183,6 @@ namespace Belay.World
             return waiting.Count == 0;
         }
 
-        /// <summary>Seconds left on the countdown of the nearest closing door, or null.</summary>
-        public float? NearestCountdown(out float distance)
-        {
-            distance = 0f;
-            float? best = null;
-            float bestDistance = float.MaxValue;
-            if (!WorldSpace.Ready)
-            {
-                return null;
-            }
-            Vector3 me = ENT_Player.playerObject.transform.position;
-            foreach (KeyValuePair<string, float> entry in countdowns)
-            {
-                // Cache only: this runs from OnGUI several times a frame.
-                Component door = IsZone(entry.Key) ? (Component)FindZone(entry.Key, allowScan: false) : Find(entry.Key, allowScan: false);
-                float d = door != null ? Vector3.Distance(door.transform.position, me) : float.MaxValue - 1f;
-                if (d < bestDistance && entry.Value != Waiting)
-                {
-                    bestDistance = d;
-                    best = Mathf.Max(0f, entry.Value - Time.unscaledTime);
-                }
-            }
-            distance = bestDistance;
-            return best;
-        }
-
         // ---------------------------------------------------------------- Local door events
 
         /// <summary>Returns false when the game's own close must be held back.</summary>
@@ -226,9 +195,8 @@ namespace Belay.World
             string id = DoorId(door);
             if (ByPlayerControl(door))
             {
-                // Someone worked a lever, button or crank that shuts this door (an airlock). Every PC
-                // replays that control itself, so each one shuts its own copy now. Holding it open
-                // until "everyone passed" meant an airlock could never cycle.
+                // A lever, button or crank shut this door (an airlock). Every PC replays the control, so shut now;
+                // waiting for everyone would stop airlocks cycling.
                 countdowns.Remove(id);
                 passed.Remove(id);
                 return true;
@@ -289,9 +257,8 @@ namespace Belay.World
         private static readonly HashSet<UT_TriggerZone> gooZones = new HashSet<UT_TriggerZone>();
 
         /// <summary>
-        /// A zone that moves or wakes the mass (like the hallway before the Mother: the first player into the
-        /// next room set the mass off behind them, onto everyone still in the hallway). The whole zone waits
-        /// until every living player has walked through it, then fires for everyone at once, with no countdown.
+        /// A zone that moves or wakes the mass (e.g. the hallway before the Mother). It waits until every living
+        /// player has walked through, then fires for everyone at once.
         /// </summary>
         internal static bool IsGooZone(UT_TriggerZone zone) => zone != null && IsCloseZone(zone) && gooZones.Contains(zone);
 
@@ -318,10 +285,8 @@ namespace Belay.World
         private static readonly string[] DoorWords = { "door", "bulkhead", "blast", "hatch", "vent", "gate", "shutter", "airlock" };
 
         /// <summary>
-        /// Whether a zone listener works the door itself (held until everyone is through) or is the rest of
-        /// what walking in does: loading the next segment, unloading the levels behind, starting a branch,
-        /// achievements. The rest used to wait for the door too, which is why some transitions took ages
-        /// and why the nest's own branch was built late.
+        /// Whether a zone listener works the door (held until everyone is through) or is the rest of walking in
+        /// (loading, unloading, branches, achievements), which shouldn't wait for the door.
         /// </summary>
         private static bool IsDoorListener(Object target, string method)
         {
@@ -355,9 +320,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// Listeners that change the map itself (which level counts as current, unloading the levels behind,
-        /// building a branch). These only ever run on a PC when its own player walks into the zone: run
-        /// for someone still behind, they removed the floor under them.
+        /// Listeners that change the map (current level, unloading behind, building a branch). Only run when this
+        /// PC's own player walks in, or they'd remove the floor under someone behind.
         /// </summary>
         private static bool IsWorldListener(Object target)
         {
@@ -382,11 +346,9 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// Run part of a close zone's listeners:
-        ///  - our player walked in: everything but the door and the unloading (level loading, branches, achievements);
-        ///  - shutting, and our player walked in earlier: the door, then the unloading (everyone is past it now);
-        ///  - shutting, and our player never walked in: the door and the harmless rest, never anything
-        ///    that changes this PC's map under a player who may still be behind it.
+        /// Runs part of a close zone's listeners: on walking in, everything but the door and unloading; on
+        /// shutting after we walked in, the door then unloading; on shutting if we never walked in, the door and
+        /// harmless rest, never map changes.
         /// </summary>
         private static void RunPart(UT_TriggerZone zone, Transform who, bool entering, bool restDone = false, bool whole = false)
         {
@@ -468,8 +430,7 @@ namespace Belay.World
         private SteamId lastHost;
 
         /// <summary>
-        /// The host left and this PC took over: it already has every countdown and who passed, so the held
-        /// doors carry on from here.
+        /// This PC became host: it already has every countdown and who passed, so held doors carry on.
         /// </summary>
         private void NoteHostChange()
         {
@@ -678,8 +639,7 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// A trigger zone that shuts a door: named "close" and part of a door, or wired straight to a
-        /// door's Close/Toggle.
+        /// A trigger zone that shuts a door: named "close" on a door, or wired straight to a door's Close/Toggle.
         /// </summary>
         internal static bool IsCloseZone(UT_TriggerZone zone)
         {
@@ -756,9 +716,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// Same on every client: the owning level's name and (offset-corrected, rounded) height, then the
-        /// sibling-index path inside it. Sibling indices above the level aren't used because each client
-        /// loads and unloads levels on its own schedule.
+        /// Same on every client: owning level name, offset-corrected rounded height, then the sibling path inside
+        /// it (indices above the level differ per client).
         /// </summary>
         public static string DoorId(UT_Door door)
         {
@@ -786,7 +745,7 @@ namespace Belay.World
     {
         private static bool Synced =>
             !DoorSync.Applying && !DoorSync.InDoorSelfUpdate
-            && NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+            && NetSession.InLobbyRun;
 
         [HarmonyPatch("Start")]
         [HarmonyPrefix]

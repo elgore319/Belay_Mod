@@ -8,14 +8,10 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Teeth (the thing that hunts the team up the Habitation shaft) and the Face are creatures that the host runs and
-    /// the other PCs copy (EnemyMotion). The game points it at the local player once, when it spawns, so in
-    /// co-op it only ever went after the host, and kept "chasing" the host's body after the host died.
-    /// On the host it now goes after the nearest living player. Each PC's copy still does the biting, so
-    /// when the host's Teeth reaches you it gets you on your own PC.
-    ///
-    /// It also cleans up after a Teeth kill when you're revived: the kill locks the player and freezes
-    /// Teeth in its kill pose on that PC, which the game only undoes by reloading a save.
+    /// Teeth (the Habitation shaft hunter) and the Face are host-run and copied (EnemyMotion). The game aims them
+    /// at the local player once, so in co-op they only chased the host, even after the host died. On the host they
+    /// now chase the nearest living player; each copy still bites on its own PC. Also cleans up a Teeth kill after
+    /// a revive.
     /// </summary>
     public class TeethSync : MonoBehaviour
     {
@@ -25,7 +21,7 @@ namespace Belay.World
 
         private float nextRetarget;
 
-        private static bool Live => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        private static bool Live => NetSession.InLobbyRun;
 
         private void Update()
         {
@@ -114,9 +110,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// After being revived: undo what a Teeth (or Phage) kill left behind on this PC. The kill sets the
-        /// game's player lock (nothing clears it but loading a save), freezes Teeth in its kill pose with its
-        /// hands effect over your screen, and moves your camera into its mouth.
+        /// After a revive: undo a Teeth (or Phage) kill on this PC: the player lock (normally only cleared by
+        /// loading a save), Teeth frozen in its kill pose with the hands effect, and the camera in its mouth.
         /// </summary>
         internal static void CleanUpAfterRevive(ENT_Player player)
         {
@@ -204,9 +199,8 @@ namespace Belay.World
     }
 
     /// <summary>
-    /// When Teeth on the host is next to a teammate's body it tries to shove it as if it were a creature
-    /// (GetComponent&lt;GameEntity&gt; on the body is null), which throws. That's only the host's copy: the
-    /// teammate's own PC does the real bite, so the error is dropped.
+    /// The host's Teeth tries to shove a teammate body like a creature (no GameEntity) and throws. The teammate's
+    /// PC does the real bite, so the error is dropped.
     /// </summary>
     [HarmonyPatch(typeof(AIC_Teeth_Chase), nameof(AIC_Teeth_Chase.Execute))]
     internal static class TeethChaseTeammatePatch

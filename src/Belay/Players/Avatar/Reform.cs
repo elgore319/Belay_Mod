@@ -3,14 +3,9 @@ using UnityEngine;
 namespace Belay.Players.Avatar
 {
     /// <summary>
-    /// The totem revive: the revived teammate is rebuilt from the inside out. A glowing skeleton grows
-    /// out of the chest (spine and ribs first, then out along the limbs to
-    /// the hands and feet), then the body grows back over the bones in the same order: strands of raw
-    /// muscle knit from joint to joint, skin buds and spreads over them in patches, then clothes and gear
-    /// spread over the skin the same way, and the glow cools off. About three and a half seconds.
-    ///
-    /// Timing and the bone shapes live here as plain math, so the avatar preview draws the same frames the
-    /// game does. <see cref="ClimberAvatar"/> plays it.
+    /// The totem revive (about 3.5 s): a glowing skeleton grows from the chest out to the limbs, then muscle, skin
+    /// and finally clothes spread over it in the same order as the glow cools. Plain math, so the preview tool
+    /// matches the game. Played by <see cref="ClimberAvatar"/>.
     /// </summary>
     public static class Reform
     {
@@ -37,8 +32,7 @@ namespace Belay.Players.Avatar
         private const float StageStep = 0.2f;
 
         /// <summary>
-        /// What grows over the bones, inside to outside: strands of raw muscle knitting along the bones,
-        /// then skin spreading over them in budding patches, then the climber's clothes and gear the same way.
+        /// Layers that grow over the bones, inside out: muscle strands, skin patches, then clothes and gear.
         /// </summary>
         public enum Layer { Muscle, Skin, Clothes }
 
@@ -70,8 +64,7 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// Skin made from the meat texture: the same grain, washed toward a pale, bloodless flesh tone
-        /// with the meat's red still showing through in its darker streaks.
+        /// Skin from the meat texture, washed to a pale flesh tone with red in the darker streaks.
         /// </summary>
         public static Color32[] SkinFrom(Color32[] meat)
         {
@@ -94,10 +87,7 @@ namespace Belay.Players.Avatar
             return skin;
         }
 
-        /// <summary>
-        /// Roach flesh, for the roach models: the meat's grain turned into the yellow-brown, waxy meat
-        /// of a bug, with greenish ichor in its darker streaks.
-        /// </summary>
+        /// <summary>Roach flesh: the meat grain as waxy yellow-brown bug meat with greenish streaks.</summary>
         public static Color32[] RoachMeatFrom(Color32[] meat)
         {
             var light = new Color(0.86f, 0.74f, 0.42f);
@@ -106,9 +96,7 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// A roach's shell, growing in place of skin: fresh from a molt, soft and almost white, with the
-        /// meat's grain as faint waxy banding. The roach's own colors then grow over it, the way a newly
-        /// molted roach darkens.
+        /// Roach shell grown in place of skin: freshly molted and pale, then darkened by the roach's own colors.
         /// </summary>
         public static Color32[] RoachShellFrom(Color32[] meat)
         {
@@ -166,8 +154,8 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// How far a layer has grown over a whole body that spreads as one surface (the game's own models):
-        /// from the first stage starting to the last one finishing.
+        /// Growth progress for a body that spreads as one surface (game models): first stage start to last stage
+        /// end.
         /// </summary>
         public static float WholeProgress(Layer layer, float t)
         {
@@ -203,9 +191,8 @@ namespace Belay.Players.Avatar
         private const float Front = 0.3f;
 
         /// <summary>
-        /// When each triangle of a part's mesh starts to grow (0..1): it spreads out from a few seed points
-        /// (the joint a limb grows out of, the chest and back of the torso), unevenly, like skin healing over.
-        /// One key per triangle, in the order of <paramref name="triangles"/> (three indices each).
+        /// Start time (0..1) per triangle of a part's mesh, spreading unevenly from a few seed points. One key per
+        /// triangle in <paramref name="triangles"/> order.
         /// </summary>
         public static float[] SpreadKeys(System.Collections.Generic.IList<Vector3> vertices, System.Collections.Generic.IList<int> triangles, Part part, int seed)
         {
@@ -281,10 +268,9 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// Grows a mesh over a part: each triangle buds from its own center out to full size once the
-        /// spreading edge reaches it, swelling a touch past its size as it does, so the surface grows
-        /// across the body cell by cell. Writes into <paramref name="output"/> (same length as
-        /// <paramref name="vertices"/>; MeshKit gives every triangle its own three vertices).
+        /// Grows a mesh over a part: each triangle buds from its center to full size (with a slight overshoot)
+        /// when the spread reaches it. Writes into <paramref name="output"/>, same length as <paramref
+        /// name="vertices"/>.
         /// </summary>
         public static void Spread(System.Collections.Generic.IList<Vector3> vertices, System.Collections.Generic.IList<int> triangles, float[] keys, float progress, Vector3[] output)
         {
@@ -311,8 +297,8 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// Strands of muscle knitting over a part's bones: each starts at its own moment, creeps from one
-        /// attachment to the other along a curve, and thickens into a belly as it goes.
+        /// Muscle strands over a part's bones: each starts at its own time, creeps along a curve and thickens as
+        /// it goes.
         /// </summary>
         public static void BuildMuscle(MeshKit k, Part part, float progress, int seed)
         {
@@ -433,8 +419,7 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// The game's own meat texture (on the meat you can eat) is used for the flesh: this part of it,
-        /// as fractions of the texture (x, y from the bottom, width, height), is all meat.
+        /// The meat area of the game's meat texture, as fractions (x, y from bottom, width, height).
         /// </summary>
         public static readonly Vector4 MeatRegion = new Vector4(6f / 64f, 27f / 64f, 0.5f, 0.5f);
 

@@ -7,9 +7,7 @@ using UnityEngine;
 namespace Belay.Dev
 {
     /// <summary>
-    /// The dev menu's Teleport page: teleporting around the map for testing, plus invincibility and
-    /// flying. It only moves your own player (teammates see you arrive through normal position sync).
-    /// The menu is a separate window that only opens with a hidden shortcut (see DevTools).
+    /// Dev menu Teleport page: teleport around the map, invincibility and flying. Only moves your own player.
     /// </summary>
     internal static class DevMenu
     {
@@ -22,8 +20,7 @@ namespace Belay.Dev
         private static string lastAction = "";
 
         /// <summary>
-        /// Keeps invincibility and flying on while their boxes are ticked. The game turns god mode and noclip off on a new
-        /// player object and in some scripted events, so it's re-applied every frame.
+        /// Re-applies god mode and noclip every frame while ticked, since the game turns them off in places.
         /// </summary>
         internal static void Tick()
         {
@@ -276,9 +273,8 @@ namespace Belay.Dev
         }
 
         /// <summary>
-        /// Whether the mass is in play where you are. Areas without one switch it off (UT_GooController
-        /// SetActive / SetGooObjectActive), and before the climb starts it hasn't begun rising yet; in
-        /// those cases the teleport leaves it alone instead of dragging it under you.
+        /// Whether the mass is active here. If not (area without one, or not rising yet), teleporting leaves it
+        /// alone.
         /// </summary>
         private static bool MassIsHere(DEN_DeathFloor goo)
         {
@@ -309,10 +305,7 @@ namespace Belay.Dev
         }
     }
 
-    /// <summary>
-    /// The dev menu window. It isn't in the F7 menu, so normal players won't find it: it only opens with
-    /// Ctrl + Shift + F9, which nobody hits by accident.
-    /// </summary>
+    /// <summary>The dev menu window. Only opens with Ctrl + Shift + F9.</summary>
     internal class DevTools : MonoBehaviour
     {
         /// <summary>True while the dev window is open (BelayMenu frees the cursor for it).</summary>

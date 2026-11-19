@@ -4,11 +4,9 @@ using UnityEngine;
 namespace Belay.Players.Avatar
 {
     /// <summary>
-    /// The totem revive (<see cref="Reform"/>) on one of the game's own models (zombies, the Soach, the giant
-    /// roach), worked out from the model's own rig instead of the climber's parts: a bone grows along every
-    /// bone of the rig (from the hips out to the fingers, toes, legs and antennae), muscle strands knit over
-    /// them, then skin (a shell, on the roaches) and finally the model itself spread over the body patch by
-    /// patch. Plain math on bind-pose positions, so the avatar preview draws the same thing the game does.
+    /// The totem revive (<see cref="Reform"/>) on a game model (zombies, the Soach, the roach), built from the
+    /// model's rig: bones along every rig bone, muscle, skin (shell on roaches), then the model itself. Plain math
+    /// on bind-pose positions, shared with the preview tool.
     /// </summary>
     public static class ReformModel
     {
@@ -22,9 +20,8 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// The stage each bone forms in (0..3), by how far down the rig it is from the root, so the middle
-        /// of the body forms first and the ends of the limbs last. <paramref name="parent"/> is each bone's
-        /// parent bone, or -1.
+        /// The stage (0..3) each bone forms in, by depth from the root, so the core forms first. <paramref
+        /// name="parent"/> is each bone's parent, or -1.
         /// </summary>
         public static int[] Stages(int[] parent)
         {
@@ -50,9 +47,7 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// The rig's bones as segments, with how thick the body is around each (from the vertices nearest
-        /// it). Positions are in one space (the mesh's bind pose); tiny bones (fingers of a mouth, tips)
-        /// are left out.
+        /// Rig bones as segments with the body thickness around each, in bind-pose space. Tiny bones are skipped.
         /// </summary>
         public static List<Segment> Segments(IList<Vector3> bones, int[] parent, IList<Vector3> vertices, IList<string> names = null)
         {
@@ -139,8 +134,7 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// Scale on a segment's axes for the climber's limb bone and muscle shapes (made one unit long, about
-        /// 7 cm thick with the muscle on): thick enough to fill out the body around it, one segment long.
+        /// Axis scale for the climber's unit-long limb bone and muscle shapes so they fill one segment.
         /// </summary>
         public static Vector3 SegmentScale(float radius, float length)
         {
@@ -200,11 +194,10 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// A model's surface cut into small, separate triangles, so it can grow patch by patch: every
-        /// triangle gets its own three vertices (the game's meshes share them between neighbours), and big
-        /// triangles are split in four until no edge is longer than <paramref name="maxEdge"/>. Each new
-        /// vertex is a blend of one original triangle's corners: <paramref name="corners"/> holds those three
-        /// vertex indices and <paramref name="weights"/> how much of each, so any vertex data can be carried over.
+        /// A model's surface cut into separate small triangles: each gets its own vertices and big ones split in
+        /// four until no edge exceeds <paramref name="maxEdge"/>. Each new vertex blends one original triangle's
+        /// corners (<paramref name="corners"/>, <paramref name="weights"/>) so any vertex data can be carried
+        /// over.
         /// </summary>
         public static void Split(IList<Vector3> vertices, IList<int> triangles, float maxEdge, out int[] corners, out Vector3[] weights, int maxDepth = 3)
         {

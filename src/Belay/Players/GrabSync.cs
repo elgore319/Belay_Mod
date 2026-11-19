@@ -9,14 +9,9 @@ using UnityEngine;
 namespace Belay.Players
 {
     /// <summary>
-    /// When something catches you (a barnacle's tongue, the vent hand, a bear trap), it happens on your
-    /// own PC, so teammates only saw you float up or stop dead with nothing holding you. Now the catch
-    /// shows on their screens too: a tongue-like line from whatever has you to your body, for as long as
-    /// it holds you. (A trap at your feet needs no line: your body just stays stuck in it, and the trap
-    /// snaps shut on everyone's screen.)
-    ///
-    /// Turret shots also show: when a turret fires at you on your PC, your teammates see the same turret
-    /// flash and its tracer fly at you.
+    /// Things that catch you (barnacle tongue, vent hand, bear trap) happen on your PC only, so teammates now see
+    /// a line from the catcher to you while it holds. Turret shots at you also show the flash and tracer on their
+    /// screens.
     /// </summary>
     public class GrabSync : MonoBehaviour
     {
@@ -37,7 +32,7 @@ namespace Belay.Players
             NetSession.Instance.On(PacketType.EnemyShot, HandleShot);
         }
 
-        internal static bool Live => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        internal static bool Live => NetSession.InLobbyRun;
 
         // ---------------------------------------------------------------- Grabs
 

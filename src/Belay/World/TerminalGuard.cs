@@ -4,9 +4,8 @@ using HarmonyLib;
 namespace Belay.World
 {
     /// <summary>
-    /// Only the player who walks up to a terminal sits at it. When a teammate's press, trigger or
-    /// room sequence is replayed here, anything it reaches that would sit our player down at a
-    /// terminal (and pull them to its screen) is skipped, however deep in the event chain it is.
+    /// Only the player who walks up to a terminal sits at it. Replayed presses, triggers or sequences skip
+    /// anything that would sit our player down, however deep in the event chain.
     /// </summary>
     internal static class TerminalGuard
     {

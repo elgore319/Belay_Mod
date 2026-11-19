@@ -3,9 +3,8 @@ using UnityEngine;
 namespace Belay.Players.Avatar
 {
     /// <summary>
-    /// Generates the small, point-filtered, grimy pixel textures that give the climber White Knuckle's
-    /// look: blocky value noise quantized into a few shades, dark blotches of grime and bright specks,
-    /// all tileable. Pure math (no Unity texture calls), so the preview tool can use it too.
+    /// Grimy, point-filtered, tileable pixel textures in the game's style: quantized value noise, grime blotches
+    /// and specks. Pure math, shared with the preview tool.
     /// </summary>
     public static class PixelTextures
     {

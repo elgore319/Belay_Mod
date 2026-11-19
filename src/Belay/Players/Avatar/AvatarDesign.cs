@@ -25,11 +25,9 @@ namespace Belay.Players.Avatar
     }
 
     /// <summary>
-    /// The look of a Belay climber: a hooded shell jacket in the player's color, a hard-shell helmet with
-    /// a headlamp and goggles, a sit harness with gear loops, a pack with a rope coil, gloves and boots.
-    /// All original geometry, built from code (no imported assets).
-    ///
-    /// Units are meters. Each Build* method fills one part in its own local space, described above it.
+    /// The climber's look: hooded jacket in the player's color, helmet with headlamp and goggles, harness, pack
+    /// with rope coil, gloves and boots. All built in code. Meters; each Build* method works in its own local
+    /// space.
     /// </summary>
     public static class AvatarDesign
     {
@@ -59,8 +57,8 @@ namespace Belay.Players.Avatar
         }
 
         /// <summary>
-        /// Texture recipes for every material slot. The optional colors are outfit choices; without
-        /// them the jacket and headgear take the player's lobby color and the rest is standard.
+        /// Texture recipes per material slot. Optional colors are outfit picks; otherwise jacket and headgear use
+        /// the lobby color.
         /// </summary>
         public static PixelTextures.Recipe[] Recipes(Color player, Color? jacket = null, Color? hat = null,
             Color? pants = null, Color? pack = null)
@@ -168,8 +166,8 @@ namespace Belay.Players.Avatar
         public static readonly Vector3 PackOnBack = new Vector3(0, 0.26f, -0.125f);
 
         /// <summary>
-        /// The backpack. Origin at the middle of its back panel, +z away from the wearer, +y up.
-        /// The lid is separate (see <see cref="BuildPackLid"/>) so it can flip open.
+        /// The backpack. Origin at the middle of its back panel, +z away from the wearer, +y up. The lid is
+        /// separate (<see cref="BuildPackLid"/>) so it can open.
         /// </summary>
         public static void BuildPack(MeshKit k)
         {
@@ -330,9 +328,8 @@ namespace Belay.Players.Avatar
             k.Use(Slot.Metal).Box(new Vector3(0, 0.02f, 0.07f), new Vector3(0.055f, 0.014f, 0.06f));
         }
 
-        // Hands. Origin at the wrist, +z toward the fingertips, +y the back of the hand. The whole hand,
-        // cuff to fingertips, is projected onto UVs from above and below, so the game's pictures of a
-        // glove skin (back of the hand and palm) wrap onto it the way the game draws them.
+        // Hands. Origin at the wrist, +z to the fingertips, +y the back of the hand. UVs are projected from above
+        // and below so the game's glove pictures wrap on.
         public const float HandUvMinZ = -0.05f;
         public const float HandUvLength = 0.22f;
         public const float HandUvMinX = -0.052f;
@@ -340,10 +337,8 @@ namespace Belay.Players.Avatar
 
         private static void HandSetup(MeshKit k, float thumbSide)
         {
-            // The skin texture is an atlas in thirds: the back of the hand, the palm (seen from the front,
-            // so the thumb is on the other side), and a swatch of the skin's finger colors. The game's
-            // pictures are drawn in perspective with the fingers spread, so they only line up with the
-            // flat parts of the 3D hand; fingers and thumb take the swatch instead of a slice of picture.
+            // Skin atlas in thirds: back of hand, palm (mirrored), and a finger-color swatch. The pictures only
+            // fit the flat parts, so fingers and thumb use the swatch.
             k.UvProjection = (p, n) =>
             {
                 float u = Mathf.Clamp01((p.x * thumbSide - HandUvMinX) / HandUvWidth);

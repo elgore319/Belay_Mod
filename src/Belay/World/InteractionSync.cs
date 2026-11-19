@@ -1,19 +1,14 @@
 using System.Collections.Generic;
 using Belay.Net;
-using Belay.Players;
 using HarmonyLib;
 using UnityEngine;
 
 namespace Belay.World
 {
     /// <summary>
-    /// The rest of the level's controls, shared like buttons (see ButtonSync):
-    ///  - Hold buttons and cranks: starting, letting go, failing and finishing a hold run their events
-    ///    on every PC, so a "hold to open" door or a winch finishes for everyone.
-    ///  - Levers: while you hold one, its angle streams to everyone, and their copy swings to match.
-    ///    Each PC then hits the same snap points itself, so whatever a snap drives fires everywhere.
-    ///  - One-shot hand triggers (touch this panel to start the lift): fire for everyone.
-    /// Controls that buy things or act on your own player stay local.
+    /// Other level controls, shared like buttons (see ButtonSync): hold buttons and cranks run their events on
+    /// every PC; lever angles stream and each PC hits the same snap points; one-shot hand triggers fire for
+    /// everyone. Controls that buy or act on your own player stay local.
     /// </summary>
     public class InteractionSync : MonoBehaviour
     {
@@ -40,7 +35,7 @@ namespace Belay.World
             NetSession.Instance.On(PacketType.HandTouch, (origin, r) => ApplyHandTouch(r.ReadString()));
         }
 
-        internal static bool Live => Instance != null && NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready && !ButtonSync.Applying;
+        internal static bool Live => Instance != null && NetSession.InLobbyRun && !ButtonSync.Applying;
 
         // ---------------------------------------------------------------- Sending
 

@@ -10,8 +10,7 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Control seats (the crane cab and anything else you sit in to drive) take one driver. While a
-    /// teammate is in a seat, the seat doesn't take you, the same as a real cab with someone in it.
+    /// Control seats (crane cab etc.) take one driver; while a teammate sits in one, it won't take you.
     /// </summary>
     public class SeatLock : MonoBehaviour
     {
@@ -23,7 +22,7 @@ namespace Belay.World
             NetSession.Instance.OnLobbyChanged += () => taken.Clear();
         }
 
-        internal static bool Live => NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready;
+        internal static bool Live => NetSession.InLobbyRun;
 
         internal static void Share(VEH_ControlSeat seat, bool sitting)
         {

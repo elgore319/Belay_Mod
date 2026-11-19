@@ -3,9 +3,8 @@ using UnityEngine;
 namespace Belay.Players
 {
     /// <summary>
-    /// White Knuckle periodically shifts the whole world down (CL_GameManager.SetWorldOffset) once the
-    /// player climbs past y=10000, and each client does this on its own schedule. Everything we send is
-    /// converted to "corrected" space (offset removed) and back on arrival.
+    /// The game shifts the world down (CL_GameManager.SetWorldOffset) past y=10000, on each client's own schedule.
+    /// Everything sent is converted to offset-free space and back.
     /// </summary>
     public static class WorldSpace
     {

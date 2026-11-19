@@ -8,11 +8,8 @@ using UnityEngine;
 namespace Belay.Items
 {
     /// <summary>
-    /// Belay's own co-op items. Each one is a copy of one of the game's item prefabs (its model, sounds and
-    /// hand animations) with a new name and id, registered as an extra asset database the way the game's
-    /// own add-on databases are. Because they're normal items, they save, drop, show in teammates' hands
-    /// and sync like any other. In a co-op run they're sold in the game's vending machines, paid from your
-    /// own wallet.
+    /// The mod's own co-op items: copies of game item prefabs with new names and ids, registered as an extra asset
+    /// database, so they save, drop and sync like any item. Sold in vending machines in co-op.
     /// </summary>
     public class CoopItems : MonoBehaviour
     {
@@ -62,11 +59,6 @@ namespace Belay.Items
                 }
             }
             return null;
-        }
-
-        public static bool IsCoopItem(Item item, string id)
-        {
-            return item != null && string.Equals(item.prefabName, id, StringComparison.OrdinalIgnoreCase);
         }
 
         private void Awake()

@@ -6,9 +6,8 @@ using UnityEngine;
 namespace Belay.Bot
 {
     /// <summary>
-    /// What a climbing bot carries. It picks up loose items it passes (a bag of MaxItems), eats food when it's
-    /// hurt or its grip is running out mid-climb, hands items to you from the Bot tab (a pack mule), and drops
-    /// everything where it dies. Pickups and drops go through ItemSync, so they're the same for everyone.
+    /// What a climbing bot carries: picks up items it passes, eats when hurt or low on grip, hands items over from
+    /// the Bot tab, and drops everything on death. All via ItemSync.
     /// </summary>
     internal static class BotItems
     {

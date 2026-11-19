@@ -8,11 +8,8 @@ using UnityEngine;
 namespace Belay.Items
 {
     /// <summary>
-    /// The harpoon: a copy of the game's grapple gun whose head sticks in the wall you aim at instead of
-    /// reeling you in. The line runs back past you and is pinned to the surface behind you, so a rope is
-    /// strung between the two points, on everyone's screen, for the whole team to climb or swing along.
-    /// With nothing behind you within reach, the rope just hangs down from the head. One use: the harpoon
-    /// is gone after the shot, hit or miss.
+    /// The harpoon: a grapple gun copy whose head sticks in the aimed wall. A rope is strung from there to the
+    /// surface behind you (or hangs down if there's none) for the team to climb. One use.
     /// </summary>
     public class Harpoon : MonoBehaviour
     {

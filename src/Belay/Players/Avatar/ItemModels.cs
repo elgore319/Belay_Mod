@@ -1,16 +1,11 @@
-using System.Collections.Generic;
 using UnityEngine;
 
 namespace Belay.Players.Avatar
 {
     /// <summary>
-    /// Our own 3D models for items whose world model isn't what the player holds. The rapier lies on the
-    /// ground as a folded artifact and only becomes a sword in the hand (a 2D sprite in first person), so
-    /// teammates get a 3D sword drawn after that sprite: a long needle blade, a dark molten cup guard
-    /// with drips running back over the hand, and a wrapped oxblood grip.
-    ///
-    /// Models are built in <see cref="HeldGrip"/> template space, in meters: the fist closes at the
-    /// origin, +X runs toward the business end and +Z is the way the guard's cup faces out.
+    /// Our own 3D models for items whose world model isn't what's held. The rapier lies folded and is only a sword
+    /// in hand (a 2D sprite), so teammates get a 3D sword drawn after it. Built in <see cref="HeldGrip"/> template
+    /// space, meters.
     /// </summary>
     public static class ItemModels
     {
@@ -66,8 +61,7 @@ namespace Belay.Players.Avatar
         public static float HeldTotemLength => Belay.Items.TotemLook.Height * HeldTotemScale;
 
         /// <summary>
-        /// The totem in template space: standing up out of the thumb side of the fist (+X), faces toward
-        /// the knuckles (+Z), gripped round the lower faces.
+        /// The totem in template space: standing out of the thumb side (+X), faces toward the knuckles (+Z).
         /// </summary>
         public static void BuildTotem(MeshKit k)
         {
@@ -117,10 +111,7 @@ namespace Belay.Players.Avatar
             k.Tube(new Vector3(0.62f, 0, 0), new Vector3(0.96f, 0, 0), 0.0045f, 0.0006f, 4);
         }
 
-        /// <summary>
-        /// A bell along +X: closed at the front (<paramref name="front"/>), open toward -X, made double
-        /// sided so its inside shows from behind.
-        /// </summary>
+        /// <summary>A double-sided bell along +X, closed at <paramref name="front"/>, open toward -X.</summary>
         private static void Cup(MeshKit k, Vector3 front, float radius, float depth, int rings, int segments)
         {
             var points = new Vector3[rings + 1, segments];

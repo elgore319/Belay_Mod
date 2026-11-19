@@ -10,21 +10,11 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Things in a level that spawn when the player comes close used to go off on each PC separately,
-    /// when that PC's own player got near, with each PC's own dice: different numbers of enemies, in
-    /// different spots, or none at all for a teammate standing right next to the host's swarm.
-    ///
-    /// In a lobby the host decides and the others copy it:
-    ///  - Trigger spawners (UT_TriggerSpawner): go off on the host when any living player is close. The
-    ///    others run the same spawn with the same seed and the same pass/fail, so the same things appear
-    ///    in the same places (enemies are then moved by the host as usual).
-    ///  - Wave zones (ENV_DenizenWaveZone): only the host's copy runs, counting any player inside the zone.
-    ///    Each enemy it spawns is sent (kind and spot) and spawned the same on the other PCs.
-    ///  - Tick egg sacs (ENV_TickEggSack): burst on the host when any player comes close, and on every PC
-    ///    at the same moment.
-    /// A PC that hasn't built that part of the map yet applies it once the level loads. If a teammate
-    /// reaches a trigger spawner the host hasn't built yet, the host hands that one spawn to the teammate,
-    /// who runs it (with the same seed) and tells everyone, the host included.
+    /// Proximity spawns used to roll separately on each PC. In a lobby the host decides and others copy: trigger
+    /// spawners (UT_TriggerSpawner) fire on the host when any living player is close and run with the same seed
+    /// everywhere; wave zones (ENV_DenizenWaveZone) run only on the host and send each spawn; tick egg sacs
+    /// (ENV_TickEggSack) burst everywhere at once. PCs without that map part yet apply it when it loads. If a
+    /// teammate reaches one the host hasn't built, the host hands it to them.
     /// </summary>
     public class HostSpawns : MonoBehaviour
     {
@@ -42,8 +32,8 @@ namespace Belay.World
         /// <summary>Client: spawners we asked the host about.</summary>
         private readonly HashSet<string> requested = new HashSet<string>();
         /// <summary>
-        /// Host: wave zones and egg sacs handed to a teammate because the host hasn't got that part of the
-        /// map (or has it switched off). Client: the ones handed to us, which we run for everyone.
+        /// Host: wave zones and egg sacs handed to a teammate. Client: the ones handed to us, which we run for
+        /// everyone.
         /// </summary>
         private readonly HashSet<string> delegatedAreas = new HashSet<string>();
         private readonly HashSet<string> areaRequested = new HashSet<string>();
@@ -75,7 +65,7 @@ namespace Belay.World
             NetSession.Instance.On(PacketType.AreaDelegate, HandleAreaDelegate);
         }
 
-        internal static bool Live => Instance != null && NetSession.Instance != null && NetSession.Instance.InLobby && WorldSpace.Ready && !Applying;
+        internal static bool Live => Instance != null && NetSession.InLobbyRun && !Applying;
         internal static bool IsHost => NetSession.Instance.IsHost;
 
         private void Update()
@@ -486,8 +476,8 @@ namespace Belay.World
         internal static bool RunsHere(Component c) => Instance != null && Instance.RunsArea(IdOf(c));
 
         /// <summary>
-        /// Client: our player reached a wave zone or egg sac. The host may not have that part of the map,
-        /// in which case nothing would ever spawn there; ask once, and the host hands it to us if so.
+        /// Client: our player reached a wave zone or egg sac the host may not have built; ask once to be handed
+        /// it.
         /// </summary>
         internal void NoteNear(Component c, byte kind)
         {

@@ -90,10 +90,8 @@ namespace Belay.Bot
     }
 
     /// <summary>
-    /// Bots: AI teammates that run inside your own game. A bot is a lobby member that only exists on this PC:
-    /// it shows up as a teammate (body, rope, goo, revive, interlude gate). In Climb mode it has its own body
-    /// (BotClimber) and makes its own way up behind you; when you're down it climbs to a terminal and revives
-    /// you. Retrace mode replays your exact path instead. Its camera can be watched in a window (BotPov).
+    /// Bots: AI teammates that exist only on this PC but count as full teammates. Climb mode moves its own body
+    /// (BotClimber) and revives you at terminals; Retrace mode replays your path. Watch it with BotPov.
     /// </summary>
     public class TestBot : MonoBehaviour
     {
@@ -287,8 +285,7 @@ namespace Belay.Bot
         }
 
         /// <summary>
-        /// Teammates are solid, so a bot must never appear inside you or a wall. Try behind, beside and in
-        /// front of you, then above.
+        /// Teammates are solid, so try spots behind, beside, in front of and above you until one is clear.
         /// </summary>
         private Vector3 ClearSpotNear(Vector3 you, float yaw)
         {
@@ -363,8 +360,7 @@ namespace Belay.Bot
         }
 
         /// <summary>
-        /// Something other than a teammate hurt this bot (an enemy, a trap, a projectile). Bots have their
-        /// own health and die like a player, then wait for a revive.
+        /// Non-teammate damage (enemy, trap, projectile). Bots die like players and wait for a revive.
         /// </summary>
         public bool Hurt(SteamId id, float amount, string what, string deathType = null)
         {
@@ -660,9 +656,8 @@ namespace Belay.Bot
         private static int GapCrumbs(BotStyle style) => style == BotStyle.Careful ? 5 : style == BotStyle.Bold ? 2 : 3;
 
         /// <summary>
-        /// One frame of a climbing bot. While you're up, it makes its own way along where you went, a few
-        /// meters behind; while you're down, it heads for the nearest terminal (or the room ahead) to bring
-        /// you back. How it gets there (walking, jumping, which holds, when to rest) is up to its body.
+        /// One frame of a climbing bot: follows your route a few meters behind, or heads for a terminal to revive
+        /// you when you're down.
         /// </summary>
         private void StepClimb(BotPlayer bot, Vector3 yourShared, bool youAreAlive)
         {
@@ -821,9 +816,7 @@ namespace Belay.Bot
         private const int ShortcutLookahead = 30;
 
         /// <summary>
-        /// The furthest point along your way it can walk straight to from where it stands, so it doesn't
-        /// copy every turn, loop and step back you made (picking things up, looking around). Checked a few
-        /// times a second; -1 when there's none.
+        /// Furthest point on your path it can walk straight to, so it skips your detours. -1 when none.
         /// </summary>
         private int FindShortcut(BotPlayer bot, Vector3 me, int best, int stopAt)
         {
@@ -860,10 +853,7 @@ namespace Belay.Bot
             return bot.Shortcut;
         }
 
-        /// <summary>
-        /// While you're down: the nearest terminal that isn't behind it, or else the exit of the level it's in,
-        /// or else just up.
-        /// </summary>
+        /// <summary>While you're down: nearest terminal ahead, else the level exit, else straight up.</summary>
         private bool ReviveGoalFor(BotPlayer bot, Vector3 me, out Vector3 goal)
         {
             bot.ReviveSearch -= Time.deltaTime;
@@ -929,8 +919,8 @@ namespace Belay.Bot
         }
 
         /// <summary>
-        /// Getting nowhere for a while: try a short hop along the way you went (only if nothing solid, like a
-        /// shut door, is in the way); after a few failed tries, come to you.
+        /// Stuck for a while: try a short hop along your path (if nothing solid is in the way); after a few fails,
+        /// come to you.
         /// </summary>
         private void TrackProgress(BotPlayer bot, Vector3 me, Vector3 goal, bool idle, bool youAlive, SteamId leader, Vector3 leaderShared)
         {
@@ -1150,8 +1140,8 @@ namespace Belay.Bot
         }
 
         /// <summary>
-        /// How far the bot's body can really move along this shove before it touches the level. Whatever
-        /// pushed into the surface is taken off the velocity, so the bot slides along it.
+        /// How far the body can move before touching the level; the blocked part of the velocity is removed so it
+        /// slides.
         /// </summary>
         private static Vector3 SweepKnock(Vector3 fromShared, Vector3 move, ref Vector3 velocity)
         {
@@ -1267,8 +1257,7 @@ namespace Belay.Bot
         private static readonly HashSet<UT_DamageTrigger> touching = new HashSet<UT_DamageTrigger>();
 
         /// <summary>
-        /// The game's hazard volumes (damage triggers, instant-death zones) only react to the real player, so
-        /// check the bot's body against them here and hurt it the same way they'd hurt you.
+        /// Hazard volumes only react to the real player, so check the bot against them and apply the same damage.
         /// </summary>
         private void CheckHazards(BotPlayer bot)
         {
@@ -1349,9 +1338,8 @@ namespace Belay.Bot
         }
 
         /// <summary>
-        /// A room that waits for the whole team (interludes, the ascent) counts a bot as there once you're
-        /// inside: a bot can't ride an elevator or get past a door that shut behind you on its own, so if it's
-        /// still outside a few seconds after you, it's brought in next to you.
+        /// Rooms that wait for the team count a bot as there once you are: if it's still outside a few seconds
+        /// later, it's brought to you.
         /// </summary>
         public void BringAlong(SteamId id, Func<Vector3, bool> insideLocal)
         {

@@ -5,10 +5,8 @@ using HarmonyLib;
 namespace Belay.Run
 {
     /// <summary>
-    /// The game saves your trinket picks even when they're over budget and only stops you by greying out
-    /// Play. In a lobby nobody but the host presses Play (clients follow the host in, and "Continue"
-    /// starts a run directly), so an over-budget pick used to come along for free. Before a run's
-    /// trinkets activate, the pick is cut back to what the budget allows.
+    /// The game only stops over-budget trinket picks by greying out Play, which clients never press. So before
+    /// trinkets activate, the pick is cut back to the budget.
     /// </summary>
     [HarmonyPatch(typeof(M_Gamemode), nameof(M_Gamemode.StartFreshGamemode))]
     internal static class TrinketBudget

@@ -17,14 +17,12 @@ namespace Belay.Net
     }
 
     /// <summary>
-    /// Owns the Steam lobby and the P2P transport. The lobby owner is the host; every packet goes
-    /// client -> host -> other clients (star topology), so the host can validate and later own
-    /// authoritative state such as enemies.
+    /// Owns the Steam lobby and P2P transport. The lobby owner is host; packets go client -> host -> clients.
     /// </summary>
     public class NetSession : MonoBehaviour
     {
         public const int MaxPlayers = 8;
-        public const string ProtocolVersion = "belay-28";
+        public const string ProtocolVersion = "belay-29";
 
         // Lobby data keys
         public const string KeyTag = "belay";
@@ -49,12 +47,14 @@ namespace Belay.Net
 
         public Lobby? CurrentLobby { get; private set; }
         public bool InLobby => CurrentLobby.HasValue || Loopback.ClientConnected;
+        /// <summary>In a lobby with the world ready: the usual guard for co-op sync code.</summary>
+        public static bool InLobbyRun => Instance != null && Instance.InLobby && Players.WorldSpace.Ready;
         public bool IsHost => CurrentLobby.HasValue && CurrentLobby.Value.Owner.Id == SteamClient.SteamId;
         public SteamId HostId => Loopback.IsClient ? Loopback.HostId : CurrentLobby.HasValue ? CurrentLobby.Value.Owner.Id : default;
 
         /// <summary>
-        /// Who this game is in the session. Use this instead of SteamClient.SteamId: a local test client runs
-        /// on the same Steam account as the host, so it has its own id (LoopbackLink.ClientId).
+        /// This game's id in the session. Use instead of SteamClient.SteamId, since a local test client has its
+        /// own id.
         /// </summary>
         public static SteamId LocalId => Instance != null && Instance.Loopback.IsClient ? LoopbackLink.ClientId : SteamClient.SteamId;
 
@@ -307,8 +307,7 @@ namespace Belay.Net
         }
 
         // ---------------------------------------------------------------- Local test bots
-        // Bot/TestBot.cs adds fake teammates that live only on this machine. They count as members for
-        // gameplay (rope, goo, revive, interlude gate) but have no Steam connection, so nothing is sent to them.
+        // Fake teammates that live only on this machine: members for gameplay, but nothing is sent to them.
 
         public readonly List<SteamId> LocalBots = new List<SteamId>();
         public readonly Dictionary<SteamId, string> LocalBotNames = new Dictionary<SteamId, string>();
@@ -454,8 +453,7 @@ namespace Belay.Net
         }
 
         /// <summary>
-        /// Error notice for a Belay version mismatch. A missing version means a Belay from before
-        /// versions were shared, so older. When the other side is newer, this game updates right away.
+        /// Version mismatch notice. A missing version means an older mod; if the other side is newer, update now.
         /// </summary>
         private void WarnVersion(string theirs, string who, bool joined)
         {
@@ -538,7 +536,7 @@ namespace Belay.Net
         /// <summary>Packets a client sends that the host passes on to every other client.</summary>
         private static readonly HashSet<PacketType> RelayedByHost = new HashSet<PacketType> { PacketType.DoorOpen, PacketType.ButtonPress, PacketType.HoldInteract, PacketType.LeverAngle, PacketType.HandTouch, PacketType.ItemDrop, PacketType.DoorRequestClose, PacketType.RopePull, PacketType.ZoneEntered, PacketType.Knockback, PacketType.PropKill, PacketType.EnemyHurt, PacketType.EnemyKilled, PacketType.EnemyHit, PacketType.HandholdBroke, PacketType.PropShattered, PacketType.ItemInserted, PacketType.ProjectileFired, PacketType.PlayerGrabbed, PacketType.SpawnerFired, PacketType.PlayerAction, PacketType.PlayerDied, PacketType.RunWon, PacketType.ObjectPlaced, PacketType.ObjectHammered, PacketType.ObjectBroken, PacketType.ItemSettled, PacketType.HarpoonRope, PacketType.WaveSpawned, PacketType.TickSackBurst, PacketType.Blast, PacketType.LevelPulse, PacketType.GantryDrones, PacketType.SeatTaken, PacketType.TeamDiskSave };
         /// <summary>Frequent state the host passes on without delivery guarantees (a newer copy follows soon).</summary>
-        private static readonly HashSet<PacketType> RelayedUnreliable = new HashSet<PacketType> { PacketType.PropState, PacketType.EnemyStates, PacketType.EnemyShot, PacketType.ItemSound, PacketType.HeldLight };
+        private static readonly HashSet<PacketType> RelayedUnreliable = new HashSet<PacketType> { PacketType.PropState, PacketType.EnemyStates, PacketType.EnemyShot, PacketType.ItemSound, PacketType.HeldLight, PacketType.LadderNightmare };
 
         private readonly Dictionary<PacketType, Action<SteamId, BinaryReader>> handlers =
             new Dictionary<PacketType, Action<SteamId, BinaryReader>>();
@@ -549,10 +547,7 @@ namespace Belay.Net
             handlers[type] = handler;
         }
 
-        /// <summary>
-        /// Send a gameplay packet. From a client it goes to the host (which may relay it); from the host it
-        /// goes to every client.
-        /// </summary>
+        /// <summary>Sends a gameplay packet: client to host (which may relay), or host to every client.</summary>
         public void Send(PacketType type, Action<BinaryWriter> payload, bool reliable = true)
         {
             if (!InLobby)

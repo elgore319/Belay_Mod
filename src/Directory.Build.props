@@ -1,0 +1,25 @@
+<Project>
+  <!--
+    Finds the White Knuckle install so the projects build on any PC. First match wins:
+      1. -p:GameDir=... on the command line, or a GameDir / WHITE_KNUCKLE_DIR environment variable
+      2. src/GameDir.props.user (git-ignored), e.g. <Project><PropertyGroup><GameDir>E:\Games\White Knuckle</GameDir></PropertyGroup></Project>
+      3. Common Steam library folders on drives C to F
+      4. lib/ at the repo root, holding copied game DLLs (White Knuckle_Data\Managed\*.dll and BepInEx\core\*.dll)
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)GameDir.props.user" Condition="'$(GameDir)' == '' And Exists('$(MSBuildThisFileDirectory)GameDir.props.user')" />
+
+  <PropertyGroup>
+    <GameDir Condition="'$(GameDir)' == '' And '$(WHITE_KNUCKLE_DIR)' != ''">$(WHITE_KNUCKLE_DIR)</GameDir>
+    <_WkSub>steamapps\common\White Knuckle</_WkSub>
+    <_WkProbe>White Knuckle_Data\Managed\Assembly-CSharp.dll</_WkProbe>
+    <GameDir Condition="'$(GameDir)' == '' And Exists('C:\Program Files (x86)\Steam\$(_WkSub)\$(_WkProbe)')">C:\Program Files (x86)\Steam\$(_WkSub)</GameDir>
+    <GameDir Condition="'$(GameDir)' == '' And Exists('C:\Program Files\Steam\$(_WkSub)\$(_WkProbe)')">C:\Program Files\Steam\$(_WkSub)</GameDir>
+    <GameDir Condition="'$(GameDir)' == '' And Exists('C:\SteamLibrary\$(_WkSub)\$(_WkProbe)')">C:\SteamLibrary\$(_WkSub)</GameDir>
+    <GameDir Condition="'$(GameDir)' == '' And Exists('D:\SteamLibrary\$(_WkSub)\$(_WkProbe)')">D:\SteamLibrary\$(_WkSub)</GameDir>
+    <GameDir Condition="'$(GameDir)' == '' And Exists('D:\Steam\$(_WkSub)\$(_WkProbe)')">D:\Steam\$(_WkSub)</GameDir>
+    <GameDir Condition="'$(GameDir)' == '' And Exists('E:\SteamLibrary\$(_WkSub)\$(_WkProbe)')">E:\SteamLibrary\$(_WkSub)</GameDir>
+    <GameDir Condition="'$(GameDir)' == '' And Exists('E:\Steam\$(_WkSub)\$(_WkProbe)')">E:\Steam\$(_WkSub)</GameDir>
+    <GameDir Condition="'$(GameDir)' == '' And Exists('F:\SteamLibrary\$(_WkSub)\$(_WkProbe)')">F:\SteamLibrary\$(_WkSub)</GameDir>
+    <GameDir Condition="'$(GameDir)' == ''">$(MSBuildThisFileDirectory)..\lib</GameDir>
+  </PropertyGroup>
+</Project>

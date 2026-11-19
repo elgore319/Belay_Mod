@@ -7,10 +7,9 @@ using UnityEngine;
 namespace Belay.UI
 {
     /// <summary>
-    /// The game's menu font ("Ticketing") for the Belay menu. The game only ships it as a bitmap baked at one size, which
-    /// IMGUI can't scale, so the first time it's seen its pixels are traced into a small TrueType file in BepInEx/cache
-    /// and loaded from there as a normal scalable font. Nothing of the game's is changed. If anything goes wrong the menu
-    /// keeps Unity's default font.
+    /// The game's menu font ("Ticketing") for the mod menu. It only ships as a fixed-size bitmap, so its pixels
+    /// are traced once into a TrueType file in BepInEx/cache and loaded as a scalable font. Falls back to Unity's
+    /// default.
     /// </summary>
     internal static class GameFont
     {

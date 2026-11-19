@@ -13,7 +13,6 @@
     <Nullable>disable</Nullable>
     <Version>1.0.0</Version>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <GameDir Condition="'$(GameDir)' == ''">D:\SteamLibrary\steamapps\common\White Knuckle</GameDir>
     <BepInExDir>$(GameDir)\BepInEx</BepInExDir>
   </PropertyGroup>
 
