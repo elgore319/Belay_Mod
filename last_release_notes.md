@@ -1,6 +1,7 @@
-## Not Alone 0.8.11
+## Not Alone 0.8.15
 
-- **Outfits moved to the game's Cosmetics screen.** Your climber's look, colors and live 3D model now open from a CLIMBER OUTFIT button on the game's own Cosmetics screen, next to the gloves. BACK returns you to the Cosmetics screen. The Outfit tab is gone from the multiplayer page.
-- **No changing your character mid-run.** The Not Alone page in the pause menu has no outfit options.
+- **Revive biochambers in terminal rooms.** Every room with a terminal now has a revive biochamber: a tall glass pod on a steel plinth, fed by hoses from the ceiling. Paying to revive a teammate at that terminal brings them back inside the pod. The lamp ring flares while they're regrown, then the front glass swings open and they step out.
+- **Terminals on shortcut routes revive too.** Terminals in shortcut areas offer revives and get their own biochamber, just like the main route.
+- If a room has no clear floor for a pod, the revive brings your teammate back right behind you, as before.
 
 No network change.

@@ -62,6 +62,26 @@ namespace Belay.World
             return null;
         }
 
+        /// <summary>Places this level's vote terminal copy now if it should have one (so later props avoid it).</summary>
+        internal static void EnsureFor(M_Level level)
+        {
+            if (Instance == null || level == null || HasFor(level) || !ShortcutSync.Live || !level.gameObject.activeInHierarchy)
+            {
+                return;
+            }
+            OS_Computer_Interface anchor = GameTerminalIn(level);
+            if (anchor == null || !Wants(level))
+            {
+                return;
+            }
+            Instance.Place(level, anchor);
+        }
+
+        private static bool Wants(M_Level level)
+        {
+            return ShortcutSync.ShortcutsAfter(level, true).Count > 0 || (InterludeGate.IsGatedRoom(level) && InterludeGate.HasWayOn(level));
+        }
+
         // ---------------------------------------------------------------- Placing
 
         private void Update()
@@ -106,7 +126,7 @@ namespace Belay.World
                     continue; // placing needs the level's colliders, so only levels that are loaded
                 }
                 OS_Computer_Interface anchor = GameTerminalIn(level);
-                if (anchor == null || (ShortcutSync.ShortcutsAfter(level, true).Count == 0 && !(InterludeGate.IsGatedRoom(level) && InterludeGate.HasWayOn(level))))
+                if (anchor == null || !Wants(level))
                 {
                     continue;
                 }

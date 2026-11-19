@@ -659,7 +659,7 @@ namespace Belay.Revive
         /// Revive the first dead teammate next to the local player (who is standing at the terminal),
         /// paid from the local player's own wallet. Returns the message to show on the terminal.
         /// </summary>
-        internal static string TerminalRevive()
+        internal static string TerminalRevive(OS_Manager os = null)
         {
             ENT_Player player = ENT_Player.playerObject;
             if (player == null || player.dead)
@@ -676,8 +676,8 @@ namespace Belay.Revive
             {
                 return $"Reviving {NetSession.NameOf(target)} costs {cost} roaches. You have {wallet}.";
             }
-            // Bring them back just behind the player at the terminal, out of the way of the screen.
-            RequestRevive(target, SpotBehindLocalPlayer(), false);
+            // Bring them back in the room's biochamber, or else just behind the player at the terminal.
+            RequestRevive(target, BioChambers.SpotFor(os, out Vector3 chamber) ? chamber : SpotBehindLocalPlayer(), false);
             Plugin.Log.LogInfo("Terminal revive requested for " + NetSession.NameOf(target));
             return $"Reviving {NetSession.NameOf(target)} for {cost} roaches.";
         }
@@ -736,9 +736,15 @@ namespace Belay.Revive
             Revived?.Invoke(target, reviver, sharedSpawn);
             // Free revives come from a held totem, or from a climbing bot.
             bool totem = free && !NetSession.Instance.IsLocalBot(reviver);
-            if (totem)
+            // A paid revive at a terminal with a biochamber: the teammate is regrown in the chamber.
+            BioChamberMarker chamber = !free && WorldSpace.Ready ? BioChambers.At(WorldSpace.ToLocal(sharedSpawn)) : null;
+            if (totem || chamber != null)
             {
                 TotemRevive.Mark(target);
+            }
+            if (chamber != null && target != NetSession.LocalId)
+            {
+                BioChambers.Play(chamber);
             }
             if (reviver == NetSession.LocalId)
             {
@@ -759,7 +765,7 @@ namespace Belay.Revive
             pendingRevive = true;
             pendingSpawn = sharedSpawn;
             pendingReviver = reviver;
-            pendingTotem = totem;
+            pendingTotem = totem || chamber != null;
             pendingSince = Time.unscaledTime;
             TryFinishRevive();
         }
@@ -814,6 +820,7 @@ namespace Belay.Revive
             {
                 TotemRevive.PlayFirstPerson();
             }
+            BioChambers.Play(BioChambers.At(spot));
             RunFlowNotice(NetSession.NameOf(pendingReviver) + " revived you");
         }
 
