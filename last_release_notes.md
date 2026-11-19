@@ -1,6 +1,5 @@
-## Not Alone 0.8.11
+## Not Alone 0.8.13
 
-- **Outfits moved to the game's Cosmetics screen.** Your climber's look, colors and live 3D model now open from a CLIMBER OUTFIT button on the game's own Cosmetics screen, next to the gloves. BACK returns you to the Cosmetics screen. The Outfit tab is gone from the multiplayer page.
-- **No changing your character mid-run.** The Not Alone page in the pause menu has no outfit options.
+- **The nuclear failsafe in the Abyss now happens for the whole team.** When anyone walks into it, every player hears the announcement and, 15 seconds later, sees the blast, the shockwave, the lights switching to emergency, the sky changing and the music, all at the same time. A teammate whose game hasn't loaded that part of the Abyss yet gets it as soon as it loads.
 
 No network change.

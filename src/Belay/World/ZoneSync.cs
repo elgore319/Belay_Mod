@@ -14,6 +14,10 @@ namespace Belay.World
     ///    so nobody is left behind when an elevator leaves, and
     ///  - when it fires, it fires on every PC.
     /// Listeners that act on the presser (camera, teleport, terminal) are left out on other PCs.
+    ///
+    /// A few one-shot zones out in the levels start a sequence the whole team lives through, like the
+    /// nuclear failsafe in the Abyss (announcement, 15 s later the blast, lights, sky and music). Those
+    /// fire on every PC the moment anyone walks in, without waiting for the team.
     /// </summary>
     public class ZoneSync : MonoBehaviour
     {
@@ -39,12 +43,42 @@ namespace Belay.World
         internal static bool Shared(UT_TriggerZone zone, out M_Level level)
         {
             level = zone != null ? zone.GetComponentInParent<M_Level>() : null;
-            return zone != null && zone.runOnce && InterludeGate.IsGatedRoom(level);
+            return zone != null && zone.runOnce && (InterludeGate.IsGatedRoom(level) || TeamSequence(zone));
+        }
+
+        /// <summary>Level zones whose sequence everyone sees: (zone name, level name prefix).</summary>
+        private static readonly (string zone, string level)[] TeamSequences =
+        {
+            ("Nuke Trigger", "M4_Abyss"), // the Abyss nuclear failsafe
+        };
+
+        /// <summary>A one-shot level zone that starts a sequence for the whole team, right away.</summary>
+        internal static bool TeamSequence(UT_TriggerZone zone)
+        {
+            if (zone == null || !zone.runOnce)
+            {
+                return false;
+            }
+            M_Level level = zone.GetComponentInParent<M_Level>();
+            string levelName = level != null ? level.name : "";
+            foreach (var (zoneName, levelPrefix) in TeamSequences)
+            {
+                if (zone.name == zoneName && levelName.StartsWith(levelPrefix))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>The local player walked in. Returns false to hold the zone until the team is here.</summary>
         internal bool LocalEnter(UT_TriggerZone zone, Transform who, M_Level level)
         {
+            if (TeamSequence(zone) && !InterludeGate.IsGatedRoom(level))
+            {
+                Broadcast(zone); // no waiting: it starts for everyone now
+                return true;
+            }
             List<string> missing = MissingFor(zone, level, out string where);
             if (missing.Count > 0)
             {
