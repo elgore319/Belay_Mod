@@ -89,7 +89,7 @@ namespace Belay.UI
             }
             nextMainTry = Time.unscaledTime + 0.5f;
             Transform root = menuManager.menu != null ? menuManager.menu.transform : menuManager.transform;
-            mainEntry = TryAdd(root, "main menu");
+            mainEntry = TryAdd(root, "main menu", "NOT ALONE");
             if (mainEntry == null && ++mainFails >= 6)
             {
                 GaveUp = true;
@@ -123,7 +123,7 @@ namespace Belay.UI
                 return;
             }
             nextPauseTry = Time.unscaledTime + 0.25f;
-            pauseEntry = TryAdd(pause.transform, "pause menu");
+            pauseEntry = TryAdd(pause.transform, "pause menu", "GAME LOBBY");
             if (pauseEntry == null && ++pauseFails >= 6)
             {
                 GaveUp = true;
@@ -140,7 +140,7 @@ namespace Belay.UI
         }
 
         /// <summary>Finds the menu's column of buttons and adds a copy of one of them as the Belay entry.</summary>
-        private static GameObject TryAdd(Transform root, string where)
+        private static GameObject TryAdd(Transform root, string where, string name)
         {
             try
             {
@@ -194,7 +194,7 @@ namespace Belay.UI
                 StripGameBehaviour(entry);
                 entry.transform.SetParent(parent, false);
                 Destroy(holder);
-                Relabel(entry, Label(template));
+                Relabel(entry, Label(template), name);
 
                 Button button = entry.GetComponent<Button>();
                 button.onClick = new Button.ButtonClickedEvent();
@@ -260,11 +260,11 @@ namespace Belay.UI
             }
         }
 
-        /// <summary>Names the copy "NOT ALONE", in the same letter case as the button it was copied from.</summary>
-        private static void Relabel(GameObject entry, string templateLabel)
+        /// <summary>Names the copy ("NOT ALONE" on the main menu, "GAME LOBBY" in the pause menu), in the same letter case as the button it was copied from.</summary>
+        private static void Relabel(GameObject entry, string templateLabel, string name)
         {
             bool upper = templateLabel == templateLabel.ToUpperInvariant();
-            string text = upper ? "NOT ALONE" : "Not Alone";
+            string text = upper ? name : System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(name.ToLowerInvariant());
             bool first = true;
             foreach (TMP_Text tmp in entry.GetComponentsInChildren<TMP_Text>(true))
             {
