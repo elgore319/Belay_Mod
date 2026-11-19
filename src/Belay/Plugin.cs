@@ -17,8 +17,8 @@ namespace Belay
     public class Plugin : BaseUnityPlugin
     {
         public const string Guid = "elgore319.belay";
-        public const string Name = "Tethered";
-        public const string Version = "0.7.49";
+        public const string Name = "Not Alone";
+        public const string Version = "0.7.51";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
@@ -45,7 +45,7 @@ namespace Belay
             Instance = this;
             Log = Logger;
 
-            MenuKey = Config.Bind("General", "MenuKey", KeyCode.F7, "Opens the Tethered multiplayer window.");
+            MenuKey = Config.Bind("General", "MenuKey", KeyCode.F7, "Opens the Not Alone multiplayer window.");
             DefaultRopeLength = Config.Bind("Rope", "DefaultRopeLength", 12f, "Rope length (meters) used when you host a lobby.");
             RopeOnByDefault = Config.Bind("Rope", "RopeOnByDefault", false, "Turn the rope on when you host a lobby (you can switch it in Rules).");
             RopePullKey = Config.Bind("Rope", "RopePullKey", KeyCode.V, "Hold while gripping a wall to haul up the teammates roped below you.");
@@ -54,13 +54,13 @@ namespace Belay
             VoteNoKey = Config.Bind("Votes", "VoteNoKey", KeyCode.F2, "Vote no when a teammate wants to take a shortcut.");
             SpectateNextKey = Config.Bind("Revive", "SpectateNextKey", KeyCode.Tab, "While dead, switch which teammate you watch.");
             SendRate = Config.Bind("Network", "SendRate", 20, "Player state updates sent per second.");
-            AutoUpdate = Config.Bind("Updates", "AutoUpdate", true, "Install new Tethered releases when the game starts, and check for new ones every 10 minutes while it runs.");
+            AutoUpdate = Config.Bind("Updates", "AutoUpdate", true, "Install new Not Alone releases when the game starts, and check for new ones every 10 minutes while it runs.");
             BotPovKey = Config.Bind("Test Bot", "PovWindowKey", KeyCode.F8, "Shows or hides the test bot's point-of-view window.");
             TestClientAutopilotKey = Config.Bind("Test Bot", "TestClientAutopilotKey", KeyCode.F9, "In the test client window: switch between following you automatically and playing it yourself.");
             BotFollowDelay = Config.Bind("Test Bot", "FollowDelay", 2f, "Seconds the test client window trails behind you when it follows you.");
             SolidTeammates = Config.Bind("Teammates", "SolidTeammates", true, "Teammates are solid: you bump into them, can stand on them, grip them to climb them, and lift them while you stand or hold the wall.");
             SyncProps = Config.Bind("World", "SyncProps", true, "Boxes and other loose physics objects move the same for everyone.");
-            UpdateRepo = Config.Bind("Updates", "UpdateRepo", "elgore319/Belay_Mod", "GitHub repo (owner/name) whose releases Tethered updates from.");
+            UpdateRepo = Config.Bind("Updates", "UpdateRepo", "elgore319/Belay_Mod", "GitHub repo (owner/name) whose releases Not Alone updates from.");
 
             var harmony = new Harmony(Guid);
             harmony.PatchAll(typeof(Plugin).Assembly);

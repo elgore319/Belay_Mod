@@ -116,7 +116,7 @@ namespace Belay.UI
 
                 // Header: red marker, title, subtitle, version, and a rule underneath.
                 Fill(new Rect(Margin, Margin - 8f, 8f, 72f), BelayTheme.Red);
-                GUI.Label(new Rect(Margin + 26f, Margin - 20f, 600f, 80f), "TETHERED", pageTitle);
+                GUI.Label(new Rect(Margin + 26f, Margin - 20f, 600f, 80f), "NOT ALONE", pageTitle);
                 GUI.Label(new Rect(Margin + 380f, Margin + 4f, 400f, 40f), "MULTIPLAYER", pageSubtitle);
                 var version = new GUIStyle(pageSubtitle) { alignment = TextAnchor.LowerRight, fontSize = 20 };
                 GUI.Label(new Rect(width - Margin - 300f, Margin + 4f, 300f, 40f), "v" + Plugin.Version, version);
@@ -261,7 +261,7 @@ namespace Belay.UI
                     return;
                 }
                 screen.Initialize(campaign);
-                Plugin.Log.LogInfo("Opened the campaign screen (" + campaign.gamemodeName + ") from the Tethered page");
+                Plugin.Log.LogInfo("Opened the campaign screen (" + campaign.gamemodeName + ") from the Not Alone page");
             }
             catch (System.Exception e)
             {

@@ -1,6 +1,6 @@
-# Tethered (formerly Belay) installer for White Knuckle.
+# Not Alone (formerly Tethered, and before that Belay) installer for White Knuckle.
 # The plugin keeps its old file and folder names (plugins\Belay\Belay.dll) so updates keep working.
-# Started by "Install Tethered.bat" / "Uninstall Tethered.bat". Works with Windows PowerShell 5.1.
+# Started by "Install Not Alone.bat" / "Uninstall Not Alone.bat". Works with Windows PowerShell 5.1.
 param(
     [switch]$Uninstall,
     [string]$GameDir = ""
@@ -98,7 +98,7 @@ function Copy-Item-Safe($src, $dst) {
 }
 
 try {
-    Say "=== Tethered for White Knuckle ===" "Cyan"
+    Say "=== White Knuckle: Not Alone ===" "Cyan"
 
     if (-not (Test-GameDir $GameDir)) { $GameDir = Find-GameDir }
     if (-not $GameDir) { $GameDir = Ask-GameDir }
@@ -111,19 +111,19 @@ try {
     $belayDir = Join-Path $plugins "Belay"
 
     if ($Uninstall) {
-        # Tethered's launch updater (a BepInEx patcher it installs itself).
+        # Not Alone's launch updater (a BepInEx patcher it installs itself).
         $patcherDir = Join-Path $GameDir "BepInEx\patchers\Belay"
         if (Test-Path -LiteralPath $patcherDir) { Remove-Item -LiteralPath $patcherDir -Recurse -Force }
         if (Test-Path -LiteralPath $belayDir) {
             Remove-Item -LiteralPath $belayDir -Recurse -Force
-            Say "Tethered removed. BepInEx and your other mods were left alone." "Green"
+            Say "Not Alone removed. BepInEx and your other mods were left alone." "Green"
         } else {
-            Say "Tethered isn't installed in this folder." "Yellow"
+            Say "Not Alone isn't installed in this folder." "Yellow"
         }
         exit 0
     }
 
-    if (-not (Test-Path -LiteralPath $Payload)) { throw "The 'payload' folder is missing. Extract the whole zip first, then run Install Tethered.bat again." }
+    if (-not (Test-Path -LiteralPath $Payload)) { throw "The 'payload' folder is missing. Extract the whole zip first, then run Install Not Alone.bat again." }
     Get-ChildItem -LiteralPath $Payload -Recurse -File | Unblock-File -ErrorAction SilentlyContinue
 
     # 1. BepInEx (mod loader). Keep an existing install so other mods and settings are untouched.
@@ -143,29 +143,29 @@ try {
         }
     }
 
-    # 2. Tethered itself (still Belay.dll on disk).
-    Say "Installing Tethered..."
+    # 2. Not Alone itself (still Belay.dll on disk).
+    Say "Installing Not Alone..."
     Copy-Item-Safe (Join-Path $Payload "BepInEx\plugins\Belay\Belay.dll") (Join-Path $belayDir "Belay.dll")
 
-    # 3. Other multiplayer mods conflict with Tethered. Offer to switch them off (reversible).
+    # 3. Other multiplayer mods conflict with Not Alone. Offer to switch them off (reversible).
     if (Test-Path -LiteralPath $plugins) {
         $others = Get-ChildItem -LiteralPath $plugins -Recurse -Filter "*.dll" -File |
                   Where-Object { $_.FullName -notlike "$belayDir*" -and $_.Name -match "multi ?player|WKMP|WKMultiMod" }
         foreach ($dll in $others) {
             Say ""
             Say "Found another multiplayer mod: $($dll.Name)" "Yellow"
-            $answer = Read-Host "It conflicts with Tethered. Turn it off? (Y/n)"
+            $answer = Read-Host "It conflicts with Not Alone. Turn it off? (Y/n)"
             if ($answer -notmatch '^[nN]') {
                 Move-Item -LiteralPath $dll.FullName -Destination ($dll.FullName + ".disabled") -Force
-                Say "Turned off. You can turn it back on from the Tethered menu's Mods tab." "Green"
+                Say "Turned off. You can turn it back on from the Not Alone menu's Mods tab." "Green"
             }
         }
     }
 
     Say ""
-    Say "Done! Tethered is installed." "Green"
-    Say "Start White Knuckle and pick TETHERED in the main menu (or press F7)."
-    Say "Host a lobby and invite friends through Steam. Everyone needs the same Tethered version."
+    Say "Done! Not Alone is installed." "Green"
+    Say "Start White Knuckle and pick NOT ALONE in the main menu (or press F7)."
+    Say "Host a lobby and invite friends through Steam. Everyone needs the same Not Alone version."
     exit 0
 }
 catch {
