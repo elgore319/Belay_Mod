@@ -18,12 +18,11 @@ namespace Belay
     {
         public const string Guid = "elgore319.belay";
         public const string Name = "Not Alone";
-        public const string Version = "0.8.5";
+        public const string Version = "0.8.8";
 
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log { get; private set; }
 
-        public static ConfigEntry<KeyCode> MenuKey;
         public static ConfigEntry<float> DefaultRopeLength;
         public static ConfigEntry<bool> ShowRope;
         public static ConfigEntry<bool> RopeOnByDefault;
@@ -45,7 +44,6 @@ namespace Belay
             Instance = this;
             Log = Logger;
 
-            MenuKey = Config.Bind("General", "MenuKey", KeyCode.F7, "Opens the Not Alone multiplayer window.");
             DefaultRopeLength = Config.Bind("Rope", "DefaultRopeLength", 12f, "Rope length (meters) used when you host a lobby.");
             RopeOnByDefault = Config.Bind("Rope", "RopeOnByDefault", false, "Turn the rope on when you host a lobby (you can switch it in Rules).");
             RopePullKey = Config.Bind("Rope", "RopePullKey", KeyCode.V, "Hold while gripping a wall to haul up the teammates roped below you.");
