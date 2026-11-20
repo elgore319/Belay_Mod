@@ -44,6 +44,19 @@ namespace Belay.World
 
         internal static bool Applying;
 
+        /// <summary>A save disk is going into a terminal: it's used up, not dropped for the team to see.</summary>
+        internal static bool Inserting;
+
+        /// <summary>Items a personal machine (vendor, disk vendor) made for the local player only: never shared.</summary>
+        internal readonly HashSet<Item_Object> Personal = new HashSet<Item_Object>();
+
+        /// <summary>
+        /// Shared items a teammate took while their level wasn't built here yet. When the level builds here, they
+        /// must not show up again: grabbing one would only have it taken back out of your hand.
+        /// </summary>
+        private readonly HashSet<string> takenAway = new HashSet<string>();
+        private readonly List<(string kind, Vector3 shared)> takenAwayLoose = new List<(string, Vector3)>();
+
         private void Awake()
         {
             Instance = this;
@@ -83,6 +96,8 @@ namespace Belay.World
                 looseSpawns.Clear();
                 claims.Clear();
                 takenHere.Clear();
+                Personal.Clear();
+                ForgetTakenAway();
             }
             UpdateSettling();
         }
@@ -177,7 +192,7 @@ namespace Belay.World
         /// <summary>Called as an item spawns, while it still sits where the level put it.</summary>
         internal void OnItemSpawned(Item_Object obj)
         {
-            if (obj == null || idOf.ContainsKey(obj))
+            if (obj == null || idOf.ContainsKey(obj) || Personal.Contains(obj))
             {
                 return;
             }
@@ -236,6 +251,49 @@ namespace Belay.World
                 }
             }
             return best;
+        }
+
+        /// <summary>
+        /// A teammate took this item before its level was built here: it goes away as it appears. True if it went.
+        /// </summary>
+        internal bool RemoveIfTakenAway(Item_Object obj)
+        {
+            if (obj == null || RemoteCopies.Contains(obj) || !idOf.TryGetValue(obj, out string id)
+                || (obj.itemData != null && obj.itemData.inventory != null))
+            {
+                return false;
+            }
+            bool gone = takenAway.Remove(id);
+            if (!gone && id.StartsWith("pos:", System.StringComparison.Ordinal))
+            {
+                string kind = Kind(obj);
+                Vector3 here = WorldSpace.ToShared(obj.transform.position);
+                for (int i = 0; i < takenAwayLoose.Count; i++)
+                {
+                    if (takenAwayLoose[i].kind == kind && Vector3.Distance(takenAwayLoose[i].shared, here) < 1.5f)
+                    {
+                        takenAwayLoose.RemoveAt(i);
+                        gone = true;
+                        break;
+                    }
+                }
+            }
+            if (!gone)
+            {
+                return false;
+            }
+            Forget(obj);
+            Plugin.Log.LogInfo($"A teammate already took {Kind(obj)} ({id}) before it was built here: removed");
+            obj.gameObject.SetActive(false);
+            Destroy(obj.gameObject);
+            return true;
+        }
+
+        /// <summary>The world was rebuilt from a save (team disk revive): earlier pickups no longer apply.</summary>
+        internal void ForgetTakenAway()
+        {
+            takenAway.Clear();
+            takenAwayLoose.Clear();
         }
 
         /// <summary>Called once an item has really appeared in the world (the game's spawn rules let it show).</summary>
@@ -431,7 +489,7 @@ namespace Belay.World
                 // We grabbed it too, but later: the host sends us a denial for ours.
                 return;
             }
-            ApplyPickup(id);
+            ApplyPickup(id, oneOff);
         }
 
         private void ApplyDenied(string id, ulong loser)
@@ -452,7 +510,7 @@ namespace Belay.World
             }
         }
 
-        private void ApplyPickup(string id)
+        private void ApplyPickup(string id, bool oneOff)
         {
             if ((!byId.TryGetValue(id, out Item_Object obj) || obj == null) && id.StartsWith("pos:", System.StringComparison.Ordinal))
             {
@@ -461,6 +519,18 @@ namespace Belay.World
             if (obj == null)
             {
                 Plugin.Log.LogInfo("Teammate picked up an item that isn't here: " + id);
+                if (!oneOff && !id.StartsWith("drop:", System.StringComparison.Ordinal))
+                {
+                    // Its level isn't built here yet: once it is, the item mustn't be there to grab.
+                    if (id.StartsWith("pos:", System.StringComparison.Ordinal))
+                    {
+                        RememberLooseTaken(id);
+                    }
+                    else
+                    {
+                        takenAway.Add(id);
+                    }
+                }
                 return;
             }
             Item item = obj.itemData;
@@ -479,6 +549,19 @@ namespace Belay.World
             }
             Plugin.Log.LogInfo("Teammate picked up " + (item?.prefabName ?? obj.name) + " (" + id + ")");
             Destroy(obj.gameObject);
+        }
+
+        private void RememberLooseTaken(string id)
+        {
+            string[] parts = id.Split(':');
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            if (parts.Length >= 5
+                && float.TryParse(parts[parts.Length - 3], System.Globalization.NumberStyles.Float, inv, out float x)
+                && float.TryParse(parts[parts.Length - 2], System.Globalization.NumberStyles.Float, inv, out float y)
+                && float.TryParse(parts[parts.Length - 1], System.Globalization.NumberStyles.Float, inv, out float z))
+            {
+                takenAwayLoose.Add((string.Join(":", parts, 1, parts.Length - 4), new Vector3(x, y, z)));
+            }
         }
 
         // ---------------------------------------------------------------- Dropping
@@ -611,6 +694,10 @@ namespace Belay.World
             {
                 __instance.gameObject.SetActive(true);
             }
+            if (ItemSync.Instance != null && NetSession.InLobbyRun && ItemSync.Instance.RemoveIfTakenAway(__instance))
+            {
+                return;
+            }
             if (ItemSync.Instance != null && __instance.gameObject.activeSelf && NetSession.InLobbyRun)
             {
                 ItemSync.Instance.OnItemShown(__instance);
@@ -643,9 +730,64 @@ namespace Belay.World
         [HarmonyPostfix]
         private static void Drop(Inventory __instance, Item item)
         {
-            if (ItemSync.Live && __instance == Inventory.instance && item != null)
+            if (ItemSync.Live && __instance == Inventory.instance && item != null && !ItemSync.Inserting)
             {
                 ItemSync.Instance.OnLocalDrop(item);
+            }
+        }
+
+        // A disk going into a terminal or reader leaves the hand through a drop, then is used up: it was never
+        // put down, so teammates mustn't get a copy of it lying there.
+        [HarmonyPatch(typeof(Item_InteractionModule_Floppy), nameof(Item_InteractionModule_Floppy.Interact))]
+        [HarmonyPrefix]
+        private static void FloppyInsertStart() => ItemSync.Inserting = true;
+
+        [HarmonyPatch(typeof(Item_InteractionModule_Floppy), nameof(Item_InteractionModule_Floppy.Interact))]
+        [HarmonyFinalizer]
+        private static void FloppyInsertEnd() => ItemSync.Inserting = false;
+
+        // What a personal machine hands out (a bought disk, a vended item) is the buyer's alone. Each PC only buys
+        // for its own player, so these never get a shared id (two players' purchases would share one).
+        [HarmonyPatch(typeof(ENV_Vendor_Disk), nameof(ENV_Vendor_Disk.SpawnDisk))]
+        [HarmonyPrefix]
+        private static void DiskVendorBefore(ENV_Vendor_Disk __instance, out HashSet<Item_Object> __state) => __state = ItemsNear(__instance);
+
+        [HarmonyPatch(typeof(ENV_Vendor_Disk), nameof(ENV_Vendor_Disk.SpawnDisk))]
+        [HarmonyPostfix]
+        private static void DiskVendorAfter(ENV_Vendor_Disk __instance, HashSet<Item_Object> __state) => MarkPersonal(__instance, __state);
+
+        [HarmonyPatch(typeof(ENV_VendingMachine), nameof(ENV_VendingMachine.Buy), new[] { typeof(int), typeof(bool), typeof(bool) })]
+        [HarmonyPrefix]
+        private static void VendingBefore(ENV_VendingMachine __instance, out HashSet<Item_Object> __state) => __state = ItemsNear(__instance);
+
+        [HarmonyPatch(typeof(ENV_VendingMachine), nameof(ENV_VendingMachine.Buy), new[] { typeof(int), typeof(bool), typeof(bool) })]
+        [HarmonyPostfix]
+        private static void VendingAfter(ENV_VendingMachine __instance, HashSet<Item_Object> __state) => MarkPersonal(__instance, __state);
+
+        private static HashSet<Item_Object> ItemsNear(Component machine)
+        {
+            var set = new HashSet<Item_Object>();
+            Transform parent = machine != null ? machine.transform.parent : null;
+            if (parent != null && ItemSync.Instance != null && NetSession.InLobbyRun)
+            {
+                set.UnionWith(parent.GetComponentsInChildren<Item_Object>(true));
+            }
+            return set;
+        }
+
+        private static void MarkPersonal(Component machine, HashSet<Item_Object> before)
+        {
+            Transform parent = machine != null ? machine.transform.parent : null;
+            if (parent == null || ItemSync.Instance == null || !NetSession.InLobbyRun)
+            {
+                return;
+            }
+            foreach (Item_Object obj in parent.GetComponentsInChildren<Item_Object>(true))
+            {
+                if (obj != null && !before.Contains(obj))
+                {
+                    ItemSync.Instance.Personal.Add(obj);
+                }
             }
         }
     }

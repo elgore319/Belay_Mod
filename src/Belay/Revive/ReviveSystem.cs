@@ -503,6 +503,7 @@ namespace Belay.Revive
             {
                 return;
             }
+            World.ItemSync.Instance?.ForgetTakenAway();
             if (!TeamDiskSave.Prepare(id))
             {
                 Plugin.Log.LogWarning("The team is coming back from a disk save this PC doesn't have; ending the run here");

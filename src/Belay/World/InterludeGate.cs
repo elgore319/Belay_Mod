@@ -147,6 +147,12 @@ namespace Belay.World
             {
                 kind = GateKind.Free;
             }
+            else if (IsPersonalOrTerminal(control, all, events))
+            {
+                // Terminals, vendors, upgrade consoles: each player's own. Using one never strands anybody,
+                // so nobody waits for the rest of the team to use them.
+                kind = GateKind.Free;
+            }
             else
             {
                 kind = GateKind.Room;
@@ -176,6 +182,24 @@ namespace Belay.World
         private static bool IsGatheringControl(Component control, M_Level level)
         {
             return Classify(control, level, EventsOf(control)) == GateKind.Gathered;
+        }
+
+        private static bool IsPersonalOrTerminal(Component control, string all, UnityEngine.Events.UnityEventBase[] events)
+        {
+            return !ButtonSync.Shareable(control, events)
+                || all.Contains("os_computer") || all.Contains("activatecomputer") || all.Contains("keyboard")
+                || all.Contains("terminal");
+        }
+
+        /// <summary>
+        /// This spot is above the room: a teammate there has already been through and gone on up, so nothing done
+        /// in the room can leave them behind.
+        /// </summary>
+        private static bool Above(M_Level level, Vector3 worldPos)
+        {
+            Vector3 local = level.transform.worldToLocalMatrix.MultiplyPoint(worldPos);
+            Bounds b = level.GetLocalBounds();
+            return local.y > b.max.y + BoundsSlack;
         }
 
         private static bool SealsOrMovesMass(string all)
@@ -244,8 +268,9 @@ namespace Belay.World
             }
             Vector3 at = control.transform.position;
             float reach = kind == GateKind.Elevator ? ElevatorReach : GatherReach;
+            // A teammate who went on further up isn't held up by the room, and doesn't hold it up either.
             List<string> missing = kind == GateKind.Room
-                ? Missing(level)
+                ? Missing(p => Inside(level, p) || Above(level, p))
                 : Missing(p => (p - at).sqrMagnitude <= reach * reach);
             if (missing.Count == 0)
             {
