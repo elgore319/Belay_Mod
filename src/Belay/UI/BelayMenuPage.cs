@@ -22,7 +22,7 @@ namespace Belay.UI
         private const float NavWidth = 280f;
         private const float HeaderHeight = 120f;
 
-        private static readonly Tab[] PageTabs = { Tab.Lobby, Tab.Players, Tab.Rules, Tab.Mods, Tab.Settings, Tab.Bot };
+        private static readonly Tab[] PageTabs = { Tab.Lobby, Tab.Players, Tab.Rules, Tab.Mods, Tab.Settings };
 
         private bool pageMode;
         /// <summary>The page opened from the game's Cosmetics screen: just the outfit and BACK.</summary>
@@ -146,10 +146,6 @@ namespace Belay.UI
                 float y = top;
                 foreach (Tab t in outfitPage ? new Tab[0] : PageTabs)
                 {
-                    if (t == Tab.Bot && Bot.TestBot.Instance == null)
-                    {
-                        continue;
-                    }
                     string label = TabLabels[(int)t].ToUpperInvariant();
                     if (GUI.Button(new Rect(Margin, y, NavWidth, 54f), label, tab == t ? navSelected : navButton))
                     {

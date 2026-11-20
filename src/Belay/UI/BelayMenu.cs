@@ -351,9 +351,6 @@ namespace Belay.UI
                 case Tab.Mods:
                     DrawModsTab();
                     break;
-                case Tab.Bot:
-                    Bot.TestBot.Instance?.DrawTab();
-                    break;
                 case Tab.Outfit:
                     if (pageMode)
                     {
@@ -626,7 +623,7 @@ namespace Belay.UI
                 Players.Avatar.Outfits.Local = outfit;
             }
             GUILayout.Space(6);
-            GUILayout.Label("Teammates need Not Alone 0.7.21 or newer to see it. Test bots wear your outfit, so you can check it on one.",
+            GUILayout.Label("Teammates need Not Alone 0.7.21 or newer to see it.",
                 BelayTheme.Hint ?? GUI.skin.label);
         }
 
