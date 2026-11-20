@@ -319,10 +319,35 @@ namespace Belay.World
             }
         }
 
+        /// <summary>The flare gun is needed by everyone: each player always has their own to pick up.</summary>
+        private static bool AlwaysOwn(string kind) => kind == "Item_Flaregun";
+
+        /// <summary>
+        /// Finds (disks, totems, artifacts, guns and their ammo, flares) are one for the whole team even when
+        /// they're the only one around: whoever picks one up takes it away for everyone.
+        /// </summary>
+        private static bool AlwaysShared(string kind)
+        {
+            return kind.StartsWith("Item_Floppy", System.StringComparison.Ordinal)
+                || kind.StartsWith("Item_Artifact", System.StringComparison.Ordinal)
+                || kind.StartsWith("Item_Handgun", System.StringComparison.Ordinal)
+                || kind == "Item_10mm_Ammo" || kind == "Item_Flaregun_Ammo"
+                || kind.IndexOf("Totem", System.StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
         /// <summary>Was this the only item of its kind where it spawned?</summary>
         private bool IsOneOff(Item_Object obj, string id)
         {
-            if (id.StartsWith("drop:", System.StringComparison.Ordinal) || !levelKeyOf.TryGetValue(obj, out string key))
+            if (id.StartsWith("drop:", System.StringComparison.Ordinal))
+            {
+                return false;
+            }
+            string what = Kind(obj);
+            if (AlwaysOwn(what))
+            {
+                return true;
+            }
+            if (AlwaysShared(what) || !levelKeyOf.TryGetValue(obj, out string key))
             {
                 return false;
             }

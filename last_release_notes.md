@@ -1,5 +1,4 @@
-## Not Alone 0.8.17
+## Not Alone 0.8.18
 
-- **Disks stay in sync.** Putting a save disk into a terminal no longer leaves a copy of it lying on the floor for everyone else. Disks bought from a disk vendor (and anything from a vending machine) are now the buyer's own, so two players buying no longer mix up their purchases.
-- **Grabbed items stay in your hand.** If a teammate took an item (a rebar, the flare gun, ammo) before that area had loaded for you, it showed up for you anyway and vanished from your hand when you grabbed it. Those items are now gone for you too when the area loads.
-- **Breakrooms stay usable when a teammate goes on ahead.** Terminals, vending machines, upgrade consoles and other personal machines never wait for the team. Room controls that do wait (like a lockdown) no longer wait for teammates who have already gone further up.
+- **Finds are one for the team.** Disks, totems, artifacts, the handgun and its ammo, and flares now disappear for everyone when someone picks them up, even when they were the only one around.
+- **Everyone gets their own flare gun.** The flare gun is always one per player, so a teammate picking theirs up never takes yours, and yours never vanishes from your hand.
