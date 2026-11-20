@@ -311,9 +311,10 @@ namespace Belay.Dev
         /// <summary>True while the dev window is open (BelayMenu frees the cursor for it).</summary>
         internal static bool Open { get; private set; }
 
-        private static readonly string[] Pages = { "Teleport", "Tilesets" };
+        private static readonly string[] Pages = { "Teleport", "Tilesets", "Bots" };
         private int page;
         private Rect window = new Rect(500, 40, 480, 560);
+        private Vector2 botScroll;
         private bool lockedCamera;
 
         private static bool ShortcutPressed()
@@ -390,9 +391,19 @@ namespace Belay.Dev
             {
                 DevMenu.DrawTeleportPage();
             }
-            else
+            else if (page == 1)
             {
                 TilesetPicker.Draw();
+            }
+            else
+            {
+                // Bots are a dev tool only: they're not offered in the lobby pages.
+                botScroll = GUILayout.BeginScrollView(botScroll);
+                if (Bot.TestBot.Instance != null)
+                {
+                    Bot.TestBot.Instance.DrawTab();
+                }
+                GUILayout.EndScrollView();
             }
             GUI.DragWindow();
         }
