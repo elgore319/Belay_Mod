@@ -42,17 +42,7 @@ namespace Belay.World
             });
         }
 
-        private static T FindById<T>(string id) where T : Component
-        {
-            foreach (T c in FindObjectsByType<T>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
-            {
-                if (c != null && ButtonSync.ObjectId(c) == id)
-                {
-                    return c;
-                }
-            }
-            return null;
-        }
+        private static T FindById<T>(string id) where T : Component => IdLookup.Find<T>(id, FindObjectsInactive.Exclude);
 
         private static void Apply<T>(SteamId origin, string id, System.Action<T> act) where T : Component
         {
