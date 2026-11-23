@@ -277,6 +277,9 @@ internal static class Program
                 kit = new MeshKit(Belay.Revive.BioChamberLook.SlotCount);
                 Belay.Revive.BioChamberLook.BuildBody(kit);
                 Belay.Revive.BioChamberLook.BuildDoor(kit, open);
+                // The wall it stands against, for context.
+                kit.Use(Belay.Revive.BioChamberLook.DarkSlot);
+                kit.Box(new Vector3(0, 1.7f, -Belay.Revive.BioChamberLook.WallBack - 0.05f), new Vector3(2.6f, 3.4f, 0.1f));
                 for (int i = 0; i < kit.Vertices.Count; i++) kit.Vertices[i] -= new Vector3(0, Belay.Revive.BioChamberLook.FloorHeight, 0);
                 EmitKit(kit, chamberTexBase);
                 Figures.Add("\"empty:" + open + "\":[" + tris.ToString().TrimEnd(',') + "]");
@@ -354,7 +357,7 @@ internal static class Program
             // The look's extras; a coat skirt settles out of the legs' way (COAT=0 shows it unbent, for comparison).
             CoatSkirt coat = LoreLooks.SkirtShape(look, out float hem, out float flare, out float back) && Environment.GetEnvironmentVariable("COAT") != "0"
                 ? new CoatSkirt(hem, flare, back) : null;
-            coat?.Settle(legs);
+            if (coat != null) for (int st = 0; st < 120; st++) coat.Step(1f / 60f, Vector3.down, Vector3.zero, legs);
             Emit(k =>
             {
                 LoreLooks.BuildExtra(k, look);
@@ -862,7 +865,7 @@ internal static class Program
             if (count == 0) continue;
             Vector3 size = max - min;
             mesh.Length = Mathf.Max(size.x, Mathf.Max(size.y, size.z));
-            mesh.Fit = OldGrip ? HeldGrip.FitByShape(min, max, sum / count) : HeldGrip.Fit(min, max, sum / count, item.Name);
+            mesh.Fit = HeldGrip.Fit(min, max, sum / count, item.Name);
             Items[item.Name] = mesh;
             names.Add(item.Name);
         }

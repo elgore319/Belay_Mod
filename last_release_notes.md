@@ -1,4 +1,7 @@
-## Not Alone 0.8.18
+## Not Alone 0.8.23
 
-- **Finds are one for the team.** Disks, totems, artifacts, the handgun and its ammo, and flares now disappear for everyone when someone picks them up, even when they were the only one around.
-- **Everyone gets their own flare gun.** The flare gun is always one per player, so a teammate picking theirs up never takes yours, and yours never vanishes from your hand.
+- **Biochambers stand against the wall.** Each terminal room's revive pod now sits with its back to a wall near the terminal, its hoses and feed pipes running straight into the wall. Pods only go free-standing when there's no clear wall nearby.
+- **Taller biochambers.** The pod is taller, so you can walk out of it standing up.
+- **The glass waits for you.** After a revive the pod's glass stays open until whoever was inside has stepped out.
+
+No network change.
