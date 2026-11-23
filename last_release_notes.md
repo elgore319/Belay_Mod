@@ -1,4 +1,3 @@
-## Not Alone 0.8.22
+## Not Alone 0.8.28
 
-- **Everyone gets their own flare gun ammo.** Like the flare gun itself, flare gun ammo is now one per player: when a teammate picks theirs up, yours is still there.
-- **Artifact pedestals are each player's own.** If two players rolled the same artifact on their pedestals, only one of them could take it. Now everyone can take what's on their own pedestal.
+- **The Habitation laser floor no longer blocks teammates behind.** The red security field in the Habitation Labs now runs for each player from their own trigger, so everyone gets the chase. Once it has finished rising it switches off, so a teammate who is still below it (late, revived or respawned) can climb past instead of dying in it.
