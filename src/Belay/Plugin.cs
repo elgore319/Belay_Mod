@@ -83,6 +83,7 @@ namespace Belay
             gameObject.AddComponent<TeethSync>();
             gameObject.AddComponent<ChaserSync>();
             gameObject.AddComponent<CreatureSync>();
+            gameObject.AddComponent<VentHandSync>();
             gameObject.AddComponent<EnemyTargets>();
             gameObject.AddComponent<ShortcutSync>();
             gameObject.AddComponent<VoteTerminal>();

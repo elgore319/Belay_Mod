@@ -76,6 +76,7 @@ namespace Belay.Net
         LadderNightmare = 129,
         CreatureStates = 130,
         CreatureRequest = 131,
+        VentHand = 132,
         // 118 was TeamPause (removed); keep the number unused.
     }
 

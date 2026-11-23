@@ -5,3 +5,4 @@
 - **Hits on the Teeth and the Face count for the team.** Driving them off on your screen drives them off for everyone, and a teammate's hit no longer freezes your game for a moment.
 - **The Face no longer speeds up oddly when it goes after a teammate** instead of the host.
 - They still bite, hurt and kill whoever they actually reach.
+- **Everyone sees the same vent hands.** Each hand goes after the player closest to it, and everyone sees it reach out, grab that player and drag them, arm and all. It doesn't switch to someone else while it's holding a player.

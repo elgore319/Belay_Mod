@@ -57,7 +57,7 @@ namespace Belay.World
         internal static bool Owned(AIGameEntity e) => e is DEN_VentThing || e is DEN_Phage || e is DEN_Tracker;
 
         /// <summary>True when this PC runs (and streams) this enemy.</summary>
-        private bool RunsHere(AIGameEntity e)
+        internal bool RunsHere(AIGameEntity e)
         {
             if (owners.TryGetValue(e, out ulong owner) && owner != 0)
             {
@@ -286,6 +286,10 @@ namespace Belay.World
                 {
                     if (!owners.ContainsKey(e)) owners[e] = current;
                     continue;
+                }
+                if (VentHandSync.Holding(e))
+                {
+                    continue; // never hand it over while it's holding someone
                 }
                 bool held = ownerSince.TryGetValue(e, out float since) && Time.unscaledTime - since < OwnerMinHold;
                 if (currentDist != float.MaxValue && (held || bestDist > currentDist - OwnerSwitchMargin))
