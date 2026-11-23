@@ -148,6 +148,15 @@ namespace Belay.Revive
             float floorY = standHit.point.y;
             Vector3 origin = new Vector3(stand.x, floorY, stand.z);
 
+            // First choice: back against a wall near the terminal, its hoses running into the wall.
+            if (AgainstWall(origin, floorY, out Vector3 spot, out Quaternion facing, out float wallDist))
+            {
+                BioChamberMarker onWall = Build(spot, facing, level.transform);
+                onWall.Level = level;
+                Plugin.Log.LogInfo($"Placed a biochamber against a wall in {level.name} at {spot} ({wallDist:0.0} m from the terminal)");
+                return onWall;
+            }
+
             Vector3 best = Vector3.zero;
             int bestHits = int.MaxValue;
             float bestDist = float.MaxValue;
@@ -183,6 +192,76 @@ namespace Belay.Revive
             return marker;
         }
 
+        /// <summary>
+        /// The nearest clear spot (to the terminal) where the chamber's back is against a wall: looks out from
+        /// rings of floor points round the terminal for a wall within reach, stands the chamber off it by
+        /// <see cref="BioChamberLook.WallBack"/> facing away from it, and checks the chamber and a step-out
+        /// space in front of it are clear.
+        /// </summary>
+        private static bool AgainstWall(Vector3 origin, float floorY, out Vector3 spot, out Quaternion facing, out float distance)
+        {
+            spot = Vector3.zero;
+            facing = Quaternion.identity;
+            distance = float.MaxValue;
+            float bodyHalfY = (BioChamberLook.GlassTop + 0.3f - 0.08f) * 0.5f;
+            foreach (float ring in new[] { 1.2f, 2f, 2.8f, 3.6f, 4.4f })
+            {
+                for (int i = 0; i < 16; i++)
+                {
+                    float a = i * Mathf.PI * 2f / 16f;
+                    Vector3 p = origin + new Vector3(Mathf.Sin(a), 0, Mathf.Cos(a)) * ring;
+                    // The closest wall from this point, felt for at chest height in 16 directions.
+                    Vector3 eye = new Vector3(p.x, floorY + 1.3f, p.z);
+                    RaycastHit wall = default;
+                    bool found = false;
+                    for (int j = 0; j < 16; j++)
+                    {
+                        float b = j * Mathf.PI * 2f / 16f;
+                        Vector3 dir = new Vector3(Mathf.Sin(b), 0, Mathf.Cos(b));
+                        if (Physics.Raycast(eye, dir, out RaycastHit hit, 1.8f, ~0, QueryTriggerInteraction.Ignore)
+                            && hit.collider.attachedRigidbody == null && Mathf.Abs(hit.normal.y) < 0.25f
+                            && (!found || hit.distance < wall.distance))
+                        {
+                            wall = hit;
+                            found = true;
+                        }
+                    }
+                    if (!found)
+                    {
+                        continue;
+                    }
+                    Vector3 n = Vector3.ProjectOnPlane(wall.normal, Vector3.up).normalized;
+                    Vector3 c = new Vector3(wall.point.x, floorY, wall.point.z) + n * BioChamberLook.WallBack;
+                    float d = Vector3.Distance(c, origin);
+                    if (d < 1.5f || d >= distance)
+                    {
+                        continue; // not on top of the terminal's stand spot; and only nearer than the best so far
+                    }
+                    if (Blockers(c, floorY, out Vector3 floor) >= 100)
+                    {
+                        continue; // no level floor there
+                    }
+                    Quaternion rot = Quaternion.LookRotation(n, Vector3.up);
+                    // The chamber, its back edge kept just off the wall, and a space to step out in front.
+                    Vector3 body = floor + rot * new Vector3(0, 0.08f + bodyHalfY, 0.08f);
+                    Vector3 step = floor + rot * new Vector3(0, 1.05f, 1.15f);
+                    if (Overlaps(body, new Vector3(0.78f, bodyHalfY, 0.7f), rot) > 0
+                        || Overlaps(step, new Vector3(0.4f, 0.9f, 0.3f), rot) > 0)
+                    {
+                        continue;
+                    }
+                    spot = floor;
+                    facing = rot;
+                    distance = d;
+                }
+                if (distance < float.MaxValue)
+                {
+                    return true; // nearest clear ring wins
+                }
+            }
+            return false;
+        }
+
         /// <summary>How many solid things a chamber at p would overlap, or many if there's no level floor there.</summary>
         private static int Blockers(Vector3 p, float floorY, out Vector3 floor)
         {
@@ -195,9 +274,14 @@ namespace Belay.Revive
             floor = hit.point;
             // The plinth's footprint, from just above the floor to above the hoses' bend.
             Vector3 half = new Vector3(0.8f, (BioChamberLook.GlassTop + 0.3f - 0.08f) * 0.5f, 0.8f);
-            Vector3 center = floor + Vector3.up * (0.08f + half.y);
+            return Overlaps(floor + Vector3.up * (0.08f + half.y), half, Quaternion.identity);
+        }
+
+        /// <summary>Solid, fixed things inside this box (loose props, players and teammates don't count).</summary>
+        private static int Overlaps(Vector3 center, Vector3 half, Quaternion rotation)
+        {
             int hits = 0;
-            foreach (Collider c in Physics.OverlapBox(center, half, Quaternion.identity, ~0, QueryTriggerInteraction.Ignore))
+            foreach (Collider c in Physics.OverlapBox(center, half, rotation, ~0, QueryTriggerInteraction.Ignore))
             {
                 if (c == null || c.attachedRigidbody != null)
                 {
@@ -388,8 +472,17 @@ namespace Belay.Revive
             yield return Swing(m, 0f, 1f);
             fx.Sound(ReviveSounds.Clunk, 0.6f);
             start = Time.time;
-            while (m != null && Time.time - start < StayOpenSeconds)
+            // Stays open a while, and then until nobody is standing inside it.
+            float clearSince = -1f;
+            while (m != null)
             {
+                bool occupied = Occupied(m);
+                if (occupied) clearSince = -1f;
+                else if (clearSince < 0f) clearSince = Time.time;
+                if (Time.time - start >= StayOpenSeconds && clearSince >= 0f && Time.time - clearSince >= 1f)
+                {
+                    break;
+                }
                 yield return null;
             }
             fx.Sound(ReviveSounds.Slide, 0.5f);
@@ -413,6 +506,30 @@ namespace Belay.Revive
                 m.Door.localPosition = Vector3.forward * (0.04f * Mathf.Sin(t * Mathf.PI)) + Random.insideUnitSphere * 0.004f;
                 yield return null;
             }
+        }
+
+        /// <summary>Whether you, a teammate or a bot is inside the chamber (within the glass, above its floor).</summary>
+        private static bool Occupied(BioChamberMarker m)
+        {
+            Vector3 floor = m.transform.position;
+            bool Inside(Vector3 p)
+            {
+                Vector3 local = m.transform.InverseTransformPoint(p);
+                return new Vector2(local.x, local.z).magnitude < BioChamberLook.GlassRadius + 0.35f
+                    && local.y > -0.5f && local.y < BioChamberLook.GlassTop + 0.5f;
+            }
+            if (ENT_Player.playerObject != null && !ENT_Player.playerObject.dead && Inside(ENT_Player.playerObject.transform.position))
+            {
+                return true;
+            }
+            foreach (RemotePlayer r in Object.FindObjectsByType<RemotePlayer>(FindObjectsSortMode.None))
+            {
+                if (r != null && r.isActiveAndEnabled && Inside(r.transform.position))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private static IEnumerator Swing(BioChamberMarker m, float from, float to)

@@ -5,7 +5,7 @@ namespace Belay.Revive
 {
     /// <summary>
     /// The revive biochamber that stands in each terminal room: a tall glass pod on a heavy steel plinth,
-    /// fed by hoses from the ceiling, with feeding lines hanging inside over a pool of growth medium and an
+    /// fed by hoses from the wall behind it, with feeding lines hanging inside over a pool of growth medium and an
     /// amber lamp ring under its cap. A teammate revived at the terminal is regrown in it and steps out
     /// when the front of the glass swings open.
     ///
@@ -30,10 +30,13 @@ namespace Belay.Revive
         public const float FloorHeight = 0.3f;
 
         /// <summary>Top of the glass, in meters.</summary>
-        public const float GlassTop = 2.45f;
+        public const float GlassTop = 2.85f;
 
         /// <summary>Overall height from the floor to the top of the hoses, in meters.</summary>
-        public const float Height = 3.25f;
+        public const float Height = 3.6f;
+
+        /// <summary>Distance from the middle of the chamber to the wall behind it, in meters.</summary>
+        public const float WallBack = 0.82f;
 
         /// <summary>How far round the front of the glass swings when fully open, in degrees.</summary>
         public const float OpenAngle = 140f;
@@ -176,25 +179,42 @@ namespace Belay.Revive
             k.Use(GlowSlot);
             k.Torus(new Vector3(0, GlassTop - 0.07f, 0), Vector3.up, GlassRadius - 0.07f, 0.025f, 16, 4);
 
-            // Thick supply hoses from the dome up and back toward the ceiling.
+            // Thick supply hoses from the dome, bending back and running straight into the wall behind.
             k.Use(HoseSlot);
+            float wall = -WallBack - 0.06f; // a little into the wall, so no gap shows
             for (int i = -1; i <= 1; i++)
             {
-                Vector3 a = new Vector3(i * 0.24f, GlassTop + 0.3f, -0.05f - Mathf.Abs(i) * 0.05f);
-                Vector3 b = a + new Vector3(i * 0.06f, 0.25f, -0.15f);
-                Vector3 c = b + new Vector3(i * 0.05f, 0.18f, -0.4f);
-                Vector3 d = c + new Vector3(0, 0.12f, -0.5f);
+                float x = i * 0.24f;
+                float z0 = -0.05f - Mathf.Abs(i) * 0.05f;
+                float y = GlassTop + 0.48f + (i == 0 ? 0.1f : 0f);
+                Vector3 a = new Vector3(x, GlassTop + 0.3f, z0);
+                Vector3 b = new Vector3(x, y - 0.08f, z0 - 0.04f);
+                Vector3 c = new Vector3(x, y, z0 - 0.2f);
+                Vector3 d = new Vector3(x, y, wall);
                 k.Tube(a, b, 0.07f, 0.07f, 8);
                 k.Tube(b, c, 0.07f, 0.07f, 8);
                 k.Tube(c, d, 0.07f, 0.07f, 8);
             }
-            // Steel couplings where the hoses meet the dome.
+            // Two feed pipes out of the back of the plinth into the wall.
+            for (int i = -1; i <= 1; i += 2)
+            {
+                k.Tube(new Vector3(i * 0.28f, 0.17f, -0.6f), new Vector3(i * 0.28f, 0.17f, wall), 0.05f, 0.05f, 8);
+            }
+            // Steel couplings where the hoses meet the dome, and flanges where everything meets the wall.
             k.Use(SteelSlot);
             for (int i = -1; i <= 1; i++)
             {
                 Vector3 a = new Vector3(i * 0.24f, GlassTop + 0.27f, -0.05f - Mathf.Abs(i) * 0.05f);
                 k.Tube(a - Vector3.up * 0.06f, a + Vector3.up * 0.08f, 0.095f, 0.095f, 8);
+                float y = GlassTop + 0.48f + (i == 0 ? 0.1f : 0f);
+                k.Tube(new Vector3(i * 0.24f, y, -WallBack + 0.08f), new Vector3(i * 0.24f, y, -WallBack), 0.1f, 0.1f, 8);
             }
+            for (int i = -1; i <= 1; i += 2)
+            {
+                k.Tube(new Vector3(i * 0.28f, 0.17f, -WallBack + 0.06f), new Vector3(i * 0.28f, 0.17f, -WallBack), 0.08f, 0.08f, 8);
+            }
+            // A bolted plate on the wall behind the top hoses.
+            k.Box(new Vector3(0, GlassTop + 0.53f, -WallBack + 0.015f), new Vector3(0.85f, 0.4f, 0.03f));
 
             // Feeding lines hanging inside, ending in fleshy nozzles at chest height.
             for (int i = 0; i < 5; i++)
