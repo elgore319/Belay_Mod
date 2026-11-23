@@ -28,6 +28,7 @@ namespace Belay.World
 
         private static readonly List<Recent> recentReal = new List<Recent>();
         private readonly Dictionary<string, GameObject> prefabs = new Dictionary<string, GameObject>();
+        private readonly Dictionary<string, float> missedPrefabs = new Dictionary<string, float>();
 
         private void Start()
         {
@@ -118,6 +119,11 @@ namespace Belay.World
             {
                 return known;
             }
+            if (missedPrefabs.TryGetValue(name, out float retryAt) && Time.unscaledTime < retryAt)
+            {
+                return null; // looked a moment ago and it isn't loaded: don't walk every asset again yet
+            }
+            missedPrefabs[name] = Time.unscaledTime + 15f;
             foreach (UT_Explosion e in Resources.FindObjectsOfTypeAll<UT_Explosion>())
             {
                 if (e == null || e.gameObject.scene.IsValid())
