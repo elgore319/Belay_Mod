@@ -1,4 +1,4 @@
-## Not Alone 0.8.28
+## Not Alone 0.8.29
 
 - **The Teeth, the Face and the Hunter are the same for everyone.** The host now runs them and every other player sees the host's: where they are, how they move, leap and burrow, which way they're hunting and what they're doing. Before, each player's game ran its own and they drifted apart.
 - **If the host has one and you don't, you get it too.** One that the host's game spawned shows up for teammates who weren't there to trigger it, and one the host's game gets rid of goes for everyone.
