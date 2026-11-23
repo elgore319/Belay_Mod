@@ -331,11 +331,22 @@ namespace Belay.World
         /// </summary>
         private bool AlwaysOwn(Item_Object obj, string kind)
         {
-            if (kind == "Item_Flaregun" || kind == "Item_Flaregun_Ammo")
+            if (kind == "Item_Flaregun" || kind == "Item_Flaregun_Ammo" || OwnWeapon(kind))
             {
                 return true;
             }
             return NestOwn(kind) && (nestGuns.Contains(obj) || InNest(obj));
+        }
+
+        /// <summary>
+        /// Weapons from the Core update are one per player: picking one up never takes it away from a teammate
+        /// (the crossbow, flashgun, machine gun, piton grenades, bone rebar and the scissors artifact).
+        /// </summary>
+        private static bool OwnWeapon(string kind)
+        {
+            return kind == "Item_Crossbow" || kind == "Item_Flashgun" || kind == "Item_Machinegun"
+                || kind == "Item_Grenade_Piton" || kind.StartsWith("Item_Rebar_Bone", System.StringComparison.Ordinal)
+                || kind == "Item_Artifact_Scissors";
         }
 
         /// <summary>In the Nest every player needs their own handgun and its ammo.</summary>
@@ -825,6 +836,33 @@ namespace Belay.World
         [HarmonyPatch(typeof(ENV_VendingMachine), nameof(ENV_VendingMachine.Buy), new[] { typeof(int), typeof(bool), typeof(bool) })]
         [HarmonyPostfix]
         private static void VendingAfter(ENV_VendingMachine __instance, HashSet<Item_Object> __state) => MarkPersonal(__instance, __state);
+
+        // The Core's item printer crafts for the player at it, with their own currency: what it prints is theirs.
+        [HarmonyPatch(typeof(ENV_ItemPrinter), nameof(ENV_ItemPrinter.CreateItem))]
+        [HarmonyPrefix]
+        private static void PrinterBefore(out HashSet<Item_Object> __state)
+        {
+            __state = ItemSync.Instance != null && NetSession.InLobbyRun
+                ? new HashSet<Item_Object>(Object.FindObjectsByType<Item_Object>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                : null;
+        }
+
+        [HarmonyPatch(typeof(ENV_ItemPrinter), nameof(ENV_ItemPrinter.CreateItem))]
+        [HarmonyPostfix]
+        private static void PrinterAfter(HashSet<Item_Object> __state)
+        {
+            if (__state == null || ItemSync.Instance == null)
+            {
+                return;
+            }
+            foreach (Item_Object obj in Object.FindObjectsByType<Item_Object>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (obj != null && !__state.Contains(obj))
+                {
+                    ItemSync.Instance.Personal.Add(obj);
+                }
+            }
+        }
 
         // Artifact pedestals roll each player's own choice of artifacts on their PC: whatever is on yours is
         // yours, even when a teammate rolled the same artifact on theirs.

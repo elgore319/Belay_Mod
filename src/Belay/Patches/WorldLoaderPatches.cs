@@ -39,7 +39,7 @@ namespace Belay.Patches
             {
                 BranchKeys.Register(branch, World.ShortcutSync.BuildSeed.Value);
             }
-            int offset = genParams != null ? genParams.seedOffset : 0;
+            int offset = 0; // the game no longer offsets the build seed
             int seed;
             unchecked
             {

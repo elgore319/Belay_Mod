@@ -193,7 +193,7 @@ namespace Belay.Dev
         /// <summary>The game's own pick, with the unticked tilesets taken out first.</summary>
         [HarmonyPatch(typeof(M_Region.SubregionGroup), nameof(M_Region.SubregionGroup.GetSubregion))]
         [HarmonyPrefix]
-        private static bool GetSubregionPrefix(M_Region.SubregionGroup __instance, bool allowForced, ref M_Subregion __result)
+        private static bool GetSubregionPrefix(M_Region.SubregionGroup __instance, ref PcgRandom rng, bool allowForced, ref M_Subregion __result)
         {
             if (TilesetPicker.Bypass || TilesetPicker.Off.Count == 0 || __instance.subregions == null)
             {
@@ -211,12 +211,12 @@ namespace Belay.Dev
                     __result = sub;
                     return false;
                 }
-                if (sub.CanSpawn() && sub.spawnSettings.RandomCheck())
+                if (sub.CanSpawn() && sub.spawnSettings.RandomCheck(ref rng))
                 {
                     list.Add(sub);
                 }
             }
-            __result = list.Count == 0 ? null : list[Random.Range(0, list.Count)];
+            __result = list.Count == 0 ? null : list[rng.NextRange(0, list.Count)];
             return false;
         }
     }

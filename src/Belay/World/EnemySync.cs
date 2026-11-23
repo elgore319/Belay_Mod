@@ -389,6 +389,12 @@ namespace Belay.World
             yield return AccessTools.Method(typeof(DEN_Hunter), nameof(DEN_Hunter.Damage), args);
             yield return AccessTools.Method(typeof(DEN_Teeth), nameof(DEN_Teeth.Damage), args);
             yield return AccessTools.Method(typeof(DEN_Face), nameof(DEN_Face.Damage), args);
+            // Core update: androids and drones (basic denizens), the gantry turret and the pseudopod.
+            foreach (System.Type t in new[] { typeof(DEN_BasicDenizen), typeof(DEN_GantryTurret), typeof(DEN_Pseudopod) })
+            {
+                System.Reflection.MethodInfo m = AccessTools.DeclaredMethod(t, "Damage", args);
+                if (m != null) yield return m;
+            }
         }
 
         [HarmonyPrefix]
@@ -425,6 +431,11 @@ namespace Belay.World
             yield return AccessTools.Method(typeof(DEN_Bloodbug), nameof(DEN_Bloodbug.Kill), args);
             yield return AccessTools.Method(typeof(DEN_Mother), nameof(DEN_Mother.Kill), args);
             yield return AccessTools.Method(typeof(DEN_Turret), nameof(DEN_Turret.Kill), args);
+            foreach (System.Type t in new[] { typeof(DEN_BasicDenizen), typeof(DEN_BasicDenizen_Flier), typeof(DEN_GantryTurret), typeof(DEN_Pseudopod) })
+            {
+                System.Reflection.MethodInfo m = AccessTools.DeclaredMethod(t, "Kill", args);
+                if (m != null) yield return m;
+            }
         }
 
         [HarmonyPrefix]
