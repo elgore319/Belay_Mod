@@ -6,3 +6,8 @@
 - **The Face no longer speeds up oddly when it goes after a teammate** instead of the host.
 - They still bite, hurt and kill whoever they actually reach.
 - **Everyone sees the same vent hands.** Each hand goes after the player closest to it, and everyone sees it reach out, grab that player and drag them, arm and all. It doesn't switch to someone else while it's holding a player.
+
+Also new since 0.8.22:
+
+- **The Habitation laser floor no longer blocks teammates behind.** The red security field in the Habitation Labs now runs for each player from their own trigger, so everyone gets the chase. Once it has finished rising it switches off, so a teammate who is still below it (late, revived or respawned) can climb past instead of dying in it.
+- **Props a teammate moves can't push you out of bounds.**
