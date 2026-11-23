@@ -12,6 +12,10 @@ namespace Belay.World
     /// it owns it (holder, else nearest player when knocked) and streams it; others play it back kinematic until
     /// it rests. Holder beats pusher, then lower Steam id wins. Breaks are shared. Pickable items are left to <see
     /// cref="ItemSync"/>.
+    /// A prop a teammate is moving is kinematic here, and a kinematic body moved into the player's character
+    /// controller wins: the controller's overlap recovery shoves the player out of it, sometimes through a wall or
+    /// out of the level. So while a prop is played back the local player passes through it, and contact only
+    /// comes back once the prop is ours again and no longer overlaps the player.
     /// </summary>
     public class PropSync : MonoBehaviour
     {
@@ -43,7 +47,12 @@ namespace Belay.World
             public Quaternion TargetRot;
             public Vector3 TargetVel;
             public Vector3 TargetAngVel;
+
+            /// <summary>The local player's controller this prop currently ignores, or null.</summary>
+            public Collider IgnoredPlayer;
         }
+
+        private readonly Collider[] overlapHits = new Collider[32];
 
         public static PropSync Instance { get; private set; }
 
@@ -228,6 +237,10 @@ namespace Belay.World
                     continue;
                 }
                 e.LocalHeld = HeldLocally(player, e.Prop) >= 0;
+                if (!e.Remote && e.IgnoredPlayer != null)
+                {
+                    TryRestorePlayer(e);
+                }
 
                 if (e.Remote)
                 {
@@ -326,6 +339,80 @@ namespace Belay.World
             }, reliable: resting);
         }
 
+        // ---------------------------------------------------------------- Player contact
+
+        /// <summary>A teammate is driving this prop: let the local player pass through it instead of being shoved.</summary>
+        private static void IgnorePlayer(Entry e)
+        {
+            Collider player = ENT_Player.playerObject != null ? ENT_Player.playerObject.cCon : null;
+            if (player == null || e.IgnoredPlayer == player)
+            {
+                return;
+            }
+            if (e.IgnoredPlayer != null)
+            {
+                SetPlayerContact(e, e.IgnoredPlayer, true);
+            }
+            SetPlayerContact(e, player, false);
+            e.IgnoredPlayer = player;
+        }
+
+        /// <summary>Back in our physics: touch the player again, but only once they're clear of each other.</summary>
+        private void TryRestorePlayer(Entry e)
+        {
+            Collider player = e.IgnoredPlayer;
+            if (player == null)
+            {
+                return;
+            }
+            if (player is CharacterController cc && cc.enabled && OverlapsPlayer(e, cc))
+            {
+                return;
+            }
+            SetPlayerContact(e, player, true);
+            e.IgnoredPlayer = null;
+        }
+
+        private bool OverlapsPlayer(Entry e, CharacterController cc)
+        {
+            List<Collider> colliders = e.Prop.GetColliders();
+            if (colliders == null || colliders.Count == 0)
+            {
+                return false;
+            }
+            Transform t = cc.transform;
+            float scale = Mathf.Max(Mathf.Abs(t.lossyScale.x), Mathf.Abs(t.lossyScale.z));
+            float radius = cc.radius * scale + cc.skinWidth + 0.05f;
+            float half = Mathf.Max(0f, cc.height * Mathf.Abs(t.lossyScale.y) * 0.5f - cc.radius * scale);
+            Vector3 center = t.TransformPoint(cc.center);
+            Vector3 up = t.up * half;
+            int n = Physics.OverlapCapsuleNonAlloc(center - up, center + up, radius, overlapHits, ~0, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < n; i++)
+            {
+                if (colliders.Contains(overlapHits[i]))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static void SetPlayerContact(Entry e, Collider player, bool collide)
+        {
+            List<Collider> colliders = e.Prop != null ? e.Prop.GetColliders() : null;
+            if (player == null || colliders == null)
+            {
+                return;
+            }
+            foreach (Collider c in colliders)
+            {
+                if (c != null)
+                {
+                    Physics.IgnoreCollision(player, c, !collide);
+                }
+            }
+        }
+
         // ---------------------------------------------------------------- Receiving
 
         private void HandleState(SteamId origin, System.IO.BinaryReader r)
@@ -376,6 +463,7 @@ namespace Belay.World
                 }
                 e.WasKinematic = e.Body.isKinematic;
                 e.Remote = true;
+                IgnorePlayer(e);
                 e.Body.isKinematic = true;
             }
             e.RemoteOwner = origin;
