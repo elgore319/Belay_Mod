@@ -74,6 +74,9 @@ namespace Belay.Net
         TeamDiskSave = 127,
         TeamDiskReload = 128,
         LadderNightmare = 129,
+        CreatureStates = 170,
+        CreatureRequest = 171,
+        VentHand = 172,
         // 118 was TeamPause (removed); keep the number unused.
     }
 
