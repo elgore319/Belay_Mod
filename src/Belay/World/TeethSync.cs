@@ -8,7 +8,7 @@ using UnityEngine;
 namespace Belay.World
 {
     /// <summary>
-    /// Teeth (the Habitation shaft hunter) and the Face are host-run and copied (EnemyMotion). The game aims them
+    /// Teeth (the Habitation shaft hunter) and the Face are host-run and copied (CreatureSync). The game aims them
     /// at the local player once, so in co-op they only chased the host, even after the host died. On the host they
     /// now chase the nearest living player; each copy still bites on its own PC. Also cleans up a Teeth kill after
     /// a revive.
@@ -137,6 +137,7 @@ namespace Belay.World
             {
                 return;
             }
+            CreatureSync.AfterRevive();
             try
             {
                 List<AIStateComponent> states = Traverse.Create(teeth).Field("aiStates").GetValue<List<AIStateComponent>>();
