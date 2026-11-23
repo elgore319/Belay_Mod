@@ -100,6 +100,7 @@ namespace Belay
             gameObject.AddComponent<LevelPulses>();
             gameObject.AddComponent<SeatLock>();
             gameObject.AddComponent<ElevatorHold>();
+            gameObject.AddComponent<LaserFields>();
             gameObject.AddComponent<LevelCheck>();
             gameObject.AddComponent<Players.Avatar.OutfitPreview>();
             gameObject.AddComponent<ReviveSystem>();
