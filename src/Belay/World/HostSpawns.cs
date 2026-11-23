@@ -257,7 +257,8 @@ namespace Belay.World
             Random.InitState(SeedFor(id));
             try
             {
-                pass = s.spawnSettings.RandomCheck(runOnSpawn: false);
+                PcgRandom rng = Patches.Pcg.From(SeedFor(id));
+                pass = s.spawnSettings.RandomCheck(ref rng, runOnSpawn: false);
             }
             finally
             {
@@ -300,6 +301,8 @@ namespace Belay.World
             }
         }
 
+        private static readonly AccessTools.FieldRef<UT_TriggerSpawner, PcgRandom> SpawnerRng = AccessTools.FieldRefAccess<UT_TriggerSpawner, PcgRandom>("rng");
+
         private static void RunSpawner(UT_TriggerSpawner s, bool pass)
         {
             string id = ButtonSync.ObjectId(s);
@@ -309,6 +312,7 @@ namespace Belay.World
             ForcedCheck = pass;
             try
             {
+                SpawnerRng(s) = Patches.Pcg.From(SeedFor(id) ^ 0x5bd1e995); // the spawn table rolls from the spawner's own rng
                 s.Spawn();
             }
             catch (System.Exception e)
@@ -552,13 +556,13 @@ namespace Belay.World
     {
         [HarmonyPatch(typeof(SpawnTable.SpawnSettings), nameof(SpawnTable.SpawnSettings.RandomCheck))]
         [HarmonyPrefix]
-        private static bool RandomCheck(SpawnTable.SpawnSettings __instance, bool runOnSpawn, ref bool __result)
+        private static bool RandomCheck(SpawnTable.SpawnSettings __instance, ref PcgRandom rng, bool runOnSpawn, ref bool __result)
         {
             if (!HostSpawns.ForcedCheck.HasValue)
             {
                 return true;
             }
-            Random.value.GetHashCode(); // keep the random sequence the same as the game's own check
+            rng.NextF(); // keep the random sequence the same as the game's own check
             __result = HostSpawns.ForcedCheck.Value;
             HostSpawns.ForcedCheck = null; // only the spawner's own check: its spawn table rolls as usual
             if (__result && runOnSpawn)

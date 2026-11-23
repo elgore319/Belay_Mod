@@ -237,7 +237,7 @@ namespace Belay.World
             {
                 return;
             }
-            int offset = genParams != null ? genParams.seedOffset : 0;
+            int offset = 0; // the game no longer offsets the build seed
             LevelLists.ArmedKey = unchecked(___seed + offset) + "|" + Patches.BranchKeys.BuildKey(branch);
         }
 

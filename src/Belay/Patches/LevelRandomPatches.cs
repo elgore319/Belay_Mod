@@ -40,6 +40,16 @@ namespace Belay.Patches
             harmony.Patch(AccessTools.Method(typeof(M_Level), nameof(M_Level.OnSpawn)),
                 prefix: new HarmonyMethod(typeof(LevelRandomPatches), nameof(OnSpawnPrefix)));
 
+            try
+            {
+                MethodInfo build = AccessTools.EnumeratorMoveNext(AccessTools.Method(typeof(WorldLoader), "GenerateLevels"));
+                harmony.Patch(build, transpiler: new HarmonyMethod(typeof(LevelRandomPatches), nameof(FlipTranspiler)));
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogWarning("Couldn't sync level mirroring: " + e.Message);
+            }
+
             // The Hadal diver builds its body (and the handholds on it) from random segments. It's a DEN_
             // creature, so the scan below skips it: seed it here so everyone rides the same diver.
             harmony.Patch(AccessTools.Method(typeof(DEN_HadalDiver), nameof(DEN_HadalDiver.GenerateDiver)),
@@ -97,7 +107,48 @@ namespace Belay.Patches
                 return;
             }
             int id = LevelId(__instance);
-            UnityEngine.Random.InitState(Hash(NetSession.Instance.Seed, id, "level:" + LevelName(__instance)));
+            int h = Hash(NetSession.Instance.Seed, id, "level:" + LevelName(__instance));
+            UnityEngine.Random.InitState(h);
+            FlipSeed = h;
+        }
+
+        /// <summary>The seed of the level that just spawned, for its mirror roll.</summary>
+        private static int? FlipSeed;
+
+        /// <summary>
+        /// The game decides whether a level is mirrored with its build rng right after the level spawns. That
+        /// rng has also picked the level list, which can differ in how many numbers it drew on each PC (one PC
+        /// takes a teammate's shared pick), so the mirror roll is taken from the level's own shared seed instead.
+        /// The build rng still advances as usual.
+        /// </summary>
+        private static float FlipRoll(ref PcgRandom rng)
+        {
+            float own = rng.NextF();
+            if (!Active || !FlipSeed.HasValue)
+            {
+                return own;
+            }
+            uint s = unchecked((uint)FlipSeed.Value * 2654435761u);
+            FlipSeed = null;
+            return (s >> 8) / 16777216f;
+        }
+
+        private static IEnumerable<CodeInstruction> FlipTranspiler(IEnumerable<CodeInstruction> instructions)
+        {
+            MethodInfo next = AccessTools.Method(typeof(PcgRandom), nameof(PcgRandom.NextF));
+            MethodInfo roll = AccessTools.Method(typeof(LevelRandomPatches), nameof(FlipRoll));
+            int swapped = 0;
+            foreach (CodeInstruction ins in instructions)
+            {
+                if (ins.Calls(next))
+                {
+                    ins.opcode = System.Reflection.Emit.OpCodes.Call;
+                    ins.operand = roll;
+                    swapped++;
+                }
+                yield return ins;
+            }
+            Plugin.Log.LogInfo($"Level mirroring synced ({swapped} roll(s))");
         }
 
         private static void ComponentPrefix(Component __instance)
