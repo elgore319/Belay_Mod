@@ -9,8 +9,8 @@ using UnityEngine;
 namespace Belay.Players
 {
     /// <summary>
-    /// Teammates' item effects: item sounds play from their body using the same clips, shots flash at their hand,
-    /// and lit items light up where they look. All driven by the items' own code.
+    /// Teammates' lit items light up where they look, and their shots flash at their hand. Item sounds and other
+    /// effects are ItemEffects'.
     /// </summary>
     public class ItemFx : MonoBehaviour
     {
@@ -25,7 +25,6 @@ namespace Belay.Players
             public float Seen;
         }
 
-        private readonly Dictionary<string, List<UT_AudioClipHandler>> handlers = new Dictionary<string, List<UT_AudioClipHandler>>();
         private readonly Dictionary<SteamId, HeldLight[]> lights = new Dictionary<SteamId, HeldLight[]>();
         private float nextLightSend;
         private bool sentLit;
@@ -37,153 +36,10 @@ namespace Belay.Players
 
         private void Start()
         {
-            NetSession.Instance.On(PacketType.ItemSound, HandleSound);
             NetSession.Instance.On(PacketType.HeldLight, HandleLight);
         }
 
         internal static bool Live => NetSession.InLobbyRun;
-
-        // ---------------------------------------------------------------- Sounds
-
-        private static readonly Dictionary<int, int> handOfHandler = new Dictionary<int, int>();
-        private static readonly Dictionary<string, float> lastSound = new Dictionary<string, float>();
-
-        /// <summary>Which of the local player's hands this sound player belongs to, or -1.</summary>
-        private static int LocalHandOf(UT_AudioClipHandler h)
-        {
-            int key = h.GetInstanceID();
-            if (handOfHandler.TryGetValue(key, out int hand))
-            {
-                return hand;
-            }
-            if (handOfHandler.Count > 512)
-            {
-                handOfHandler.Clear();
-            }
-            hand = -1;
-            HandItem item = h.GetComponentInParent<HandItem>(true);
-            if (item != null && item.hand != null && item.hand.GetPlayer() == ENT_Player.playerObject)
-            {
-                hand = item.hand.id;
-            }
-            handOfHandler[key] = hand;
-            return hand;
-        }
-
-        internal static void OnLocalSound(UT_AudioClipHandler h, string sound)
-        {
-            if (h == null || string.IsNullOrEmpty(sound) || ENT_Player.playerObject == null)
-            {
-                return;
-            }
-            int hand = LocalHandOf(h);
-            if (hand < 0 || hand > 1)
-            {
-                return;
-            }
-            string prefab = Avatar.HeldItems.LocalHeld(hand);
-            if (prefab.Length == 0)
-            {
-                return;
-            }
-            // Automatic weapons can ask for the same sound every frame.
-            string key = hand + sound;
-            float now = Time.unscaledTime;
-            if (lastSound.TryGetValue(key, out float last) && now - last < 0.05f)
-            {
-                return;
-            }
-            lastSound[key] = now;
-            NetSession.Instance.Send(PacketType.ItemSound, w =>
-            {
-                w.Write((byte)hand);
-                w.Write(prefab);
-                w.Write(sound);
-            }, reliable: false);
-        }
-
-        private void HandleSound(SteamId origin, BinaryReader r)
-        {
-            int hand = r.ReadByte();
-            string prefab = r.ReadString();
-            string sound = r.ReadString();
-            if (origin == NetSession.LocalId || !Live || PlayerSync.Instance == null
-                || !PlayerSync.Instance.Remotes.TryGetValue(origin, out RemotePlayer remote) || remote == null || remote.Latest.Dead)
-            {
-                return;
-            }
-            try
-            {
-                UT_AudioClipHandler.AudioSet set = FindSet(prefab, sound);
-                if (set != null && !set.loop && set.clips != null && set.clips.Count > 0)
-                {
-                    AudioClip clip = set.clips[UnityEngine.Random.Range(0, set.clips.Count)];
-                    if (clip != null)
-                    {
-                        // Your own gun plays flat in your ears; a teammate's comes from where they are.
-                        AudioManager.PlaySound(clip, remote.transform, UnityEngine.Random.Range(set.minVolume, set.maxVolume),
-                            UnityEngine.Random.Range(set.minPitch, set.maxPitch), 1f);
-                    }
-                }
-                if (sound.EndsWith(":shoot", StringComparison.OrdinalIgnoreCase))
-                {
-                    Flash(remote.HandPosition(hand) + Look(remote) * 0.3f);
-                }
-            }
-            catch (Exception e)
-            {
-                Plugin.Log.LogWarning($"Couldn't play a teammate's {prefab} sound {sound}: {e.Message}");
-            }
-        }
-
-        private UT_AudioClipHandler.AudioSet FindSet(string prefab, string sound)
-        {
-            int colon = sound.IndexOf(':');
-            if (colon <= 0 || colon >= sound.Length - 1)
-            {
-                return null;
-            }
-            string group = sound.Substring(0, colon), name = sound.Substring(colon + 1);
-            foreach (UT_AudioClipHandler h in Handlers(prefab))
-            {
-                if (h == null || h.groups == null) continue;
-                foreach (UT_AudioClipHandler.AudioGroup g in h.groups)
-                {
-                    if (g == null || g.audioSets == null || !string.Equals(g.name, group, StringComparison.OrdinalIgnoreCase)) continue;
-                    foreach (UT_AudioClipHandler.AudioSet s in g.audioSets)
-                    {
-                        if (s != null && string.Equals(s.name, name, StringComparison.OrdinalIgnoreCase))
-                        {
-                            return s;
-                        }
-                    }
-                }
-            }
-            return null;
-        }
-
-        private List<UT_AudioClipHandler> Handlers(string prefab)
-        {
-            if (handlers.TryGetValue(prefab, out List<UT_AudioClipHandler> known))
-            {
-                return known;
-            }
-            var list = new List<UT_AudioClipHandler>();
-            try
-            {
-                HandItem hand = CL_AssetManager.GetAssetGameObject(prefab)?.GetComponent<Item_Object>()?.itemData?.handItemAsset;
-                if (hand != null)
-                {
-                    list.AddRange(hand.GetComponentsInChildren<UT_AudioClipHandler>(true));
-                }
-            }
-            catch (Exception e)
-            {
-                Plugin.Log.LogWarning($"No sounds found for {prefab}: {e.Message}");
-            }
-            handlers[prefab] = list;
-            return list;
-        }
 
         private static Vector3 Look(RemotePlayer remote)
         {
@@ -191,7 +47,7 @@ namespace Belay.Players
         }
 
         /// <summary>A short burst of light where a teammate's gun went off.</summary>
-        private static void Flash(Vector3 at)
+        internal static void Flash(Vector3 at)
         {
             var go = new GameObject("Belay_MuzzleFlash");
             go.SetActive(false);
@@ -390,34 +246,6 @@ namespace Belay.Players
                 {
                     lights.Remove(id);
                 }
-            }
-        }
-    }
-
-    [HarmonyPatch]
-    internal static class ItemFxPatches
-    {
-        [HarmonyPatch(typeof(UT_AudioClipHandler), nameof(UT_AudioClipHandler.PlaySound), new[] { typeof(string) })]
-        [HarmonyPostfix]
-        private static void Played(UT_AudioClipHandler __instance, string sound) => Share(__instance, sound);
-
-        [HarmonyPatch(typeof(UT_AudioClipHandler), nameof(UT_AudioClipHandler.PlaySound), new[] { typeof(string), typeof(float) })]
-        [HarmonyPostfix]
-        private static void PlayedAtVolume(UT_AudioClipHandler __instance, string sound) => Share(__instance, sound);
-
-        private static void Share(UT_AudioClipHandler h, string sound)
-        {
-            if (!ItemFx.Live)
-            {
-                return;
-            }
-            try
-            {
-                ItemFx.OnLocalSound(h, sound);
-            }
-            catch (Exception e)
-            {
-                Plugin.Log.LogWarning("Item sound not shared: " + e.Message);
             }
         }
     }
