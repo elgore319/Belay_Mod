@@ -205,6 +205,11 @@ namespace Belay.Run
                 return;
             }
 
+            if (World.MapSync.LocalInChamber || !World.MapSync.SameMap(net.HostId))
+            {
+                // One of us is in a separate room (the shop, an artifact room): its spot means nothing in the other map.
+                return;
+            }
             ENT_Player player = ENT_Player.playerObject;
             Vector3 hostPos = host.LocalPosition;
             float below = hostPos.y - player.transform.position.y;

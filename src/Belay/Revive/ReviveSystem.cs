@@ -291,7 +291,13 @@ namespace Belay.Revive
             if (Time.unscaledTime >= nextLevelSync)
             {
                 nextLevelSync = Time.unscaledTime + 1f;
-                EnsureLevelAt(target.LocalPosition);
+                // Watch them in their map: into the shop or an artifact room with them, or back out to the
+                // main map (dying inside a room used to leave the world hidden).
+                World.MapSync.Follow(target.SteamId);
+                if (!World.MapSync.InChamber(target.SteamId))
+                {
+                    EnsureLevelAt(target.LocalPosition);
+                }
             }
             Prompt = "Spectating " + target.DisplayName + ".  [" + Plugin.SpectateNextKey.Value + "] next player";
         }
@@ -838,14 +844,26 @@ namespace Belay.Revive
                 pendingRevive = false; // revived some other way meanwhile
                 return;
             }
-            Vector3 spot = WorldSpace.ToLocal(pendingSpawn);
             bool waitedTooLong = Time.unscaledTime - pendingSince > ReviveWaitLimit;
-            if (!GroundReady(spot) && !waitedTooLong)
+            // Come back in the reviver's map: their room (the shop, an artifact room) is loaded here first, or
+            // the room we died in is left so the world shows again. Otherwise the spot is in a hidden map: the void.
+            bool theirRoom = World.MapSync.InChamber(pendingReviver);
+            if (!World.MapSync.Follow(pendingReviver) && !waitedTooLong)
             {
-                EnsureLevelAt(spot);
                 return;
             }
-            if (waitedTooLong && !GroundReady(spot))
+            bool inRoom = theirRoom && World.MapSync.LocalInChamber;
+            Vector3 spot = inRoom ? World.MapSync.FromTheirChamber(pendingReviver, pendingSpawn) : WorldSpace.ToLocal(pendingSpawn);
+            bool ready = inRoom ? GroundUnder(spot) : GroundReady(spot);
+            if (!ready && !waitedTooLong)
+            {
+                if (!inRoom)
+                {
+                    EnsureLevelAt(spot);
+                }
+                return;
+            }
+            if (!ready)
             {
                 Plugin.Log.LogWarning("The revive spot still isn't built here; getting up there anyway");
             }
@@ -854,7 +872,10 @@ namespace Belay.Revive
             player.Revive();
             player.GetTagger()?.RemoveTag("Dead");
             World.TeethSync.CleanUpAfterRevive(player);
-            EnsureLevelAt(spot);
+            if (!inRoom)
+            {
+                EnsureLevelAt(spot);
+            }
             player.Teleport(spot);
             player.ResetFallingHeight();
             player.AddIgnoreFallDamageTime(5f);
@@ -880,6 +901,12 @@ namespace Belay.Revive
                 EnsureLevelAt(spot);
                 return false;
             }
+            return GroundUnder(spot);
+        }
+
+        /// <summary>Solid ground under the spot (a teammate's body doesn't count).</summary>
+        private static bool GroundUnder(Vector3 spot)
+        {
             foreach (RaycastHit hit in Physics.RaycastAll(spot + Vector3.up * 1f, Vector3.down, 30f, ~0, QueryTriggerInteraction.Ignore))
             {
                 // The reviver is standing right there: their body isn't ground.
@@ -899,6 +926,11 @@ namespace Belay.Revive
         /// </summary>
         internal static void EnsureLevelAt(Vector3 worldPos)
         {
+            if (World.MapSync.LocalInChamber)
+            {
+                // Inside a room the world is hidden; switching its levels around would only break the way back.
+                return;
+            }
             M_Level best = World.WorldCatchUp.LevelAt(worldPos);
             if (best == null)
             {

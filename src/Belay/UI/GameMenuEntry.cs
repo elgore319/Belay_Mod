@@ -268,6 +268,17 @@ namespace Belay.UI
                     continue;
                 }
                 tmp.text = first ? text : "";
+                if (first)
+                {
+                    // The game's labels are single words; ours is two, and with wrapping on it broke onto a
+                    // second row that ran into the buttons around it. Keep it on one line and shrink it to fit.
+                    float size = tmp.fontSize;
+                    tmp.textWrappingMode = TextWrappingModes.NoWrap;
+                    tmp.overflowMode = TextOverflowModes.Overflow;
+                    tmp.enableAutoSizing = true;
+                    tmp.fontSizeMax = size;
+                    tmp.fontSizeMin = Mathf.Max(1f, size * 0.5f);
+                }
                 first = false;
             }
             foreach (Text legacy in entry.GetComponentsInChildren<Text>(true))
@@ -277,6 +288,13 @@ namespace Belay.UI
                     continue;
                 }
                 legacy.text = first ? text : "";
+                if (first)
+                {
+                    legacy.horizontalOverflow = HorizontalWrapMode.Overflow;
+                    legacy.resizeTextMaxSize = legacy.fontSize;
+                    legacy.resizeTextMinSize = Mathf.Max(1, legacy.fontSize / 2);
+                    legacy.resizeTextForBestFit = true;
+                }
                 first = false;
             }
         }
