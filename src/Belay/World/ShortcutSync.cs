@@ -642,7 +642,7 @@ namespace Belay.World
             }
             nextPathCheck = Time.unscaledTime + 0.5f;
             ENT_Player player = ENT_Player.playerObject;
-            if (player == null || player.dead)
+            if (player == null || player.dead || MapSync.LocalInChamber)
             {
                 return;
             }

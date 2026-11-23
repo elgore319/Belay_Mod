@@ -160,6 +160,7 @@ namespace Belay.Rope
         {
             return PlayerSync.Instance != null && PlayerSync.Instance.Remotes.TryGetValue(id, out RemotePlayer remote)
                 && remote != null && !remote.Latest.Dead && Time.unscaledTime - remote.LastReceived < 2f
+                && Belay.World.MapSync.SameMap(id)
                 ? remote
                 : null;
         }
