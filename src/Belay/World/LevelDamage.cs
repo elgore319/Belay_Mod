@@ -82,6 +82,7 @@ namespace Belay.World
         /// <summary>New run, or the world was rebuilt from a save: earlier damage no longer applies.</summary>
         internal void Forget()
         {
+            found.Clear();
             known.Clear();
             pending.Clear();
         }
@@ -203,7 +204,27 @@ namespace Belay.World
             }
         }
 
+        private static readonly Dictionary<string, Component> found = new Dictionary<string, Component>();
+
         private static Component Find(string id, byte kind)
+        {
+            if (found.TryGetValue(id, out Component hit))
+            {
+                if (hit != null)
+                {
+                    return hit;
+                }
+                found.Remove(id);
+            }
+            hit = Search(id, kind);
+            if (hit != null)
+            {
+                found[id] = hit;
+            }
+            return hit;
+        }
+
+        private static Component Search(string id, byte kind)
         {
             if (kind == KindHitbox)
             {
@@ -249,7 +270,7 @@ namespace Belay.World
 
         private static void ApplyDamage(UT_Damage d, Damageable.DamageInfo replay, float target)
         {
-            if (DamageDead(d) || d.health <= target + 0.001f)
+            if (DamageDead(d))
             {
                 return;
             }
@@ -260,11 +281,11 @@ namespace Belay.World
                 bool could = d.canDamage;
                 d.canDamage = true;
                 d.Damage(replay);
-                d.canDamage = could || d.canDamage;
-                if (DamageDead(d) || d.health <= target + 0.001f)
-                {
-                    return;
-                }
+                d.canDamage = could;
+            }
+            if (DamageDead(d) || d.health <= target + 0.001f)
+            {
+                return;
             }
             // Bring health down to the team's, running what the game runs on the way.
             float amount = d.health - target;
@@ -292,7 +313,7 @@ namespace Belay.World
 
         private static void ApplyHitbox(ENT_Hitbox h, Damageable.DamageInfo replay, float target)
         {
-            if (HitboxDestroyed(h) || h.health <= target + 0.001f)
+            if (HitboxDestroyed(h) || (replay == null && h.health <= target + 0.001f))
             {
                 return;
             }
@@ -347,7 +368,8 @@ namespace Belay.World
         [HarmonyPrefix]
         private static void DamagePrefix(UT_Damage __instance, out float __state)
         {
-            __state = __instance != null ? __instance.health : 0f;
+            // NaN: it couldn't be damaged, so the hit did nothing here.
+            __state = __instance != null && __instance.canDamage ? __instance.health : float.NaN;
         }
 
         [HarmonyPatch(typeof(UT_Damage), nameof(UT_Damage.Damage), new[] { typeof(Damageable.DamageInfo) })]
@@ -355,7 +377,14 @@ namespace Belay.World
         private static void DamagePostfix(UT_Damage __instance, Damageable.DamageInfo info, float __state)
         {
             // maxHealth 0 means it can't be destroyed (reactive surfaces): nothing lasting to share.
-            if (!LevelDamage.Live || __instance == null || __instance.maxHealth <= 0f || __instance.health >= __state - 0.0001f)
+            if (!LevelDamage.Live || __instance == null || float.IsNaN(__state) || __instance.maxHealth <= 0f)
+            {
+                return;
+            }
+            // Your hits always go out, even when health doesn't move: the Nest elevator's cable takes no damage
+            // (damage multiplier 0) but any hit on it drops the elevator.
+            bool dropped = __instance.health < __state - 0.0001f;
+            if (!dropped && !LevelDamage.FromLocalPlayer(info))
             {
                 return;
             }

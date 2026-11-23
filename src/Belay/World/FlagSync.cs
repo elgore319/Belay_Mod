@@ -73,10 +73,25 @@ namespace Belay.World
     [HarmonyPatch(typeof(UT_CheckFlag), nameof(UT_CheckFlag.SetFlag))]
     internal static class FlagSyncPatch
     {
-        [HarmonyPostfix]
-        private static void Postfix(string dat)
+        /// <summary>
+        /// A generator's own "this way was taken" flag isn't set when the team took the other way instead
+        /// (both set at once would build both ways' levels later).
+        /// </summary>
+        [HarmonyPrefix]
+        private static bool Prefix(UT_CheckFlag __instance)
         {
-            if (!FlagSync.Live || string.IsNullOrEmpty(dat))
+            if (!NetSession.InLobbyRun || ShortcutSync.Refused.Count == 0 || __instance == null)
+            {
+                return true;
+            }
+            UT_BranchGenerator g = __instance.GetComponent<UT_BranchGenerator>();
+            return g == null || !ShortcutSync.Refused.Contains(ButtonSync.ObjectId(g));
+        }
+
+        [HarmonyPostfix]
+        private static void Postfix(string dat, bool __runOriginal)
+        {
+            if (!__runOriginal || !FlagSync.Live || string.IsNullOrEmpty(dat))
             {
                 return;
             }

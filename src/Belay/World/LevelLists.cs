@@ -12,7 +12,7 @@ namespace Belay.World
     /// seed: per-player stats and lifetime totals, run flags set by things only one player did, difficulty,
     /// best climb distance, and each region's own leftover level pool. So areas like the Nest could come out as
     /// different tilesets on different PCs. Now the first PC to pick a stretch shares its pick (keyed by the
-    /// build's seed and level count, which every PC shares), and every other PC builds that same stretch.
+    /// build's seed and its place in its map branch, which every PC shares), and every other PC builds that same stretch.
     /// </summary>
     public class LevelLists : MonoBehaviour
     {
@@ -222,7 +222,7 @@ namespace Belay.World
         /// </summary>
         [HarmonyPatch(typeof(WorldLoader), "GenerateLevels")]
         [HarmonyPostfix]
-        private static void Arm(WorldLoader.BranchInfo branch, WorldLoader.GenerationParameters genParams, int ___seed, int ___idCounter)
+        private static void Arm(WorldLoader.BranchInfo branch, WorldLoader.GenerationParameters genParams, int ___seed)
         {
             LevelLists.ArmedKey = null;
             if (!LevelLists.Active || ___seed == -1 || branch == null)
@@ -238,7 +238,7 @@ namespace Belay.World
                 return;
             }
             int offset = genParams != null ? genParams.seedOffset : 0;
-            LevelLists.ArmedKey = unchecked(___seed + offset) + "|" + ___idCounter;
+            LevelLists.ArmedKey = unchecked(___seed + offset) + "|" + Patches.BranchKeys.BuildKey(branch);
         }
 
         private static readonly System.Reflection.FieldInfo PausedField = AccessTools.Field(typeof(WorldLoader.BranchInfo), "pausedLevelIDs");
