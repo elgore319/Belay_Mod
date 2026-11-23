@@ -1,4 +1,4 @@
-## Not Alone 0.8.21
+## Not Alone 0.8.28
 
 - **Revives come back in the right map.** The shop and some artifact rooms are separate maps. Being revived by a teammate in one of those rooms now loads that same room for you first, and being revived in the main map takes you out of any room you died in. No more falling into the void after a revive.
 - **Spectating follows your teammate between maps.** While you're down, the camera goes into the shop or artifact room with the teammate you're watching, and back out with them.

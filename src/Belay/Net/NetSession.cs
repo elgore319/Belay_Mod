@@ -279,6 +279,11 @@ namespace Belay.Net
             }
             // Asked for many times a frame (doors, goo, rope, votes, every relayed packet); reading the
             // Steam lobby each time cost a Steam call per member. The answer is the same within a frame.
+            return new List<SteamId>(CachedMembers());
+        }
+
+        private List<SteamId> CachedMembers()
+        {
             if (memberCacheFrame != Time.frameCount || memberCache == null)
             {
                 List<SteamId> ids = Members.Select(m => m.Id).ToList();
@@ -289,7 +294,13 @@ namespace Belay.Net
                 memberCache = ids;
                 memberCacheFrame = Time.frameCount;
             }
-            return new List<SteamId>(memberCache);
+            return memberCache;
+        }
+
+        /// <summary>Same as <see cref="MemberIds"/> but the shared list itself: only to read, right away.</summary>
+        private List<SteamId> MemberIdsNoCopy()
+        {
+            return Loopback.IsClient ? MemberIds() : CachedMembers();
         }
 
         private List<SteamId> memberCache;
@@ -606,7 +617,8 @@ namespace Belay.Net
 
         private void SendToAllExcept(byte[] packet, SteamId except, int channel, P2PSend sendType)
         {
-            foreach (SteamId member in MemberIds())
+            // Runs for every packet sent or relayed: read the frame's member list without copying it.
+            foreach (SteamId member in MemberIdsNoCopy())
             {
                 if (member != LocalId && member != except)
                 {

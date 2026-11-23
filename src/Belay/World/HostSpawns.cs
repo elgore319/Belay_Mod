@@ -43,6 +43,8 @@ namespace Belay.World
         private const byte AreaWave = 1;
         private const byte AreaSac = 2;
         private float nextPendingCheck;
+        private int pendingStamp;
+        private float lastFullPending;
 
         private static readonly AccessTools.FieldRef<UT_TriggerSpawner, float> SpawnerStart = AccessTools.FieldRefAccess<UT_TriggerSpawner, float>("startTime");
         private static readonly AccessTools.FieldRef<ENV_DenizenWaveZone, List<Denizen>> ZoneDenizens = AccessTools.FieldRefAccess<ENV_DenizenWaveZone, List<Denizen>>("denizensInZone");
@@ -90,7 +92,11 @@ namespace Belay.World
             if (Time.unscaledTime >= nextPendingCheck && (spawnerFired.Count > 0 || waveSpawns.Count > 0 || sacsBurst.Count > 0))
             {
                 nextPendingCheck = Time.unscaledTime + 1f;
-                ApplyPending();
+                // Waiting spawns only land once their level loads here: no full scan until one does.
+                if (LevelStamp.Due(ref pendingStamp, ref lastFullPending, 5f))
+                {
+                    ApplyPending();
+                }
             }
         }
 
@@ -140,17 +146,7 @@ namespace Belay.World
 
         private static int SeedFor(string id) => WorldEvents.SeedFor("spawn:" + id);
 
-        private static T FindById<T>(string id) where T : Component
-        {
-            foreach (T c in FindObjectsByType<T>(FindObjectsInactive.Include, FindObjectsSortMode.None))
-            {
-                if (c != null && ButtonSync.ObjectId(c) == id)
-                {
-                    return c;
-                }
-            }
-            return null;
-        }
+        private static T FindById<T>(string id) where T : Component => IdLookup.Find<T>(id, FindObjectsInactive.Include);
 
         /// <summary>One pass over every object of a type, by id (instead of a full scan for each id we wait on).</summary>
         private static Dictionary<string, T> AllById<T>() where T : Component
