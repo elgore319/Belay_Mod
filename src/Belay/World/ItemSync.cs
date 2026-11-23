@@ -789,6 +789,25 @@ namespace Belay.World
         [HarmonyPostfix]
         private static void VendingAfter(ENV_VendingMachine __instance, HashSet<Item_Object> __state) => MarkPersonal(__instance, __state);
 
+        // Artifact pedestals roll each player's own choice of artifacts on their PC: whatever is on yours is
+        // yours, even when a teammate rolled the same artifact on theirs.
+        [HarmonyPatch(typeof(ENV_ArtifactDevice), "Start")]
+        [HarmonyPostfix]
+        private static void ArtifactDeviceAfter(ENV_ArtifactDevice __instance)
+        {
+            if (__instance == null || ItemSync.Instance == null || !NetSession.InLobbyRun)
+            {
+                return;
+            }
+            foreach (Item_Object obj in __instance.GetComponentsInChildren<Item_Object>(true))
+            {
+                if (obj != null)
+                {
+                    ItemSync.Instance.Personal.Add(obj);
+                }
+            }
+        }
+
         private static HashSet<Item_Object> ItemsNear(Component machine)
         {
             var set = new HashSet<Item_Object>();
