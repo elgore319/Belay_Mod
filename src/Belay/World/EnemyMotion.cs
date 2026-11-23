@@ -134,7 +134,7 @@ namespace Belay.World
             var batch = new List<(AIGameEntity e, float d)>();
             foreach (AIGameEntity e in EnemySync.Instance.Known())
             {
-                if (!e.gameObject.activeInHierarchy || EnemyTargets.Personal(e) || !RunsHere(e))
+                if (!e.gameObject.activeInHierarchy || EnemyTargets.Personal(e) || CreatureSync.Handles(e) || !RunsHere(e))
                 {
                     continue;
                 }
@@ -375,7 +375,7 @@ namespace Belay.World
                     }
                     f.NextFind = Time.unscaledTime + 2f;
                     AIGameEntity found = EnemySync.Instance.Find(kind, spawn, now);
-                    if (found == null || IsFollowed(found))
+                    if (found == null || IsFollowed(found) || CreatureSync.Handles(found))
                     {
                         continue;
                     }
