@@ -77,6 +77,7 @@ namespace Belay.Net
         LevelDamaged = 160,
         LevelList = 161,
         RunFlagSet = 162,
+        MotherEnraged = 163,
         // 118 was TeamPause (removed); keep the number unused.
     }
 

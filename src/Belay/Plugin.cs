@@ -94,6 +94,7 @@ namespace Belay
             gameObject.AddComponent<LevelDamage>();
             gameObject.AddComponent<LevelLists>();
             gameObject.AddComponent<FlagSync>();
+            gameObject.AddComponent<MotherSync>();
             gameObject.AddComponent<ThrownSync>();
             gameObject.AddComponent<GrabSync>();
             gameObject.AddComponent<ItemFx>();

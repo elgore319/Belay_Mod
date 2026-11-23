@@ -307,7 +307,7 @@ namespace Belay.World
             }
             string kind = Kind(obj);
             M_Level level = obj.GetComponentInParent<M_Level>();
-            if (kind.StartsWith("Item_Handgun", System.StringComparison.Ordinal) && InNest(obj))
+            if (NestOwn(kind) && InNest(obj))
             {
                 nestGuns.Add(obj);
             }
@@ -326,8 +326,8 @@ namespace Belay.World
         }
 
         /// <summary>
-        /// Needed by everyone, so each player always has their own to pick up: the flare gun, and the handgun in
-        /// the Nest (shooting is how you get through it).
+        /// Needed by everyone, so each player always has their own to pick up: the flare gun, and the handgun and
+        /// its ammo in the Nest (shooting is how you get through it).
         /// </summary>
         private bool AlwaysOwn(Item_Object obj, string kind)
         {
@@ -335,10 +335,16 @@ namespace Belay.World
             {
                 return true;
             }
-            return kind.StartsWith("Item_Handgun", System.StringComparison.Ordinal) && (nestGuns.Contains(obj) || InNest(obj));
+            return NestOwn(kind) && (nestGuns.Contains(obj) || InNest(obj));
         }
 
-        /// <summary>Handguns that spawned in the Nest (remembered, since a picked-up gun leaves its level).</summary>
+        /// <summary>In the Nest every player needs their own handgun and its ammo.</summary>
+        private static bool NestOwn(string kind)
+        {
+            return kind.StartsWith("Item_Handgun", System.StringComparison.Ordinal) || kind == "Item_10mm_Ammo";
+        }
+
+        /// <summary>Handguns and ammo that spawned in the Nest (remembered, since a picked-up item leaves its level).</summary>
         private readonly HashSet<Item_Object> nestGuns = new HashSet<Item_Object>();
 
         internal static bool InNest(Component c)
