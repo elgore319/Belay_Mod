@@ -74,6 +74,8 @@ namespace Belay.Net
         TeamDiskSave = 127,
         TeamDiskReload = 128,
         LadderNightmare = 129,
+        ItemEffect = 150,
+        HeldEffects = 151,
         // 118 was TeamPause (removed); keep the number unused.
     }
 

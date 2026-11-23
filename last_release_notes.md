@@ -1,4 +1,6 @@
-## Not Alone 0.8.18
+## Not Alone 0.8.19
 
-- **Finds are one for the team.** Disks, totems, artifacts, the handgun and its ammo, and flares now disappear for everyone when someone picks them up, even when they were the only one around.
-- **Everyone gets their own flare gun.** The flare gun is always one per player, so a teammate picking theirs up never takes yours, and yours never vanishes from your hand.
+- **You see what your teammates' items do.** Sparks, frost, glows and other particles from a teammate's item now show at their hand, and the marks, puffs and hit sparks their items leave in the world show where they hit.
+- **You see a teammate's grapple.** The grappling hook's line now reaches from their hand to where it latched.
+- **You hear what your teammates' items do.** Every sound a teammate's item makes now plays from them (or from where it hit), including melee hits, charging up, rewinding, eating and using buffs, with the exact same sound they heard.
+- Players on older versions can't join 0.8.19 lobbies (network version changed).
