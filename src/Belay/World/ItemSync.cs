@@ -97,6 +97,7 @@ namespace Belay.World
                 claims.Clear();
                 takenHere.Clear();
                 Personal.Clear();
+                nestGuns.Clear();
                 ForgetTakenAway();
             }
             UpdateSettling();
@@ -292,6 +293,7 @@ namespace Belay.World
         /// <summary>The world was rebuilt from a save (team disk revive): earlier pickups no longer apply.</summary>
         internal void ForgetTakenAway()
         {
+            LevelDamage.Instance?.Forget();
             takenAway.Clear();
             takenAwayLoose.Clear();
         }
@@ -305,6 +307,10 @@ namespace Belay.World
             }
             string kind = Kind(obj);
             M_Level level = obj.GetComponentInParent<M_Level>();
+            if (kind.StartsWith("Item_Handgun", System.StringComparison.Ordinal) && InNest(obj))
+            {
+                nestGuns.Add(obj);
+            }
             if (level != null)
             {
                 string key = level.GetInstanceID() + "|" + kind;
@@ -319,8 +325,33 @@ namespace Belay.World
             }
         }
 
-        /// <summary>The flare gun is needed by everyone: each player always has their own to pick up.</summary>
-        private static bool AlwaysOwn(string kind) => kind == "Item_Flaregun";
+        /// <summary>
+        /// Needed by everyone, so each player always has their own to pick up: the flare gun, and the handgun in
+        /// the Nest (shooting is how you get through it).
+        /// </summary>
+        private bool AlwaysOwn(Item_Object obj, string kind)
+        {
+            if (kind == "Item_Flaregun")
+            {
+                return true;
+            }
+            return kind.StartsWith("Item_Handgun", System.StringComparison.Ordinal) && (nestGuns.Contains(obj) || InNest(obj));
+        }
+
+        /// <summary>Handguns that spawned in the Nest (remembered, since a picked-up gun leaves its level).</summary>
+        private readonly HashSet<Item_Object> nestGuns = new HashSet<Item_Object>();
+
+        internal static bool InNest(Component c)
+        {
+            M_Level level = c != null ? c.GetComponentInParent<M_Level>() : null;
+            if (level == null)
+            {
+                return false;
+            }
+            return Has(level.name) || Has(level.region != null ? level.region.name : null)
+                || Has(level.subRegion != null ? level.subRegion.name : null);
+            bool Has(string n) => n != null && n.IndexOf("Nest", System.StringComparison.OrdinalIgnoreCase) >= 0;
+        }
 
         /// <summary>
         /// Finds (disks, totems, artifacts, guns and their ammo, flares) are one for the whole team even when
@@ -343,7 +374,7 @@ namespace Belay.World
                 return false;
             }
             string what = Kind(obj);
-            if (AlwaysOwn(what))
+            if (AlwaysOwn(obj, what))
             {
                 return true;
             }

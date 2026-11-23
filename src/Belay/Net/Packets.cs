@@ -74,6 +74,9 @@ namespace Belay.Net
         TeamDiskSave = 127,
         TeamDiskReload = 128,
         LadderNightmare = 129,
+        LevelDamaged = 160,
+        LevelList = 161,
+        RunFlagSet = 162,
         // 118 was TeamPause (removed); keep the number unused.
     }
 
