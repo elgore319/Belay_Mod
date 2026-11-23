@@ -113,7 +113,8 @@ namespace Belay.Players
 
         private void LateUpdate()
         {
-            bool visible = hasState && WorldSpace.Ready && !Latest.Dead;
+            // Someone in another map (the shop, an artifact room) isn't drawn where their room overlaps ours.
+            bool visible = hasState && WorldSpace.Ready && !Latest.Dead && Belay.World.MapSync.SameMap(SteamId);
             if (visible && !wasVisible && Belay.Revive.TotemRevive.TakeReform(SteamId))
             {
                 // Brought back with a totem: rebuilt from the inside out as they reappear.
