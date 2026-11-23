@@ -184,7 +184,7 @@ namespace Belay.World
 
         /// <summary>
         /// Enemies whose hit does more than damage (turret knocked over, phage stunned, tracker scared, vent thing
-        /// driven back): the hit is replayed on every PC.
+        /// driven back, the Teeth and the Face driven off): the hit is replayed on every PC.
         /// </summary>
         internal void OnLocalHit(AIGameEntity enemy, Damageable.DamageInfo info)
         {
@@ -387,6 +387,8 @@ namespace Belay.World
             yield return AccessTools.Method(typeof(DEN_Tracker), nameof(DEN_Tracker.Damage), args);
             yield return AccessTools.Method(typeof(DEN_VentThing), nameof(DEN_VentThing.Damage), args);
             yield return AccessTools.Method(typeof(DEN_Hunter), nameof(DEN_Hunter.Damage), args);
+            yield return AccessTools.Method(typeof(DEN_Teeth), nameof(DEN_Teeth.Damage), args);
+            yield return AccessTools.Method(typeof(DEN_Face), nameof(DEN_Face.Damage), args);
         }
 
         [HarmonyPrefix]
