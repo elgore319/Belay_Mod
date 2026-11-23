@@ -18,6 +18,7 @@ namespace Belay.World
         private readonly Dictionary<string, GameObject> byId = new Dictionary<string, GameObject>();
         private readonly Dictionary<GameObject, string> idOf = new Dictionary<GameObject, string>();
         private readonly Dictionary<string, GameObject> prefabCache = new Dictionary<string, GameObject>();
+        private readonly Dictionary<string, float> prefabMissed = new Dictionary<string, float>();
         private int counter;
         private int runId;
 
@@ -163,6 +164,11 @@ namespace Belay.World
             {
                 return cached;
             }
+            // The last-resort search walks every loaded object: after a miss, wait before trying again.
+            if (prefabMissed.TryGetValue(prefab, out float retryAt) && Time.unscaledTime < retryAt)
+            {
+                return null;
+            }
             GameObject found = null;
             if (!string.IsNullOrEmpty(sourceItem))
             {
@@ -226,6 +232,11 @@ namespace Belay.World
             if (found != null)
             {
                 prefabCache[prefab] = found;
+                prefabMissed.Remove(prefab);
+            }
+            else
+            {
+                prefabMissed[prefab] = Time.unscaledTime + 15f;
             }
             return found;
         }

@@ -48,15 +48,39 @@ namespace Belay.World
         /// <summary>The level's own game terminal (never one of Belay's copies), or null.</summary>
         internal static OS_Computer_Interface GameTerminalIn(M_Level level)
         {
+            // Asked every couple of seconds for every loaded level (here and by the biochambers), and most levels
+            // have no terminal: walking a whole level each time caused regular hitches. A level's terminal is
+            // part of the level, so the answer is kept; "none" is checked again now and then.
+            if (terminalCache.TryGetValue(level, out var known))
+            {
+                if (known.terminal != null)
+                {
+                    return known.terminal;
+                }
+                if (!known.hadOne && Time.unscaledTime < known.recheckAt)
+                {
+                    return null;
+                }
+            }
+            OS_Computer_Interface found = null;
             foreach (OS_Computer_Interface t in level.GetComponentsInChildren<OS_Computer_Interface>(true))
             {
                 if (t != null && t.GetComponentInParent<VoteTerminalMarker>() == null)
                 {
-                    return t;
+                    found = t;
+                    break;
                 }
             }
-            return null;
+            if (terminalCache.Count > 256)
+            {
+                terminalCache.Clear();
+            }
+            terminalCache[level] = (found, found != null, Time.unscaledTime + 10f);
+            return found;
         }
+
+        private static readonly Dictionary<M_Level, (OS_Computer_Interface terminal, bool hadOne, float recheckAt)> terminalCache =
+            new Dictionary<M_Level, (OS_Computer_Interface, bool, float)>();
 
         /// <summary>Places this level's vote terminal copy now if it should have one (so later props avoid it).</summary>
         internal static void EnsureFor(M_Level level)
