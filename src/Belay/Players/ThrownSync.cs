@@ -18,6 +18,8 @@ namespace Belay.Players
 
         private readonly Dictionary<string, Projectile> prefabs = new Dictionary<string, Projectile>();
 
+        private readonly Dictionary<string, float> missedPrefabs = new Dictionary<string, float>();
+
         private void Start()
         {
             NetSession.Instance.On(PacketType.ProjectileFired, HandleFired);
@@ -115,6 +117,11 @@ namespace Belay.Players
             {
                 return known;
             }
+            if (missedPrefabs.TryGetValue(kind, out float retryAt) && Time.unscaledTime < retryAt)
+            {
+                return null; // looked a moment ago and it isn't loaded: don't walk every asset again yet
+            }
+            missedPrefabs[kind] = Time.unscaledTime + 15f;
             foreach (Projectile p in Resources.FindObjectsOfTypeAll<Projectile>())
             {
                 if (p != null && p.name == kind && !p.gameObject.scene.IsValid())

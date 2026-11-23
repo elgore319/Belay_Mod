@@ -186,8 +186,10 @@ namespace Belay.World
         private bool Apply(string id, bool catchingUp = false, Dictionary<string, UT_TriggerZone> zones = null)
         {
             // Retrying missed sequences passes one shared lookup instead of scanning every zone per id.
-            zones = zones ?? ZonesById();
-            if (zones.TryGetValue(id, out UT_TriggerZone zone) && zone != null)
+            UT_TriggerZone zone = null;
+            if (zones != null) zones.TryGetValue(id, out zone);
+            else zone = IdLookup.Find<UT_TriggerZone>(id);
+            if (zone != null)
             {
                 var hasRun = Traverse.Create(zone).Field("hasRun");
                 if (hasRun.GetValue<bool>())
@@ -228,6 +230,8 @@ namespace Belay.World
         /// <summary>Room sequences that started before this level loaded here: replayed once it does.</summary>
         private readonly Dictionary<string, float> missed = new Dictionary<string, float>();
         private float nextRetry;
+        private int retryStamp;
+        private float lastFullRetry;
 
         private void RetryMissed()
         {
@@ -242,6 +246,11 @@ namespace Belay.World
                 return;
             }
             if (!WorldSpace.Ready)
+            {
+                return;
+            }
+            // Only worth a full zone scan once something new has loaded (or now and then, for zones that switch on later).
+            if (!LevelStamp.Due(ref retryStamp, ref lastFullRetry, 5f))
             {
                 return;
             }
