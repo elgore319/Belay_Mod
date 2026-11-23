@@ -73,6 +73,41 @@ namespace Belay.Players
             return found;
         }
 
+        /// <summary>
+        /// Like <see cref="Cast"/>, for the spectator camera: also passes through anything with a rigidbody and
+        /// thin or small colliders (handholds, pipes, railings, props), which only need to stop bodies.
+        /// </summary>
+        public static bool CastCamera(Vector3 origin, Vector3 direction, float max, out RaycastHit hit)
+        {
+            hit = default;
+            int m = Mask;
+            if (m == 0 || max <= 0f || direction.sqrMagnitude < 1e-8f)
+            {
+                return false;
+            }
+            int count = Physics.RaycastNonAlloc(origin, direction.normalized, hits, max, m, QueryTriggerInteraction.Ignore);
+            float best = float.MaxValue;
+            bool found = false;
+            for (int i = 0; i < count; i++)
+            {
+                Collider c = hits[i].collider;
+                if (hits[i].distance < best && !Ignored(c) && c.attachedRigidbody == null && !Thin(c.bounds.size))
+                {
+                    best = hits[i].distance;
+                    hit = hits[i];
+                    found = true;
+                }
+            }
+            return found;
+        }
+
+        /// <summary>Under half a metre across on at least two axes: a rod, pipe or small prop, not a wall or floor.</summary>
+        private static bool Thin(Vector3 size)
+        {
+            int small = (size.x < 0.5f ? 1 : 0) + (size.y < 0.5f ? 1 : 0) + (size.z < 0.5f ? 1 : 0);
+            return small >= 2;
+        }
+
         /// <summary>Whether level geometry lies between two points.</summary>
         public static bool Blocked(Vector3 from, Vector3 to)
         {

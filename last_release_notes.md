@@ -1,4 +1,5 @@
-## Not Alone 0.8.18
+## Not Alone 0.8.26
 
-- **Finds are one for the team.** Disks, totems, artifacts, the handgun and its ammo, and flares now disappear for everyone when someone picks them up, even when they were the only one around.
-- **Everyone gets their own flare gun.** The flare gun is always one per player, so a teammate picking theirs up never takes yours, and yours never vanishes from your hand.
+- **The spectator camera no longer gets stuck.** Pausing while dead left the cursor free, so the mouse stopped turning the camera until you were revived. It now picks up again as soon as the menu closes or you click back into the game.
+- **The spectator camera stays at a proper distance.** Handholds, pipes, railings and loose props no longer pull the camera right into your teammate's head. Only walls and floors bring it closer, and it eases back out once it's clear.
+- **Scroll to zoom while spectating.** The mouse wheel moves the camera closer to or further from the teammate you're watching.
