@@ -1,6 +1,6 @@
-## Not Alone 0.8.35
+## Not Alone 0.8.36
 
-- **Revives come back in the right map.** The shop and some artifact rooms are separate maps. Being revived by a teammate in one of those rooms now loads that same room for you first, and being revived in the main map takes you out of any room you died in. No more falling into the void after a revive.
-- **Spectating follows your teammate between maps.** While you're down, the camera goes into the shop or artifact room with the teammate you're watching, and back out with them.
-- **Teammates in another map are hidden.** Someone in the shop or an artifact room no longer shows up floating in the main map (their rope and held items go with them), and they reappear when you're in the same map again.
-- Catching up to the host and the shortcut path check no longer move you while either of you is in one of those rooms.
+- **You see what your teammates' items do.** Sparks, frost, glows and other particles from a teammate's item now show at their hand, and the marks, puffs and hit sparks their items leave in the world show where they hit.
+- **You see a teammate's grapple.** The grappling hook's line now reaches from their hand to where it latched.
+- **You hear what your teammates' items do.** Every sound a teammate's item makes now plays from them (or from where it hit), including melee hits, charging up, rewinding, eating and using buffs, with the exact same sound they heard.
+- Players on older versions can't join 0.8.36 lobbies (network version changed).
