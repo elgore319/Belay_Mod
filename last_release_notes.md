@@ -1,6 +1,3 @@
-## Not Alone 0.8.36
+## Not Alone 0.8.37
 
-- **You see what your teammates' items do.** Sparks, frost, glows and other particles from a teammate's item now show at their hand, and the marks, puffs and hit sparks their items leave in the world show where they hit.
-- **You see a teammate's grapple.** The grappling hook's line now reaches from their hand to where it latched.
-- **You hear what your teammates' items do.** Every sound a teammate's item makes now plays from them (or from where it hit), including melee hits, charging up, rewinding, eating and using buffs, with the exact same sound they heard.
-- Players on older versions can't join 0.8.36 lobbies (network version changed).
+- **The team rope now uses the game's own rope model.** Ropes between teammates and harpoon ropes are drawn with the same rope pieces as the game's swinging ropes, instead of the mod's orange rope. Until a game rope has been loaded the old look is used as a fallback.

@@ -7,7 +7,7 @@ namespace Belay.Rope
 {
     /// <summary>
     /// One rope between two teammates, simulated like the game's ENV_Rope (verlet points, gravity, drag, length)
-    /// and tied to each harness. It drapes and catches on ledges, draws as a smooth tube, and every segment is a
+    /// and tied to each harness. It drapes and catches on ledges, draws with the game's rope model, and every segment is a
     /// handhold. Each PC simulates ropes itself; only player positions are networked.
     /// </summary>
     public class TeamRope : MonoBehaviour
@@ -736,6 +736,18 @@ namespace Belay.Rope
             }
             if (TryEndAt(0, out Vector3 a)) points[0] = a;
             if (TryEndAt(1, out Vector3 b)) points[count - 1] = b;
+
+            // Draw with the game's own rope segment model once one has been found; the tube is the fallback.
+            if (GameRopeModel.TryGet(out GameRopeModel.Part[] model, out Vector3 modelScale))
+            {
+                meshRenderer.forceRenderingOff = true;
+                for (int i = 0; i < count - 1; i++)
+                {
+                    GameRopeModel.DrawSegment(model, modelScale, points[i], points[i + 1], Vector3.up);
+                }
+                return;
+            }
+            meshRenderer.forceRenderingOff = false;
 
             for (int i = 0; i < count - 1; i++)
             {
