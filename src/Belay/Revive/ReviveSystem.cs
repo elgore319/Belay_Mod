@@ -157,6 +157,12 @@ namespace Belay.Revive
         private float orbitYaw;
         private float orbitPitch;
         private const float OrbitDistance = 3.2f;
+        private const float MinOrbitDistance = 1f;
+        private const float MaxOrbitDistance = 10f;
+        /// <summary>How far out the scroll wheel has the camera; kept between targets and deaths.</summary>
+        private float orbitZoom = OrbitDistance;
+        /// <summary>The distance actually used: pulled in at once by walls, eased back out after.</summary>
+        private float orbitDistance = OrbitDistance;
         private float nextLevelSync;
 
         private void OnEnable()
@@ -212,8 +218,25 @@ namespace Belay.Revive
                 orbitYaw = target.Latest.Yaw;
                 orbitPitch = 15f;
             }
-            if (Cursor.lockState == CursorLockMode.Locked && Time.timeScale > 0f)
+            // Mouse look used to need a locked cursor, but nothing re-locked it while dead: after alt-tab,
+            // a menu or a terminal the camera stayed stuck. Read input whenever the game window has focus
+            // and no menu is up, and keep the cursor locked meanwhile.
+            bool canLook = SpectateInputFree();
+            if (canLook && (Cursor.lockState != CursorLockMode.Locked || CL_GameManager.showCursor))
             {
+                // The game's unpause skips re-locking the cursor for a dead player, so it stays free and
+                // shown after the pause menu closes.
+                Cursor.lockState = CursorLockMode.Locked;
+                CL_GameManager.showCursor = false;
+                Cursor.visible = false;
+            }
+            if (canLook)
+            {
+                float scroll = Input.mouseScrollDelta.y;
+                if (Mathf.Abs(scroll) > 0.01f)
+                {
+                    orbitZoom = Mathf.Clamp(orbitZoom * Mathf.Pow(0.87f, scroll), MinOrbitDistance, MaxOrbitDistance);
+                }
                 Vector2 lookInput = InputManager.GetLookVector();
                 float pitchInput = -lookInput.y;
                 if (SettingsManager.settings.invertY)
@@ -238,12 +261,23 @@ namespace Belay.Revive
             }
             Quaternion look = Quaternion.Euler(orbitPitch, orbitYaw, 0f);
             Vector3 back = look * Vector3.back;
-            float distance = OrbitDistance;
-            if (WorldProbe.Cast(spectatePivot, back, OrbitDistance + 0.3f, out RaycastHit hit))
+            // Keep the camera on our side of walls and floors. Only solid level geometry counts: handholds,
+            // pipes, items and other small props used to pull it right into the teammate's head. A wall
+            // pulls it in at once; once clear it eases back out instead of jumping.
+            float wanted = orbitZoom;
+            if (WorldProbe.CastCamera(spectatePivot, back, orbitZoom + 0.3f, out RaycastHit hit))
             {
-                // Keep the camera on our side of walls and floors.
-                distance = Mathf.Clamp(hit.distance - 0.3f, 0.2f, OrbitDistance);
+                wanted = Mathf.Clamp(hit.distance - 0.3f, 0.35f, orbitZoom);
             }
+            if (!spectateEyeValid || wanted < orbitDistance)
+            {
+                orbitDistance = wanted;
+            }
+            else
+            {
+                orbitDistance = Mathf.Lerp(orbitDistance, wanted, 1f - Mathf.Exp(-6f * dt));
+            }
+            float distance = orbitDistance;
             spectateEye = spectatePivot + back * distance;
             spectateLook = look;
             spectateEyeValid = true;
@@ -290,6 +324,19 @@ namespace Belay.Revive
                 movedLocalRot = camera.transform.localRotation;
             }
             camera.transform.SetPositionAndRotation(spectateEye, spectateLook);
+        }
+
+        /// <summary>True when the spectator's mouse should drive the camera: game focused, no menu, console or terminal.</summary>
+        private bool SpectateInputFree()
+        {
+            return Application.isFocused
+                && !runOver
+                && Time.timeScale > 0f
+                && !World.CoopPause.InPauseMenu
+                && !UI.BelayMenu.CapturingInput
+                && !Dev.DevTools.Open
+                && !OS_Manager.inUse
+                && !CommandConsole.IsConsoleVisible();
         }
 
         private static List<RemotePlayer> LivingRemotes()

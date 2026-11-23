@@ -769,11 +769,62 @@ namespace Belay.World
 
         private static bool IsMainWayOn(UT_BranchGenerator g) => g.deleteRootBranch || g.deleteRootLevelAfterTeleporting || g.teleportPlayerIntoBranch;
 
+        /// <summary>
+        /// Generators that replace the whole map from one level (deleteRootBranch) are either-or: the Nest's
+        /// prison has one for the Infested Labs and one for the Hot Zone. Level key to the one the team took.
+        /// </summary>
+        private static readonly Dictionary<string, string> exclusiveTaken = new Dictionary<string, string>();
+        /// <summary>Generators refused because the team already took the other way from their level.</summary>
+        internal static readonly HashSet<string> Refused = new HashSet<string>();
+
+        private static string ExclusiveKey(UT_BranchGenerator g)
+        {
+            if (g == null || !g.deleteRootBranch)
+            {
+                return null;
+            }
+            M_Level level = g.currentLevel != null ? g.currentLevel : g.GetComponentInParent<M_Level>();
+            return level != null ? ButtonSync.ObjectId(level) : null;
+        }
+
+        /// <summary>True if the team already took another either-or way from this generator's level.</summary>
+        internal static bool TakenByOther(UT_BranchGenerator g, string id)
+        {
+            string key = ExclusiveKey(g);
+            if (key == null || !exclusiveTaken.TryGetValue(key, out string other) || other == id)
+            {
+                return false;
+            }
+            if (Refused.Add(id))
+            {
+                Plugin.Log.LogInfo($"The team already took another way from here ({other}); not opening {id}");
+            }
+            return true;
+        }
+
+        private static void Claim(UT_BranchGenerator g, string id)
+        {
+            string key = ExclusiveKey(g);
+            if (key != null && !exclusiveTaken.ContainsKey(key))
+            {
+                exclusiveTaken[key] = id;
+            }
+        }
+
         private void Open(string id, string starter, bool force = false)
         {
             if (BuiltHere.Contains(id))
             {
                 return;
+            }
+            UT_BranchGenerator first = FindGenerator(id);
+            if (first != null)
+            {
+                if (TakenByOther(first, id))
+                {
+                    return;
+                }
+                Claim(first, id);
             }
             Opened.Add(id);
             Approved.Remove(id);
@@ -895,6 +946,8 @@ namespace Belay.World
                 runId = net.CurrentRun.RunId;
                 Opened.Clear();
                 BuiltHere.Clear();
+                exclusiveTaken.Clear();
+                Refused.Clear();
                 deferred.Clear();
                 ShortcutDoors.Clear();
                 Approved.Clear();
@@ -956,6 +1009,11 @@ namespace Belay.World
                 return true;
             }
             string id = ButtonSync.ObjectId(__instance);
+            if (ShortcutSync.TakenByOther(__instance, id))
+            {
+                // Someone already took the other way from this level (the Nest's prison has two).
+                return false;
+            }
             if (ShortcutSync.BuiltHere.Contains(id))
             {
                 // Already built here: don't build a second branch.

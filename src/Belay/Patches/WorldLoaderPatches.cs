@@ -28,19 +28,25 @@ namespace Belay.Patches
         /// </summary>
         [HarmonyPatch("GenerateLevels")]
         [HarmonyPrefix]
-        private static void SeedEachBuild(WorldLoader.GenerationParameters genParams, ref int ___seed, int ___idCounter)
+        private static void SeedEachBuild(WorldLoader.BranchInfo branch, WorldLoader.GenerationParameters genParams, ref int ___seed)
         {
             NetSession net = NetSession.Instance;
             if (net == null || !net.InLobby || net.Seed == 0 || ___seed == -1)
             {
                 return;
             }
+            if (World.ShortcutSync.BuildSeed.HasValue)
+            {
+                BranchKeys.Register(branch, World.ShortcutSync.BuildSeed.Value);
+            }
             int offset = genParams != null ? genParams.seedOffset : 0;
             int seed;
             unchecked
             {
-                // A branch built later on one PC than another still gets the same levels.
-                seed = World.ShortcutSync.BuildSeed ?? (net.Seed * 486187739 + ___idCounter * 16777619 + 0x2F1);
+                // A branch built later on one PC than another still gets the same levels, and so does every
+                // later build in that branch: count levels within the branch, not across the whole map.
+                seed = World.ShortcutSync.BuildSeed
+                    ?? (net.Seed * 486187739 + BranchKeys.CountOf(branch) * 16777619 + BranchKeys.SaltOf(branch) * 31 + 0x2F1);
             }
             if (seed + offset == -1)
             {
