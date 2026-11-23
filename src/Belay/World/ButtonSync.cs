@@ -137,6 +137,8 @@ namespace Belay.World
         /// </summary>
         private static readonly System.Collections.Generic.Dictionary<string, float> missed = new System.Collections.Generic.Dictionary<string, float>();
         private float nextRetry;
+        private int retryStamp;
+        private float lastFullRetry;
         private const float MissedKeepSeconds = 900f;
 
         private void Update()
@@ -155,13 +157,20 @@ namespace Belay.World
             {
                 return;
             }
+            // A missed press can only land once its level loads: skip the full button scan until one does
+            // (with a slower pass anyway, for buttons that switch on later).
+            if (!LevelStamp.Due(ref retryStamp, ref lastFullRetry, 5f))
+            {
+                return;
+            }
+            System.Collections.Generic.Dictionary<string, CL_Button> buttons = IdLookup.All<CL_Button>();
             foreach (var pair in new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, float>>(missed))
             {
                 if (Time.unscaledTime - pair.Value > MissedKeepSeconds)
                 {
                     missed.Remove(pair.Key);
                 }
-                else if (ApplyPress(pair.Key, catchingUp: true))
+                else if (ApplyPress(pair.Key, catchingUp: true, buttons))
                 {
                     missed.Remove(pair.Key);
                     Plugin.Log.LogInfo("Caught up on a teammate's earlier press: " + pair.Key);
@@ -169,14 +178,19 @@ namespace Belay.World
             }
         }
 
-        private static bool ApplyPress(string id, bool catchingUp = false)
+        private static bool ApplyPress(string id, bool catchingUp = false, System.Collections.Generic.Dictionary<string, CL_Button> buttons = null)
         {
-            foreach (CL_Button button in FindObjectsByType<CL_Button>(FindObjectsSortMode.None))
+            CL_Button button = null;
+            if (buttons != null)
             {
-                if (button == null || ObjectId(button) != id)
-                {
-                    continue;
-                }
+                buttons.TryGetValue(id, out button);
+            }
+            else
+            {
+                button = IdLookup.Find<CL_Button>(id);
+            }
+            if (button != null)
+            {
                 Applying = true;
                 try
                 {
@@ -218,20 +232,41 @@ namespace Belay.World
             Transform t = c.transform;
             M_Level level = t.GetComponentInParent<M_Level>();
             Transform root = level != null ? level.transform : null;
-            var path = new StringBuilder();
+            // Built root first in one buffer (called for every object in a scan, so no per-step strings).
+            chain.Clear();
             for (Transform cursor = t; cursor != null && cursor != root; cursor = cursor.parent)
             {
+                chain.Add(cursor);
+            }
+            StringBuilder path = idBuilder;
+            path.Clear();
+            if (root == null)
+            {
+                path.Append(c.gameObject.scene.name);
+            }
+            else
+            {
+                path.Append(root.name).Append('@').Append(Mathf.RoundToInt(WorldSpace.ToShared(root.position).y));
+            }
+            for (int i = chain.Count - 1; i >= 0; i--)
+            {
+                Transform cursor = chain[i];
+                path.Append('/');
                 // A scene-root object's place among the roots differs per PC (things unparent themselves
                 // at different times, like the Hadal diver), so roots go by name only.
                 bool sceneRoot = root == null && cursor.parent == null;
-                path.Insert(0, "/" + (sceneRoot ? "" : cursor.GetSiblingIndex().ToString()) + cursor.name);
+                if (!sceneRoot)
+                {
+                    path.Append(cursor.GetSiblingIndex());
+                }
+                path.Append(cursor.name);
             }
-            if (root == null)
-            {
-                return c.gameObject.scene.name + path;
-            }
-            return root.name + "@" + Mathf.RoundToInt(WorldSpace.ToShared(root.position).y) + path;
+            chain.Clear();
+            return path.ToString();
         }
+
+        private static readonly System.Collections.Generic.List<Transform> chain = new System.Collections.Generic.List<Transform>(32);
+        private static readonly StringBuilder idBuilder = new StringBuilder(256);
     }
 
     [HarmonyPatch(typeof(CL_Button), nameof(CL_Button.Interact), new System.Type[0])]
