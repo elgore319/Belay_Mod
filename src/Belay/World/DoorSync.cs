@@ -516,7 +516,7 @@ namespace Belay.World
         {
             countdowns.Remove(id);
             UT_Door door = Find(id);
-            if (door == null)
+            if (door == null || LaserFields.IsField(door))
             {
                 return;
             }
@@ -774,7 +774,8 @@ namespace Belay.World
         [HarmonyPrefix]
         private static void Open(UT_Door __instance, bool ___open)
         {
-            if (Synced && !___open)
+            // The Habitation security field is a door too, but each PC runs its own (see LaserFields).
+            if (Synced && !___open && !LaserFields.IsField(__instance))
             {
                 DoorSync.Instance.OnLocalOpen(__instance);
             }
