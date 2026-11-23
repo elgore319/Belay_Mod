@@ -79,7 +79,10 @@ namespace Belay.Patches
             {
                 return key.Id;
             }
-            int id = WorldLoader.instance != null && IdCounter != null ? (int)IdCounter.GetValue(WorldLoader.instance) - 1 : 0;
+            // Its place in its own map branch, which every PC shares (the map-wide counter drifts once a branch
+            // is built at different times on different PCs).
+            int id = BranchKeys.SpawningLevelKey()
+                ?? (WorldLoader.instance != null && IdCounter != null ? (int)IdCounter.GetValue(WorldLoader.instance) - 1 : 0);
             Keys.Add(level, new LevelKey { Id = id });
             return id;
         }

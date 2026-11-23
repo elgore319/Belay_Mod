@@ -22,7 +22,7 @@ namespace Belay.Net
     public class NetSession : MonoBehaviour
     {
         public const int MaxPlayers = 8;
-        public const string ProtocolVersion = "belay-34";
+        public const string ProtocolVersion = "belay-35";
 
         // Lobby data keys
         public const string KeyTag = "belay";
@@ -545,7 +545,7 @@ namespace Belay.Net
         }
 
         /// <summary>Packets a client sends that the host passes on to every other client.</summary>
-        private static readonly HashSet<PacketType> RelayedByHost = new HashSet<PacketType> { PacketType.DoorOpen, PacketType.ButtonPress, PacketType.HoldInteract, PacketType.LeverAngle, PacketType.HandTouch, PacketType.ItemDrop, PacketType.DoorRequestClose, PacketType.RopePull, PacketType.ZoneEntered, PacketType.Knockback, PacketType.PropKill, PacketType.EnemyHurt, PacketType.EnemyKilled, PacketType.EnemyHit, PacketType.HandholdBroke, PacketType.PropShattered, PacketType.ItemInserted, PacketType.ProjectileFired, PacketType.PlayerGrabbed, PacketType.SpawnerFired, PacketType.PlayerAction, PacketType.PlayerDied, PacketType.RunWon, PacketType.ObjectPlaced, PacketType.ObjectHammered, PacketType.ObjectBroken, PacketType.ItemSettled, PacketType.HarpoonRope, PacketType.WaveSpawned, PacketType.TickSackBurst, PacketType.Blast, PacketType.LevelPulse, PacketType.GantryDrones, PacketType.SeatTaken, PacketType.TeamDiskSave };
+        private static readonly HashSet<PacketType> RelayedByHost = new HashSet<PacketType> { PacketType.DoorOpen, PacketType.ButtonPress, PacketType.HoldInteract, PacketType.LeverAngle, PacketType.HandTouch, PacketType.ItemDrop, PacketType.DoorRequestClose, PacketType.RopePull, PacketType.ZoneEntered, PacketType.Knockback, PacketType.PropKill, PacketType.EnemyHurt, PacketType.EnemyKilled, PacketType.EnemyHit, PacketType.HandholdBroke, PacketType.PropShattered, PacketType.ItemInserted, PacketType.ProjectileFired, PacketType.PlayerGrabbed, PacketType.SpawnerFired, PacketType.PlayerAction, PacketType.PlayerDied, PacketType.RunWon, PacketType.ObjectPlaced, PacketType.ObjectHammered, PacketType.ObjectBroken, PacketType.ItemSettled, PacketType.HarpoonRope, PacketType.WaveSpawned, PacketType.TickSackBurst, PacketType.Blast, PacketType.LevelPulse, PacketType.GantryDrones, PacketType.SeatTaken, PacketType.TeamDiskSave, PacketType.LevelDamaged, PacketType.LevelList, PacketType.RunFlagSet, PacketType.MotherEnraged };
         /// <summary>Frequent state the host passes on without delivery guarantees (a newer copy follows soon).</summary>
         private static readonly HashSet<PacketType> RelayedUnreliable = new HashSet<PacketType> { PacketType.PropState, PacketType.EnemyStates, PacketType.EnemyShot, PacketType.ItemSound, PacketType.HeldLight, PacketType.LadderNightmare, PacketType.ItemEffect, PacketType.HeldEffects };
 

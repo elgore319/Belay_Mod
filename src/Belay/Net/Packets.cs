@@ -79,6 +79,10 @@ namespace Belay.Net
         CreatureStates = 170,
         CreatureRequest = 171,
         VentHand = 172,
+        LevelDamaged = 160,
+        LevelList = 161,
+        RunFlagSet = 162,
+        MotherEnraged = 163,
         // 118 was TeamPause (removed); keep the number unused.
     }
 
