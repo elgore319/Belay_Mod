@@ -1,4 +1,3 @@
-## Not Alone 0.8.18
+## Not Alone 0.8.24
 
-- **Finds are one for the team.** Disks, totems, artifacts, the handgun and its ammo, and flares now disappear for everyone when someone picks them up, even when they were the only one around.
-- **Everyone gets their own flare gun.** The flare gun is always one per player, so a teammate picking theirs up never takes yours, and yours never vanishes from your hand.
+- **The Habitation laser floor no longer blocks teammates behind.** The red security field in the Habitation Labs now runs for each player from their own trigger, so everyone gets the chase. Once it has finished rising it switches off, so a teammate who is still below it (late, revived or respawned) can climb past instead of dying in it.
