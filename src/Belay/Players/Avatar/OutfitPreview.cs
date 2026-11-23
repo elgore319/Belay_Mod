@@ -20,6 +20,7 @@ namespace Belay.Players.Avatar
         private RenderTexture texture;
         private float lastDrawn = -10f;
         private bool failed;
+        private float nextWarm;
         private bool savedFog;
         private Color savedAmbient;
         private UnityEngine.Rendering.AmbientMode savedAmbientMode;
@@ -74,6 +75,18 @@ namespace Belay.Players.Avatar
             if (hook != null && hook.GetValue(null) == null)
             {
                 hook.SetValue(null, drawer);
+            }
+            if (Time.unscaledTime >= nextWarm)
+            {
+                // Look up the game models early, so choosing a zombie or roach look shows it at once.
+                nextWarm = Time.unscaledTime + 1f;
+                try
+                {
+                    GameModelAvatar.Warm();
+                }
+                catch (Exception)
+                {
+                }
             }
             bool showing = Time.unscaledTime - lastDrawn < 0.3f;
             if (!showing)

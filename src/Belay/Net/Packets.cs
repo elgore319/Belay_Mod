@@ -76,6 +76,9 @@ namespace Belay.Net
         LadderNightmare = 129,
         ItemEffect = 150,
         HeldEffects = 151,
+        CreatureStates = 170,
+        CreatureRequest = 171,
+        VentHand = 172,
         // 118 was TeamPause (removed); keep the number unused.
     }
 

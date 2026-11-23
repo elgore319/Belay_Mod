@@ -22,7 +22,7 @@ namespace Belay.Net
     public class NetSession : MonoBehaviour
     {
         public const int MaxPlayers = 8;
-        public const string ProtocolVersion = "belay-30";
+        public const string ProtocolVersion = "belay-34";
 
         // Lobby data keys
         public const string KeyTag = "belay";

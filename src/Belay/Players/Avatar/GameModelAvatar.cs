@@ -90,12 +90,26 @@ namespace Belay.Players.Avatar
         /// <summary>The copied game model (for the totem revive, <see cref="ModelReform"/>).</summary>
         internal Transform Model => model;
 
-        /// <summary>Builds the model, or returns null while the game hasn't loaded it (tried again later).</summary>
-        public static GameModelAvatar Create(string kind, Transform parent)
+        private static readonly Dictionary<string, GameObject> sources = new Dictionary<string, GameObject>();
+
+        /// <summary>
+        /// Finds every model's source ahead of time (the Soach's Bazaar level loads in the background), so
+        /// picking a look in the outfit screen shows it straight away instead of a moment later.
+        /// </summary>
+        public static void Warm()
         {
-            if (kind == null || !Specs.TryGetValue(kind, out Spec spec))
+            foreach (KeyValuePair<string, Spec> pair in Specs)
             {
-                return null;
+                Source(pair.Key, pair.Value);
+            }
+        }
+
+        /// <summary>The game object a model is copied from, found once and kept; null while it's still loading.</summary>
+        private static GameObject Source(string kind, Spec spec)
+        {
+            if (sources.TryGetValue(kind, out GameObject found) && found != null)
+            {
+                return found;
             }
             if (retryAt.TryGetValue(kind, out float at) && Time.unscaledTime < at)
             {
@@ -115,7 +129,24 @@ namespace Belay.Players.Avatar
             }
             if (source == null)
             {
-                retryAt[kind] = Time.unscaledTime + 5f;
+                // Checked again soon: the Bazaar's background load usually lands within a second.
+                retryAt[kind] = Time.unscaledTime + 0.25f;
+                return null;
+            }
+            sources[kind] = source;
+            return source;
+        }
+
+        /// <summary>Builds the model, or returns null while the game hasn't loaded it (tried again later).</summary>
+        public static GameModelAvatar Create(string kind, Transform parent)
+        {
+            if (kind == null || !Specs.TryGetValue(kind, out Spec spec))
+            {
+                return null;
+            }
+            GameObject source = Source(kind, spec);
+            if (source == null)
+            {
                 return null;
             }
             try
