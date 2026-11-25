@@ -1,5 +1,5 @@
-## Not Alone 0.8.39
+## Not Alone 0.8.40
 
-Everyone in a lobby needs 0.8.39 (the network protocol changed).
+- **Zombie and roach looks show their full textures straight away in the outfit screen.** These models used to appear plain grey for a while before their textures loaded in. Their textures are now asked for at full detail as soon as the models are found.
 
-- **The Core's eraser terminal matches for everyone.** The buttons it lights at each step are now drawn from the lobby's shared seed, so every player sees the same buttons lit instead of each PC picking its own.
+No network change.

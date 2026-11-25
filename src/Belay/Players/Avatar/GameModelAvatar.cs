@@ -134,7 +134,43 @@ namespace Belay.Players.Avatar
                 return null;
             }
             sources[kind] = source;
+            FullTextures(source);
             return source;
+        }
+
+        private static readonly HashSet<int> fullTextures = new HashSet<int>();
+
+        /// <summary>
+        /// Asks for every texture on the model at full detail. The game streams texture detail by distance from
+        /// its own cameras, and a model standing below the world (the outfit screen) or just copied otherwise
+        /// starts on the lowest level, a flat grey, until streaming catches up.
+        /// </summary>
+        private static void FullTextures(GameObject model)
+        {
+            try
+            {
+                foreach (Renderer r in model.GetComponentsInChildren<Renderer>(true))
+                {
+                    foreach (Material m in r.sharedMaterials)
+                    {
+                        if (m == null)
+                        {
+                            continue;
+                        }
+                        foreach (int id in m.GetTexturePropertyNameIDs())
+                        {
+                            if (m.GetTexture(id) is Texture2D t && t.streamingMipmaps && fullTextures.Add(t.GetInstanceID()))
+                            {
+                                t.requestedMipmapLevel = 0;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogWarning("Couldn't ask for full model textures: " + e.Message);
+            }
         }
 
         /// <summary>Builds the model, or returns null while the game hasn't loaded it (tried again later).</summary>
