@@ -1,5 +1,4 @@
-## Not Alone 0.8.40
+## Not Alone 0.8.41
 
-- **Zombie and roach looks show their full textures straight away in the outfit screen.** These models used to appear plain grey for a while before their textures loaded in. Their textures are now asked for at full detail as soon as the models are found.
-
-No network change.
+- **The drone in the middle of the stress test areas goes after the highest player.** In co-op it now follows whoever has climbed highest, so it's always in the way of the team getting further.
+- **Except in stress test three,** where it stays with the lowest player, since the team needs to jump on it to get higher.
