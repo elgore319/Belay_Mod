@@ -19,6 +19,7 @@ namespace Belay.Patches
                 return;
             }
             WorldLoader.SetPresetSeed(net.Seed.ToString());
+            World.ShortcutSync.OnWorldReload();
             Plugin.Log.LogInfo("Using lobby seed " + net.Seed);
         }
 

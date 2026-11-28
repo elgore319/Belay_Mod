@@ -873,6 +873,30 @@ namespace Belay.World
             notLoadedYet[id] = starter;
         }
 
+        /// <summary>
+        /// This PC built a fresh map mid-run (its player restarted). The branches it had built are gone with the
+        /// old map, so build them again when their generators load, or players come back to an empty void where
+        /// the team is.
+        /// </summary>
+        internal static void OnWorldReload()
+        {
+            if (BuiltHere.Count == 0)
+            {
+                return;
+            }
+            foreach (string id in BuiltHere)
+            {
+                if (!notLoadedYet.ContainsKey(id))
+                {
+                    notLoadedYet[id] = "";
+                }
+            }
+            Plugin.Log.LogInfo($"New map here: rebuilding {BuiltHere.Count} branch(es) the team opened when they load");
+            BuiltHere.Clear();
+            normalBlocked.Clear();
+            generatorCache.Clear();
+        }
+
         /// <summary>Shortcuts the team opened before this PC had built that part of the map.</summary>
         private static readonly Dictionary<string, string> notLoadedYet = new Dictionary<string, string>();
         private float nextNotLoadedTry;
