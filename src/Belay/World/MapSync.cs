@@ -29,10 +29,18 @@ namespace Belay.World
 
             public bool InChamber => !string.IsNullOrEmpty(Loader);
 
-            public bool SameMapAs(Where other) => InChamber == other.InChamber && (!InChamber || (Loader == other.Loader && Index == other.Index));
+            /// <summary>
+            /// Both in the main map, or both in the same room. A room sits where its loader is, so two rooms
+            /// a few meters apart are the same one even if the ids were worked out differently on each PC.
+            /// </summary>
+            public bool SameMapAs(Where other) => InChamber == other.InChamber
+                && (!InChamber || Loader == other.Loader || (Root - other.Root).sqrMagnitude < SameRoomDistance * SameRoomDistance);
         }
 
         private const float ResendInterval = 3f;
+
+        /// <summary>Rooms whose roots are closer than this (meters, shared space) are the same room.</summary>
+        private const float SameRoomDistance = 6f;
 
         private static readonly Dictionary<SteamId, Where> others = new Dictionary<SteamId, Where>();
         private static UT_ChamberLoader localLoader;
@@ -163,7 +171,7 @@ namespace Belay.World
             {
                 return true;
             }
-            UT_ChamberLoader loader = FindLoader(theirs.Loader);
+            UT_ChamberLoader loader = FindLoader(theirs.Loader, WorldSpace.ToLocal(theirs.Root));
             if (loader == null)
             {
                 return false;
@@ -233,42 +241,51 @@ namespace Belay.World
 
         private static readonly Dictionary<string, UT_ChamberLoader> loaderCache = new Dictionary<string, UT_ChamberLoader>();
 
-        private static UT_ChamberLoader FindLoader(string id)
+        private static UT_ChamberLoader FindLoader(string id, Vector3 localRoot)
         {
             if (loaderCache.TryGetValue(id, out UT_ChamberLoader cached) && cached != null)
             {
                 return cached;
             }
+            UT_ChamberLoader nearest = null;
+            float best = SameRoomDistance * SameRoomDistance;
             foreach (UT_ChamberLoader l in FindObjectsByType<UT_ChamberLoader>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             {
-                if (l != null && LoaderId(l) == id)
+                if (l == null)
+                {
+                    continue;
+                }
+                if (LoaderId(l) == id)
                 {
                     loaderCache[id] = l;
                     return l;
                 }
+                // The room is made right where its loader stands.
+                float d = (l.transform.position - localRoot).sqrMagnitude;
+                if (d < best)
+                {
+                    best = d;
+                    nearest = l;
+                }
             }
-            return null;
+            if (nearest != null)
+            {
+                loaderCache[id] = nearest;
+            }
+            return nearest;
         }
 
         /// <summary>
-        /// Same on every PC: the level's name and height plus the path inside it. Works while the world is hidden.
+        /// Same on every PC: the level's name and where the loader stands (shared space, to 0.1 m). No sibling
+        /// numbers: things leaving a level (picked-up items, creatures) shift them differently on each PC, which
+        /// made teammates in the same shop count as being in different rooms.
         /// </summary>
         internal static string LoaderId(Component c)
         {
-            Transform t = c.transform;
-            M_Level level = t.GetComponentInParent<M_Level>(true);
-            Transform root = level != null ? level.transform : null;
-            var path = new StringBuilder();
-            for (Transform cursor = t; cursor != null && cursor != root; cursor = cursor.parent)
-            {
-                bool sceneRoot = root == null && cursor.parent == null;
-                path.Insert(0, "/" + (sceneRoot ? "" : cursor.GetSiblingIndex().ToString()) + cursor.name);
-            }
-            if (root == null)
-            {
-                return c.gameObject.scene.name + path;
-            }
-            return root.name + "@" + Mathf.RoundToInt(WorldSpace.ToShared(root.position).y) + path;
+            M_Level level = c.GetComponentInParent<M_Level>(true);
+            Vector3 p = WorldSpace.ToShared(c.transform.position);
+            string at = Mathf.RoundToInt(p.x * 10f) + "," + Mathf.RoundToInt(p.y * 10f) + "," + Mathf.RoundToInt(p.z * 10f);
+            return (level != null ? level.name : c.gameObject.scene.name) + "/" + c.name + "@" + at;
         }
 
         private static int IndexOf(UT_ChamberLoader loader, M_Chamber chamber)
@@ -322,6 +339,19 @@ namespace Belay.World
             }
             M_Chamber spawned = Object.Instantiate(__instance.chambers[index], __instance.transform.position, Quaternion.identity, null);
             spawned.SetParentLoader(__instance);
+            try
+            {
+                // The game seeds each room's contents from its loader's random numbers; keep that going.
+                object rng = Traverse.Create(__instance).Field("rng").GetValue();
+                if (rng != null)
+                {
+                    Traverse.Create(spawned).Field("seedSalt").SetValue(Traverse.Create(rng).Method("Next").GetValue<int>());
+                }
+            }
+            catch (System.Exception e)
+            {
+                Plugin.Log.LogWarning("Couldn't seed the room: " + e.Message);
+            }
             spawned.gameObject.SetActive(false);
             WorldLoader.instance?.GetHandholdManager()?.LoadHandholds(spawned.gameObject);
             Traverse.Create(__instance).Field("spawnedChamber").SetValue(spawned);
