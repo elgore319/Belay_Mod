@@ -88,6 +88,7 @@ namespace Belay.World
                 HostRequest(origin, ids, atTerminal);
             });
             net.On(PacketType.ShortcutVote, (origin, r) => HostCount(origin, r.ReadString(), r.ReadBoolean()));
+            net.OnPeerHello += CatchUp;
             net.On(PacketType.ShortcutVoteState, (origin, r) =>
             {
                 if (origin != NetSession.Instance.HostId) return;
@@ -225,7 +226,8 @@ namespace Belay.World
                 {
                     return ENT_Player.playerObject == null || !ENT_Player.playerObject.dead;
                 }
-                return !PlayerSync.Instance.Remotes.TryGetValue(id, out RemotePlayer remote) || remote == null || !remote.Latest.Dead;
+                // A teammate who left, or stopped sending (quit or crashed), no longer holds the vote up.
+                return PlayerSync.Instance.Remotes.TryGetValue(id, out RemotePlayer remote) && remote != null && remote.Present && !remote.Latest.Dead;
             }).ToList();
             return living.Count > 0 ? living : all;
         }
@@ -383,8 +385,33 @@ namespace Belay.World
             return $"{who} is at a terminal. {which}: which way does the team go?";
         }
 
+        /// <summary>Host: every shortcut decided this run, in order, for teammates who join later.</summary>
+        private readonly List<(string id, Outcome outcome, string starter)> decided = new List<(string, Outcome, string)>();
+
+        /// <summary>Host: someone joined (or rejoined) mid-run with a fresh map; tell them which shortcuts the team took.</summary>
+        private void CatchUp(SteamId peer)
+        {
+            foreach (var (id, outcome, starter) in decided)
+            {
+                NetSession.Instance.SendTo(peer, PacketType.ShortcutResult, w =>
+                {
+                    w.Write(id);
+                    w.Write((byte)outcome);
+                    w.Write(starter);
+                });
+            }
+            if (decided.Count > 0)
+            {
+                Plugin.Log.LogInfo($"Sent {decided.Count} shortcut decision(s) to a teammate who joined");
+            }
+        }
+
         private void HostSend(string id, Outcome outcome, string starter)
         {
+            if (outcome != Outcome.NoVotes)
+            {
+                decided.Add((id, outcome, starter));
+            }
             NetSession.Instance.Send(PacketType.ShortcutResult, w =>
             {
                 w.Write(id);
@@ -970,6 +997,7 @@ namespace Belay.World
                 runId = net.CurrentRun.RunId;
                 Opened.Clear();
                 BuiltHere.Clear();
+                decided.Clear();
                 exclusiveTaken.Clear();
                 Refused.Clear();
                 deferred.Clear();

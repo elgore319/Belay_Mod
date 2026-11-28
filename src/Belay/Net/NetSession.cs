@@ -22,7 +22,7 @@ namespace Belay.Net
     public class NetSession : MonoBehaviour
     {
         public const int MaxPlayers = 8;
-        public const string ProtocolVersion = "belay-41";
+        public const string ProtocolVersion = "belay-42";
 
         // Lobby data keys
         public const string KeyTag = "belay";
@@ -65,6 +65,8 @@ namespace Belay.Net
 
         public event Action<SteamId, PlayerState> OnPlayerState;
         public event Action<SteamId> OnPlayerLeft;
+        /// <summary>Host: a member said hello (just joined or rejoined), so it can be caught up on the run.</summary>
+        public event Action<SteamId> OnPeerHello;
         public event Action OnLobbyChanged;
 
         private readonly MemoryStream sendBuffer = new MemoryStream(256);
@@ -578,6 +580,9 @@ namespace Belay.Net
             }
         }
 
+        /// <summary>A reliable packet to one member only.</summary>
+        public void SendTo(SteamId to, PacketType type, Action<BinaryWriter> payload) => SendReliable(type, to, payload);
+
         private void SendReliable(PacketType type, SteamId to, Action<BinaryWriter> payload)
         {
             byte[] packet = Build(type, LocalId, payload);
@@ -695,6 +700,11 @@ namespace Belay.Net
                     case PacketType.Hello:
                         string version = reader.ReadString();
                         Plugin.Log.LogInfo($"Hello from {origin} ({version})");
+                        if (IsHost && origin != LocalId)
+                        {
+                            try { OnPeerHello?.Invoke(origin); }
+                            catch (Exception e) { Plugin.Log.LogWarning("Catching up a teammate failed: " + e.Message); }
+                        }
                         break;
                     case PacketType.PlayerState:
                         if (origin != LocalId)
