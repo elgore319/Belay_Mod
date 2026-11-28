@@ -872,6 +872,7 @@ namespace Belay.Revive
             player.Revive();
             player.GetTagger()?.RemoveTag("Dead");
             World.TeethSync.CleanUpAfterRevive(player);
+            ReviveScreenCleanup.Run(player);
             if (!inRoom)
             {
                 EnsureLevelAt(spot);

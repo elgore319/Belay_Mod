@@ -781,7 +781,11 @@ namespace Belay.World
         /// <summary>A puppet only changes state when the host's does.</summary>
         [HarmonyPatch(typeof(AIGameEntity), nameof(AIGameEntity.ChangeState))]
         [HarmonyPrefix]
-        private static bool ChangeState(AIGameEntity __instance) => CreatureSync.ApplyingState || !CreatureSync.IsPuppet(__instance);
+        private static bool ChangeState(AIGameEntity __instance) => CreatureSync.ApplyingState || !CreatureSync.IsPuppet(__instance)
+            || CurrentStateOf(__instance) == null; // its first state: without one its Update throws every frame
+
+        private static readonly AccessTools.FieldRef<AIGameEntity, DarkMachine.AI.AIStateComponent> CurrentStateOf =
+            AccessTools.FieldRefAccess<AIGameEntity, DarkMachine.AI.AIStateComponent>("currentState");
 
         private static readonly AccessTools.FieldRef<DEN_Face, float> HeadDistance = AccessTools.FieldRefAccess<DEN_Face, float>("headDistance");
         private static readonly AccessTools.FieldRef<DEN_Face, GameEntity> TargetEntity = AccessTools.FieldRefAccess<DEN_Face, GameEntity>("targetEntity");

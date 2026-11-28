@@ -191,7 +191,7 @@ namespace Belay.World
         private static M_Level.LevelAssetHolder FromSubregion(M_Subregion sub, string id)
         {
             if (sub == null) return null;
-            M_Level.LevelAssetHolder h = Match(sub.startLevelReferences, id) ?? Match(sub.endLevelReferences, id) ?? Match(sub.levelReferences, id);
+            M_Level.LevelAssetHolder h = Match(sub.startLevelReferences, id) ?? Match(sub.endLevelReferences, id); // the game moved a subregion's levels into its level groups
             if (h != null || sub.levelGroups == null) return h;
             foreach (M_Subregion.LevelGroup g in sub.levelGroups)
             {
