@@ -1,8 +1,6 @@
-## Not Alone 0.8.43
+## Not Alone 0.8.44
 
-Works with the White Knuckle patch from November 27. Everyone in a lobby needs 0.8.43 (the network protocol changed).
+Everyone in a lobby needs 0.8.44 (the network protocol changed).
 
-- **Areas load again.** The November 27 game patch moved where each area keeps its list of levels, which broke the shared level picks. They read the new place now.
-- **Shortcuts come back after a restart.** If you restart while the team has taken a shortcut, your game builds that shortcut's path again when you reach it or get revived there, instead of leaving you an empty void.
-- **No black screen after a revive.** Being revived after the Face or the vent creature got you no longer leaves the screen dark.
-- **The Face no longer throws errors on teammates' PCs.** A Face copied from the host now starts in its first state, instead of erroring every frame.
+- **The Core's mass waits for the team.** The Core's mass is a set of moving walls. A wall in an interlude or break room, like the one at the start of the Core, now holds still until every living player is inside that room.
+- **One mass for everyone in the Core.** Each PC used to run its own walls, start them when its own player arrived, and speed them up by how far ahead that player was, so they were in different places for everyone. The host's walls now stream to the other players, whose walls start with the host's and follow them.
