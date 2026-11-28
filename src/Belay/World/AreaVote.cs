@@ -113,7 +113,8 @@ namespace Belay.World
                 {
                     return ENT_Player.playerObject == null || !ENT_Player.playerObject.dead;
                 }
-                return !PlayerSync.Instance.Remotes.TryGetValue(id, out RemotePlayer remote) || remote == null || !remote.Latest.Dead;
+                // A teammate who left, or stopped sending (quit or crashed), no longer holds the vote up.
+                return PlayerSync.Instance.Remotes.TryGetValue(id, out RemotePlayer remote) && remote != null && remote.Present && !remote.Latest.Dead;
             }).ToList();
             return living.Count > 0 ? living : all;
         }

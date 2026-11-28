@@ -40,6 +40,7 @@ namespace Belay.World
         private void Start()
         {
             NetSession.Instance.On(PacketType.LevelList, HandleList);
+            NetSession.Instance.OnPeerHello += CatchUp;
         }
 
         private void Update()
@@ -50,6 +51,41 @@ namespace Belay.World
                 runId = net.CurrentRun.RunId;
                 picks.Clear();
             }
+        }
+
+        /// <summary>
+        /// Host: someone joined (or rejoined) mid-run with a fresh map. Send them every stretch picked so far, so
+        /// they build the same levels as the team instead of picking their own.
+        /// </summary>
+        private void CatchUp(SteamId peer)
+        {
+            if (picks.Count == 0)
+            {
+                return;
+            }
+            foreach (KeyValuePair<string, List<Entry>> pair in picks)
+            {
+                SendList(peer, pair.Key, pair.Value);
+            }
+            Plugin.Log.LogInfo($"Sent {picks.Count} level pick(s) to a teammate who joined");
+        }
+
+        private static void SendList(SteamId? to, string key, List<Entry> mine)
+        {
+            System.Action<BinaryWriter> payload = w =>
+            {
+                w.Write(key);
+                w.Write(mine.Count);
+                foreach (Entry e in mine)
+                {
+                    w.Write(e.Level);
+                    w.Write(e.Region);
+                    w.Write(e.Subregion);
+                    w.Write(e.Pausing);
+                }
+            };
+            if (to.HasValue) NetSession.Instance.SendTo(to.Value, PacketType.LevelList, payload);
+            else NetSession.Instance.Send(PacketType.LevelList, payload);
         }
 
         internal static bool Active
@@ -117,18 +153,7 @@ namespace Belay.World
                 });
             }
             picks[key] = mine;
-            NetSession.Instance.Send(PacketType.LevelList, w =>
-            {
-                w.Write(key);
-                w.Write(mine.Count);
-                foreach (Entry e in mine)
-                {
-                    w.Write(e.Level);
-                    w.Write(e.Region);
-                    w.Write(e.Subregion);
-                    w.Write(e.Pausing);
-                }
-            });
+            SendList(null, key, mine);
         }
 
         private static bool Same(List<Entry> team, List<M_Level.LevelAssetHolder> list)

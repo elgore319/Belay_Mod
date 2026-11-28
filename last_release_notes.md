@@ -1,6 +1,6 @@
-## Not Alone 0.8.44
+## Not Alone 0.8.45
 
-Everyone in a lobby needs 0.8.44 (the network protocol changed).
+Everyone in a lobby needs 0.8.45 (the network protocol changed).
 
-- **The Core's mass waits for the team.** The Core's mass is a set of moving walls. A wall in an interlude or break room, like the one at the start of the Core, now holds still until every living player is inside that room.
-- **One mass for everyone in the Core.** Each PC used to run its own walls, start them when its own player arrived, and speed them up by how far ahead that player was, so they were in different places for everyone. The host's walls now stream to the other players, whose walls start with the host's and follow them.
+- **Joining or rejoining mid-run builds the team's map.** The host now sends a player who joins every level pick and shortcut decision so far, so their map matches the team's and the area everyone is in builds for them. Revives no longer drop them into the void.
+- **Players who leave no longer hold votes up.** The move-on vote in interludes and the shortcut vote stop waiting for a teammate who left the game or stopped responding.
