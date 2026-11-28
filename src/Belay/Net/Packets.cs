@@ -84,6 +84,7 @@ namespace Belay.Net
         RunFlagSet = 162,
         MotherEnraged = 163,
         MapState = 132,
+        DeathwallState = 173,
         // 118 was TeamPause (removed); keep the number unused.
     }
 
